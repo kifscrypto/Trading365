@@ -1,0 +1,35 @@
+# Trading365 - Crypto Exchange Reviews & Comparisons
+> Trading365 is an independent crypto exchange review and comparison site. We help traders find the best exchanges, exclusive sign-up bonuses, no-KYC platforms, and deals.
+
+## Site Sections
+- [Home](https://trading365.org)
+- [Exchange Reviews](https://trading365.org/reviews)
+- [Comparisons](https://trading365.org/comparisons)
+- [Compare Tool](https://trading365.org/compare)
+- [No-KYC Exchanges](https://trading365.org/no-kyc)
+- [Bonuses & Deals](https://trading365.org/bonuses)
+- [Newsletter](https://trading365.org/join-our-newsletter)
+- [About](https://trading365.org/about)
+
+## Reviewed Exchanges
+- WEEX — Rating: 8.8/10 — Up to $30,050 USDT bonus — 400x leverage — No KYC
+- BYDFi — Rating: 8.5/10 — Up to $8,888 USDT bonus — 200x leverage — No KYC
+- Bitunix — Rating: 8.3/10 — Up to $10,000 USDT bonus — 125x leverage — No KYC
+- BloFin — Rating: 8.2/10 — Up to $5,000 USDT bonus — 150x leverage — No KYC
+- Toobit — Rating: 8.0/10 — Up to $5,000 USDT bonus — 100x leverage — No KYC
+- CoinEx — Rating: 8.1/10 — Varies — 100x leverage — No KYC
+- KCEX — Rating: 7.8/10 — No KYC exchange
+- XT.com — Rating: 7.9/10 — 200x leverage
+- BingX — Rating: 8.4/10 — Up to $5,000 USDT bonus — 150x leverage
+
+## Recent Articles
+- [Gold Is on Fire -- And Here's the Best Way to Trade It](https://trading365.org/reviews/gold-trading-weex-2026)
+- [WEEX Exchange Review 2026](https://trading365.org/reviews/weex-review)
+- [BYDFi Exchange Review 2026](https://trading365.org/reviews/bydfi-review)
+- [Bitunix Exchange Review 2026](https://trading365.org/reviews/bitunix-review)
+- [BloFin Exchange Review 2026](https://trading365.org/reviews/blofin-review)
+- [Best No-KYC Crypto Exchanges 2026](https://trading365.org/no-kyc/best-no-kyc-exchanges)
+- [Best Crypto Exchange Bonuses 2026](https://trading365.org/bonuses/best-crypto-exchange-bonuses)
+- [WEEX vs BYDFi](https://trading365.org/comparisons/weex-vs-bydfi)
+- [WEEX vs BloFin](https://trading365.org/comparisons/weex-vs-blofin)
+- [Bybit vs BingX](https://trading365.org/comparisons/bybit-vs-bingx)

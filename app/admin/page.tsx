@@ -1,0 +1,494 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { categories } from '@/lib/data/categories'
+import TipTapEditor from '@/components/admin/tiptap-editor'
+
+export default function AdminPage() {
+  const router = useRouter()
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [articles, setArticles] = useState([])
+  const [showArticles, setShowArticles] = useState(false)
+  const [editingArticle, setEditingArticle] = useState(null)
+  const [imageUploading, setImageUploading] = useState(false)
+  const [thumbnailPreview, setThumbnailPreview] = useState('')
+  const [formError, setFormError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [formData, setFormData] = useState({
+    title: '',
+    slug: '',
+    excerpt: '',
+    content: '',
+    category: '',
+    category_slug: '',
+    author: '',
+    rating: '',
+    read_time: '',
+    date: new Date().toISOString().split('T')[0],
+    thumbnail: '',
+    tags: '',
+    meta_title: '',
+    meta_description: '',
+    meta_keywords: '',
+  })
+
+  useEffect(() => {
+    checkAuth()
+  }, [])
+
+  async function checkAuth() {
+    try {
+      const res = await fetch('/api/admin/check-session')
+      if (res.ok) {
+        setIsAuthenticated(true)
+        fetchArticles()
+      }
+    } catch (err) {
+      console.error('Auth check failed')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+
+      if (res.ok) {
+        setIsAuthenticated(true)
+        setPassword('')
+        fetchArticles()
+      } else {
+        setError('Invalid password')
+      }
+    } catch (err) {
+      setError('Login failed')
+    }
+  }
+
+  async function fetchArticles() {
+    try {
+      const res = await fetch('/api/admin/articles', { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setArticles(data)
+        setShowArticles(true)
+      }
+    } catch (err) {
+      console.error('Failed to fetch articles')
+    }
+  }
+
+  async function handleSaveArticle(e: React.FormEvent) {
+    e.preventDefault()
+    setFormError('')
+    if (imageUploading) return
+
+    if (!formData.title.trim()) { setFormError('Title is required'); return }
+    if (!formData.slug.trim()) { setFormError('Slug is required'); return }
+    if (!formData.category_slug) { setFormError('Please select a category'); return }
+    if (!formData.content.trim()) { setFormError('Content is required'); return }
+
+    try {
+      const payload = {
+        ...formData,
+        rating: formData.rating ? parseFloat(formData.rating) : null,
+        tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
+        meta_title: formData.meta_title || null,
+        meta_description: formData.meta_description || null,
+        meta_keywords: formData.meta_keywords || null,
+        thumbnail: formData.thumbnail || null,
+      }
+
+      const url = editingArticle
+        ? `/api/admin/articles/${editingArticle.id}`
+        : '/api/admin/articles'
+      const method = editingArticle ? 'PUT' : 'POST'
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) {
+        setFormData({
+          title: '', slug: '', excerpt: '', content: '',
+          category: '', category_slug: '', author: '', rating: '', read_time: '',
+          date: new Date().toISOString().split('T')[0], thumbnail: '',
+          tags: '', meta_title: '', meta_description: '', meta_keywords: '',
+        })
+        setThumbnailPreview('')
+        setEditingArticle(null)
+        fetchArticles()
+      } else {
+        const json = await res.json().catch(() => ({}))
+        alert(`Failed to save article: ${json.error ?? res.statusText}`)
+      }
+    } catch (err: any) {
+      alert(`Failed to save article: ${err.message ?? 'Unknown error'}`)
+    }
+  }
+
+  async function handleDeleteArticle(id: number) {
+    if (!confirm('Delete this article?')) return
+
+    try {
+      const res = await fetch(`/api/admin/articles/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        fetchArticles()
+      }
+    } catch (err) {
+      console.error('Failed to delete article')
+    }
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (evt) => setThumbnailPreview(evt.target?.result as string)
+    reader.readAsDataURL(file)
+    setImageUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
+      const json = await res.json()
+      if (!res.ok || !json.url) throw new Error(json.error ?? 'Upload failed')
+      setFormData((prev) => ({ ...prev, thumbnail: json.url }))
+    } catch (err: any) {
+      alert(err.message ?? 'Image upload failed')
+      setThumbnailPreview(formData.thumbnail)
+    } finally {
+      setImageUploading(false)
+    }
+  }
+
+  function handleCategoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const selected = categories.find((c) => c.slug === e.target.value)
+    setFormData({ ...formData, category: selected?.title || '', category_slug: selected?.slug || '' })
+  }
+
+  function handleEditArticle(article) {
+    setEditingArticle(article)
+    setThumbnailPreview(article.thumbnail || '')
+    setFormData({
+      title: article.title,
+      slug: article.slug,
+      excerpt: article.excerpt || '',
+      content: article.content,
+      category: article.category,
+      category_slug: article.category_slug || '',
+      author: article.author || '',
+      rating: article.rating?.toString() || '',
+      read_time: article.read_time || '',
+      date: article.date || new Date().toISOString().split('T')[0],
+      thumbnail: article.thumbnail || '',
+      tags: Array.isArray(article.tags) ? article.tags.join(', ') : article.tags || '',
+      meta_title: article.meta_title || '',
+      meta_description: article.meta_description || '',
+      meta_keywords: article.meta_keywords || '',
+    })
+  }
+
+  const inputClass = 'w-full px-3 py-2 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-zinc-500'
+
+  if (isLoading) {
+    return <div className="p-8 bg-zinc-950 min-h-screen text-zinc-400">Loading...</div>
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+        <form
+          onSubmit={handleLogin}
+          className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg p-8 max-w-md w-full"
+        >
+          <h1 className="text-2xl font-bold text-zinc-100 mb-6">Admin Login</h1>
+          {error && (
+            <div className="bg-red-900/30 border border-red-700 text-red-400 px-4 py-3 rounded mb-4 text-sm">
+              {error}
+            </div>
+          )}
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter admin password"
+            className={`${inputClass} mb-4`}
+          />
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium"
+          >
+            Sign In
+          </button>
+        </form>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+      {/* Nav */}
+      <nav className="bg-zinc-900 border-b border-zinc-700 px-6 py-3 flex items-center justify-between flex-shrink-0">
+        <span className="text-lg font-bold text-zinc-100">Trading365 Admin</span>
+        <button
+          onClick={async () => {
+            await fetch('/api/admin/session', { method: 'DELETE' })
+            router.push('/admin/login')
+          }}
+          className="text-sm text-red-400 hover:text-red-300 font-medium"
+        >
+          Logout
+        </button>
+      </nav>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Editor Panel */}
+        <div className="w-1/2 bg-zinc-900 border-r border-zinc-700 p-6 overflow-y-auto">
+          <div className="flex items-center gap-3 mb-6">
+            {editingArticle && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingArticle(null)
+                  setThumbnailPreview('')
+                  setFormData({
+                    title: '', slug: '', excerpt: '', content: '',
+                    category: '', category_slug: '', author: '', rating: '', read_time: '',
+                    date: new Date().toISOString().split('T')[0], thumbnail: '',
+                    tags: '', meta_title: '', meta_description: '', meta_keywords: '',
+                  })
+                }}
+                className="text-zinc-400 hover:text-zinc-100 text-sm flex items-center gap-1"
+              >
+                ← Back
+              </button>
+            )}
+            <h2 className="text-2xl font-bold text-zinc-100">
+              {editingArticle ? 'Edit Article' : 'New Article'}
+            </h2>
+          </div>
+
+          <form onSubmit={handleSaveArticle} noValidate className="space-y-4">
+            {formError && (
+              <div className="bg-red-900/30 border border-red-700 text-red-400 px-4 py-3 rounded-lg text-sm">
+                {formError}
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1">Title *</label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1">Slug *</label>
+              <input
+                type="text"
+                value={formData.slug}
+                onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1">Category *</label>
+              <select
+                value={formData.category_slug}
+                onChange={handleCategoryChange}
+                className={inputClass}
+              >
+                <option value="">Select a category…</option>
+                {categories.map((c) => (
+                  <option key={c.slug} value={c.slug}>{c.title}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1">Author</label>
+              <input
+                type="text"
+                value={formData.author}
+                onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+
+            {/* Featured Image */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1">Featured Image</label>
+              <div className="flex gap-3 items-center">
+                {thumbnailPreview && (
+                  <img src={thumbnailPreview} alt="Preview" className="w-20 h-14 object-cover rounded border border-zinc-700" />
+                )}
+                <div>
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={imageUploading}
+                    className="px-3 py-1.5 border border-zinc-700 text-zinc-300 rounded-lg hover:bg-zinc-800 text-sm disabled:opacity-50"
+                  >
+                    {imageUploading ? 'Uploading…' : thumbnailPreview ? 'Replace' : 'Upload Image'}
+                  </button>
+                  <p className="text-xs text-zinc-500 mt-1">Max 5MB</p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1">Excerpt</label>
+              <textarea
+                value={formData.excerpt}
+                onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
+                rows={2}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1">Content *</label>
+              <TipTapEditor
+                content={formData.content}
+                onChange={(html) => setFormData({ ...formData, content: html })}
+              />
+            </div>
+
+            {/* SEO */}
+            <div className="border-t border-zinc-700 pt-4">
+              <p className="text-sm font-semibold text-zinc-300 mb-3">SEO</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    Meta Title <span className="text-zinc-500 font-normal">({formData.meta_title.length}/60)</span>
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={60}
+                    placeholder="Defaults to article title"
+                    value={formData.meta_title}
+                    onChange={(e) => setFormData({ ...formData, meta_title: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">
+                    Meta Description <span className="text-zinc-500 font-normal">({formData.meta_description.length}/160)</span>
+                  </label>
+                  <textarea
+                    maxLength={160}
+                    rows={2}
+                    placeholder="Defaults to excerpt"
+                    value={formData.meta_description}
+                    onChange={(e) => setFormData({ ...formData, meta_description: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1">Meta Keywords</label>
+                  <input
+                    type="text"
+                    placeholder="keyword1, keyword2, keyword3"
+                    value={formData.meta_keywords}
+                    onChange={(e) => setFormData({ ...formData, meta_keywords: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="submit"
+                disabled={imageUploading}
+                className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium disabled:bg-zinc-700 disabled:text-zinc-400"
+              >
+                {editingArticle ? 'Update' : 'Create'} Article
+              </button>
+              {editingArticle && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingArticle(null)
+                    setThumbnailPreview('')
+                    setFormData({
+                      title: '', slug: '', excerpt: '', content: '',
+                      category: '', category_slug: '', author: '', rating: '', read_time: '',
+                      date: new Date().toISOString().split('T')[0], thumbnail: '',
+                      tags: '', meta_title: '', meta_description: '', meta_keywords: '',
+                    })
+                  }}
+                  className="flex-1 bg-zinc-700 text-zinc-200 py-2 rounded-lg hover:bg-zinc-600 font-medium"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Articles List Panel */}
+        <div className="w-1/2 bg-zinc-950 p-6 overflow-y-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-zinc-100">Articles ({articles.length})</h2>
+            <button
+              onClick={async () => {
+                const res = await fetch('/api/admin/run-migration', { method: 'POST' })
+                const json = await res.json()
+                alert(json.success ? 'Migration done!' : `Error: ${json.error}`)
+              }}
+              className="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-600 text-sm"
+            >
+              Run Migration
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {articles.map((article) => (
+              <div
+                key={article.id}
+                className="bg-zinc-900 p-4 rounded-lg border border-zinc-700 hover:border-zinc-500 transition"
+              >
+                <h3 className="font-semibold text-zinc-100">{article.title}</h3>
+                <p className="text-sm text-zinc-400 mt-1">{article.category}</p>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => handleEditArticle(article)}
+                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteArticle(article.id)}
+                    className="px-3 py-1 bg-red-700 text-white rounded text-sm hover:bg-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
