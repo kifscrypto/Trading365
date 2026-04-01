@@ -91,11 +91,14 @@ function renderTable(tableText: string) {
 }
 
 function addHeadingIds(html: string): string {
-  return html.replace(/<h([23])([^>]*)>([\s\S]*?)<\/h\1>/gi, (_, level, attrs, inner) => {
-    const plain = inner.replace(/<[^>]+>/g, '').trim()
-    const id = slugifyHeading(plain)
-    return `<h${level} id="${id}"${attrs}>${inner}</h${level}>`
-  })
+  return html
+    .replace(/<h([23])([^>]*)>([\s\S]*?)<\/h\1>/gi, (_, level, attrs, inner) => {
+      const plain = inner.replace(/<[^>]+>/g, '').trim()
+      const id = slugifyHeading(plain)
+      return `<h${level} id="${id}"${attrs}>${inner}</h${level}>`
+    })
+    .replace(/<table/gi, '<div class="table-scroll"><table')
+    .replace(/<\/table>/gi, '</table></div>')
 }
 
 export function ArticleContent({ content }: { content: string }) {
