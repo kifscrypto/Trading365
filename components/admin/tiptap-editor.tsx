@@ -6,11 +6,16 @@ import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import TextAlign from '@tiptap/extension-text-align'
 import Placeholder from '@tiptap/extension-placeholder'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 interface TipTapEditorProps {
   content: string
   onChange: (html: string) => void
+}
+
+/** Returns true if the string looks like HTML (TipTap output) rather than Markdown */
+function isHtmlContent(content: string): boolean {
+  return /<[a-zA-Z]/.test(content)
 }
 
 function ToolbarButton({
@@ -43,7 +48,15 @@ function ToolbarButton({
   )
 }
 
-export default function TipTapEditor({ content, onChange }: TipTapEditorProps) {
+function VisualEditor({
+  content,
+  onChange,
+  onSwitchToMarkdown,
+}: {
+  content: string
+  onChange: (html: string) => void
+  onSwitchToMarkdown: () => void
+}) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -141,10 +154,58 @@ export default function TipTapEditor({ content, onChange }: TipTapEditorProps) {
         <ToolbarButton onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo">
           ↪
         </ToolbarButton>
+
+        <span className="flex-1" />
+
+        <button
+          type="button"
+          onClick={onSwitchToMarkdown}
+          className="px-2 py-1 rounded text-xs font-medium text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100 transition-colors ml-1"
+          title="Switch to Markdown mode"
+        >
+          MD
+        </button>
       </div>
 
       {/* Editor body */}
       <EditorContent editor={editor} />
     </div>
+  )
+}
+
+export default function TipTapEditor({ content, onChange }: TipTapEditorProps) {
+  const [mode, setMode] = useState<'visual' | 'markdown'>(() =>
+    isHtmlContent(content) ? 'visual' : 'markdown'
+  )
+
+  if (mode === 'markdown') {
+    return (
+      <div className="border border-zinc-700 rounded-lg overflow-hidden bg-zinc-800">
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-700 bg-zinc-900">
+          <span className="text-xs text-zinc-400 font-medium">Markdown — paste directly from Claude</span>
+          <button
+            type="button"
+            onClick={() => setMode('visual')}
+            className="px-2 py-1 rounded text-xs font-medium text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+          >
+            Switch to Visual Editor
+          </button>
+        </div>
+        <textarea
+          value={content}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Paste your Markdown here — tables, headings, lists and all..."
+          className="w-full min-h-[400px] px-4 py-3 bg-zinc-800 text-zinc-100 text-sm leading-relaxed focus:outline-none resize-y font-mono"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <VisualEditor
+      content={content}
+      onChange={onChange}
+      onSwitchToMarkdown={() => setMode('markdown')}
+    />
   )
 }
