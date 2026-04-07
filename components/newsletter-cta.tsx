@@ -1,18 +1,41 @@
 "use client"
 
-import { Mail } from "lucide-react"
-import { useEffect } from "react"
+import { Mail, CheckCircle, Loader2 } from "lucide-react"
+import { useState } from "react"
 
 export function NewsletterCta() {
-  useEffect(() => {
-    const script = document.createElement("script")
-    script.src = "https://subscribe-forms.beehiiv.com/embed.js"
-    script.async = true
-    document.head.appendChild(script)
-    return () => {
-      document.head.removeChild(script)
+  const [email, setEmail] = useState("")
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [errorMsg, setErrorMsg] = useState("")
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email) return
+
+    setStatus("loading")
+    setErrorMsg("")
+
+    try {
+      const res = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setErrorMsg(data.error || "Something went wrong — please try again.")
+        setStatus("error")
+        return
+      }
+
+      setStatus("success")
+      setEmail("")
+    } catch {
+      setErrorMsg("Something went wrong — please try again.")
+      setStatus("error")
     }
-  }, [])
+  }
 
   return (
     <section id="newsletter" className="mx-auto max-w-7xl px-4 py-16 lg:px-6">
@@ -27,23 +50,46 @@ export function NewsletterCta() {
             Stay Ahead of the Market
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            Get exclusive exchange deals, in-depth reviews, and market insights delivered to your inbox weekly. No spam, unsubscribe anytime.
+            Get exclusive exchange deals, in-depth reviews, and market insights delivered to your inbox. No spam, unsubscribe anytime.
           </p>
-          {/* Beehiiv embed -- clipped container hides white iframe borders */}
-          <div className="relative mt-6 overflow-hidden rounded-xl" style={{ height: "220px" }}>
-            <iframe
-              src="https://subscribe-forms.beehiiv.com/6ce90570-571d-47f5-8d56-435c5b554d18"
-              data-test-id="beehiiv-embed"
-              frameBorder={0}
-              scrolling="no"
-              className="absolute left-1/2 w-full max-w-lg -translate-x-1/2"
-              style={{
-                height: "339px",
-                top: "-60px",
-                background: "transparent",
-              }}
-            />
-          </div>
+
+          {status === "success" ? (
+            <div className="mt-6 flex flex-col items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
+                <CheckCircle className="h-6 w-6 text-green-500" />
+              </div>
+              <p className="text-sm font-medium text-foreground">You&apos;re in! Check your inbox to confirm.</p>
+              <p className="text-xs text-muted-foreground">Welcome to the Trading365 newsletter.</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                required
+                disabled={status === "loading"}
+                className="h-11 flex-1 max-w-xs rounded-lg border border-border bg-background px-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
+              />
+              <button
+                type="submit"
+                disabled={status === "loading" || !email}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-6 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 transition-colors"
+              >
+                {status === "loading" ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Subscribing...</>
+                ) : (
+                  "Subscribe Free"
+                )}
+              </button>
+            </form>
+          )}
+
+          {status === "error" && (
+            <p className="mt-3 text-xs text-red-400">{errorMsg}</p>
+          )}
+
           <p className="mt-3 text-xs text-muted-foreground">
             Join thousands of traders. Free forever.
           </p>
