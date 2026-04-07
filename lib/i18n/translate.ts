@@ -2,7 +2,12 @@ import Anthropic from "@anthropic-ai/sdk"
 import type { LocaleCode } from "./config"
 import { LOCALE_FULL_NAMES } from "./config"
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+function getClient() {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY environment variable is not set")
+  }
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+}
 
 // Terms that must NEVER be translated
 const PRESERVE_TERMS = [
@@ -35,7 +40,7 @@ CRITICAL RULES:
 7. Do not add any commentary — return ONLY the translated text
 8. For ${context === "content" ? "article body" : context} translation, maintain the same structure and tone`
 
-  const message = await client.messages.create({
+  const message = await getClient().messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 8192,
     system: systemPrompt,

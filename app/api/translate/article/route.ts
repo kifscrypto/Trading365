@@ -57,43 +57,49 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ slug, results })
 }
 
-// POST /api/translate/article with all:true — translate ALL articles
+// PUT /api/translate/article — translate ALL articles into all locales
 export async function PUT() {
-  const articles = await getAllArticles()
-  const results: Record<string, Record<string, string>> = {}
+  try {
+    const articles = await getAllArticles()
+    const results: Record<string, Record<string, string>> = {}
 
-  for (const article of articles) {
-    results[article.slug] = {}
-    for (const locale of LOCALE_CODES as LocaleCode[]) {
-      try {
-        const translated = await translateArticle(
-          {
-            title: article.title,
-            excerpt: article.excerpt,
-            content: article.content,
-            metaTitle: article.meta_title ?? undefined,
-            metaDescription: article.meta_description ?? undefined,
-          },
-          locale
-        )
+    for (const article of articles) {
+      results[article.slug] = {}
+      for (const locale of LOCALE_CODES as LocaleCode[]) {
+        try {
+          const translated = await translateArticle(
+            {
+              title: article.title,
+              excerpt: article.excerpt,
+              content: article.content,
+              metaTitle: article.meta_title ?? undefined,
+              metaDescription: article.meta_description ?? undefined,
+            },
+            locale
+          )
 
-        await upsertTranslation({
-          article_slug: article.slug,
-          locale,
-          title: translated.title,
-          excerpt: translated.excerpt,
-          content: translated.content,
-          meta_title: translated.metaTitle,
-          meta_description: translated.metaDescription,
-        })
+          await upsertTranslation({
+            article_slug: article.slug,
+            locale,
+            title: translated.title,
+            excerpt: translated.excerpt,
+            content: translated.content,
+            meta_title: translated.metaTitle,
+            meta_description: translated.metaDescription,
+          })
 
-        results[article.slug][locale] = "success"
-        console.log(`[i18n] Translated ${article.slug} → ${locale}`)
-      } catch (err) {
-        results[article.slug][locale] = `error: ${String(err)}`
+          results[article.slug][locale] = "success"
+          console.log(`[i18n] Translated ${article.slug} → ${locale}`)
+        } catch (err) {
+          results[article.slug][locale] = `error: ${String(err)}`
+          console.error(`[i18n] Failed ${article.slug} → ${locale}:`, err)
+        }
       }
     }
-  }
 
-  return NextResponse.json({ translated: Object.keys(results).length, results })
+    return NextResponse.json({ translated: Object.keys(results).length, results })
+  } catch (err) {
+    console.error("[i18n] PUT handler error:", err)
+    return NextResponse.json({ error: String(err) }, { status: 500 })
+  }
 }
