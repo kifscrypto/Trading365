@@ -7,6 +7,7 @@ export interface Exchange {
   kyc: boolean
   kycNote?: string
   bonus: string
+  bonusAmount: number  // numeric value for sorting (USD)
   bonusDetails: string
   referralLink: string
   founded: string
@@ -23,6 +24,16 @@ export interface Exchange {
   category: string
   copyTrading?: boolean
   vipProgram?: boolean
+  debitCard: boolean
+  fiatDeposit: boolean
+  depositMethods: string[]
+  countries: {
+    US: boolean
+    UK: boolean
+    AU: boolean
+    CA: boolean
+    EU: boolean
+  }
 }
 
 export interface Article {
