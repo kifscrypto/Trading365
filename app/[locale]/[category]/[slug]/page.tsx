@@ -11,30 +11,31 @@ const BASE_URL = "https://www.trading365.org"
 export async function generateMetadata({
   params,
 }: {
-  params: { locale: string; category: string; slug: string }
+  params: Promise<{ locale: string; category: string; slug: string }>
 }): Promise<Metadata> {
-  if (!isValidLocale(params.locale)) return {}
+  const { locale, category, slug } = await params
+  if (!isValidLocale(locale)) return {}
 
   const { getTranslation } = await import("@/lib/db")
-  const translation = await getTranslation(params.slug, params.locale).catch(() => null)
-  const loc = getLocale(params.locale)!
+  const translation = await getTranslation(slug, locale).catch(() => null)
+  const loc = getLocale(locale)!
 
-  const title = translation?.meta_title || translation?.title || params.slug
+  const title = translation?.meta_title || translation?.title || slug
   const description = translation?.meta_description || translation?.excerpt || ""
 
   const hreflangAlternates: Record<string, string> = {
-    "x-default": `${BASE_URL}/${params.category}/${params.slug}`,
-    "en": `${BASE_URL}/${params.category}/${params.slug}`,
+    "x-default": `${BASE_URL}/${category}/${slug}`,
+    "en": `${BASE_URL}/${category}/${slug}`,
   }
   LOCALE_CODES.forEach((lc) => {
-    hreflangAlternates[lc] = `${BASE_URL}/${lc}/${params.category}/${params.slug}`
+    hreflangAlternates[lc] = `${BASE_URL}/${lc}/${category}/${slug}`
   })
 
   return {
     title: `${title} | Trading365 ${loc.name}`,
     description,
     alternates: {
-      canonical: `${BASE_URL}/${params.locale}/${params.category}/${params.slug}`,
+      canonical: `${BASE_URL}/${locale}/${category}/${slug}`,
       languages: hreflangAlternates,
     },
   }
@@ -43,16 +44,17 @@ export async function generateMetadata({
 export default async function LocaleArticlePage({
   params,
 }: {
-  params: { locale: string; category: string; slug: string }
+  params: Promise<{ locale: string; category: string; slug: string }>
 }) {
-  if (!isValidLocale(params.locale)) notFound()
+  const { locale, category, slug } = await params
+  if (!isValidLocale(locale)) notFound()
 
-  const loc = getLocale(params.locale)!
+  const loc = getLocale(locale)!
 
   const { getTranslation, getArticleBySlug } = await import("@/lib/db")
   const [translation, originalArticle] = await Promise.all([
-    getTranslation(params.slug, params.locale).catch(() => null),
-    getArticleBySlug(params.slug).catch(() => null),
+    getTranslation(slug, locale).catch(() => null),
+    getArticleBySlug(slug).catch(() => null),
   ])
 
   if (!translation) {
@@ -68,13 +70,13 @@ export default async function LocaleArticlePage({
           </p>
           <div className="flex gap-4 justify-center">
             <Link
-              href={`/${params.category}/${params.slug}`}
+              href={`/${category}/${slug}`}
               className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
             >
               Read in English
             </Link>
             <Link
-              href={`/${params.locale}`}
+              href={`/${locale}`}
               className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground hover:bg-secondary"
             >
               {loc.name} homepage
@@ -85,7 +87,7 @@ export default async function LocaleArticlePage({
     )
   }
 
-  const exchange = getExchangeBySlug(params.slug.replace("-review", ""))
+  const exchange = getExchangeBySlug(slug.replace("-review", ""))
 
   return (
     <main className="min-h-screen">
@@ -95,7 +97,7 @@ export default async function LocaleArticlePage({
             <span>{loc.flag}</span>
             <span>Reading in {loc.fullName}</span>
           </div>
-          <Link href={`/${params.category}/${params.slug}`} className="text-xs text-primary hover:underline">
+          <Link href={`/${category}/${slug}`} className="text-xs text-primary hover:underline">
             Read in English →
           </Link>
         </div>
@@ -103,7 +105,7 @@ export default async function LocaleArticlePage({
 
       <article className="mx-auto max-w-4xl px-4 py-10">
         <Link
-          href={`/${params.locale}`}
+          href={`/${locale}`}
           className="mb-6 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-3 w-3" /> {loc.name} home
@@ -111,7 +113,7 @@ export default async function LocaleArticlePage({
 
         <header className="mb-8">
           <p className="text-xs text-muted-foreground mb-2 capitalize">
-            {params.category.replace("-", " ")}
+            {category.replace("-", " ")}
           </p>
           <h1 className="text-3xl font-bold text-foreground text-balance mb-4">
             {translation.title}
@@ -156,17 +158,17 @@ export default async function LocaleArticlePage({
           <p className="text-xs text-muted-foreground mb-3">Available in other languages:</p>
           <div className="flex flex-wrap gap-2">
             <Link
-              href={`/${params.category}/${params.slug}`}
+              href={`/${category}/${slug}`}
               className="text-xs rounded-full border border-border px-3 py-1 text-muted-foreground hover:border-primary hover:text-primary"
             >
               🇬🇧 English
             </Link>
-            {LOCALE_CODES.filter((lc) => lc !== params.locale).map((lc) => {
+            {LOCALE_CODES.filter((lc) => lc !== locale).map((lc) => {
               const l = getLocale(lc)!
               return (
                 <Link
                   key={lc}
-                  href={`/${lc}/${params.category}/${params.slug}`}
+                  href={`/${lc}/${category}/${slug}`}
                   className="text-xs rounded-full border border-border px-3 py-1 text-muted-foreground hover:border-primary hover:text-primary"
                 >
                   {l.flag} {l.name}

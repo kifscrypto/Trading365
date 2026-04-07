@@ -7,25 +7,27 @@ export async function generateStaticParams() {
   return LOCALE_CODES.map((locale) => ({ locale }))
 }
 
-export async function generateMetadata({ params }: { params: { locale: string } }): Promise<Metadata> {
-  const loc = getLocale(params.locale)
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params
+  const loc = getLocale(locale)
   if (!loc) return {}
   return {
     title: `Trading365 — ${loc.name}`,
     description: `Crypto exchange reviews and comparisons in ${loc.fullName}.`,
-    alternates: { canonical: `https://www.trading365.org/${params.locale}` },
+    alternates: { canonical: `https://www.trading365.org/${locale}` },
   }
 }
 
-export default async function LocalePage({ params }: { params: { locale: string } }) {
-  if (!isValidLocale(params.locale)) notFound()
+export default async function LocalePage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params
+  if (!isValidLocale(locale)) notFound()
 
-  const loc = getLocale(params.locale)!
+  const loc = getLocale(locale)!
   let translations: { article_slug: string; title: string; excerpt: string; category_slug?: string }[] = []
 
   try {
     const { getAllTranslationsForLocale } = await import("@/lib/db")
-    translations = await getAllTranslationsForLocale(params.locale)
+    translations = await getAllTranslationsForLocale(locale)
   } catch {
     // DB unavailable or table not yet created
   }
@@ -64,7 +66,7 @@ export default async function LocalePage({ params }: { params: { locale: string 
             {translations.map((t) => (
               <Link
                 key={t.article_slug}
-                href={`/${params.locale}/${t.category_slug}/${t.article_slug}`}
+                href={`/${locale}/${t.category_slug}/${t.article_slug}`}
                 className="rounded-xl border border-border bg-card p-5 hover:border-primary/40 transition-colors"
               >
                 <p className="text-xs text-muted-foreground mb-2 capitalize">
