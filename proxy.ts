@@ -14,7 +14,7 @@ export function proxy(req: NextRequest) {
     // Rewrite /es/... → /_locale/es/... (internal, URL stays the same for user)
     const rest = segments.slice(1).join("/")
     const rewriteUrl = req.nextUrl.clone()
-    rewriteUrl.pathname = `/_locale/${first}${rest ? `/${rest}` : ""}`
+    rewriteUrl.pathname = `/i18n/${first}${rest ? `/${rest}` : ""}`
     return NextResponse.rewrite(rewriteUrl)
   }
 
