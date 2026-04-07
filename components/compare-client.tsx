@@ -111,6 +111,15 @@ export function CompareClient() {
         </div>
       </section>
 
+      {/* Disclaimer */}
+      <div className="border-b border-amber-500/20 bg-amber-500/5">
+        <div className="mx-auto max-w-7xl px-4 py-3">
+          <p className="text-xs text-amber-400/80">
+            <span className="font-semibold text-amber-400">Important:</span> Most exchanges now require full KYC due to global regulations. Exchanges marked "No KYC" offer limited access without verification — withdrawal caps apply. Almost all exchanges listed do not officially support US residents. Bonus figures are marketing maximums; real usable value is typically much lower and subject to trading volume requirements.
+          </p>
+        </div>
+      </div>
+
       {/* Filters */}
       <section className="border-b border-border bg-card/50 sticky top-0 z-10 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-3">
