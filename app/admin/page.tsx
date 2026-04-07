@@ -34,6 +34,7 @@ export default function AdminPage() {
   const [translationLog, setTranslationLog] = useState<string>('')
   const [translatingSlug, setTranslatingSlug] = useState<string | null>(null)
   const [selectedLocales, setSelectedLocales] = useState<string[]>(['es', 'pt', 'de', 'fr'])
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([])
 
   const [formData, setFormData] = useState({
     title: '',
@@ -219,14 +220,16 @@ export default function AdminPage() {
 
   async function handleTranslateAll() {
     if (selectedLocales.length === 0) { alert('Select at least one language first.'); return }
-    if (!confirm(`Translate ALL articles into ${selectedLocales.length} language(s)? This may take a few minutes.`)) return
+    if (selectedSlugs.length === 0) { alert('Select at least one article first.'); return }
+    if (!confirm(`Translate ${selectedSlugs.length} article(s) into ${selectedLocales.length} language(s)?`)) return
     setTranslationStatus('running')
 
-    const total = articles.length
+    const toProcess = (articles as any[]).filter(a => selectedSlugs.includes(a.slug))
+    const total = toProcess.length
     let done = 0
     let errors = 0
 
-    for (const article of articles as any[]) {
+    for (const article of toProcess) {
       setTranslationLog(`Translating ${done + 1}/${total}: "${article.title}" into ${selectedLocales.length} language(s)…`)
       for (const locale of selectedLocales) {
         try {
@@ -548,8 +551,18 @@ export default function AdminPage() {
 
         {/* Articles List Panel */}
         <div className="w-1/2 bg-zinc-950 p-6 overflow-y-auto">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-zinc-100">Articles ({articles.length})</h2>
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold text-zinc-100">Articles ({articles.length})</h2>
+              <div className="flex gap-2">
+                <button onClick={() => setSelectedSlugs((articles as any[]).map(a => a.slug))} className="text-xs text-zinc-400 hover:text-zinc-200">All</button>
+                <span className="text-zinc-600">·</span>
+                <button onClick={() => setSelectedSlugs([])} className="text-xs text-zinc-400 hover:text-zinc-200">None</button>
+              </div>
+              {selectedSlugs.length > 0 && (
+                <span className="text-xs text-purple-400">{selectedSlugs.length} selected</span>
+              )}
+            </div>
             <button
               onClick={async () => {
                 const res = await fetch('/api/admin/run-migration', { method: 'POST' })
@@ -605,10 +618,12 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={handleTranslateAll}
-                disabled={translationStatus === 'running' || selectedLocales.length === 0}
+                disabled={translationStatus === 'running' || selectedLocales.length === 0 || selectedSlugs.length === 0}
                 className="px-3 py-1.5 bg-purple-700 text-white rounded-lg hover:bg-purple-600 text-sm disabled:opacity-50 font-medium"
               >
-                {translationStatus === 'running' ? 'Translating…' : `Translate All Articles (${selectedLocales.length} lang)`}
+                {translationStatus === 'running'
+                  ? 'Translating…'
+                  : `Translate ${selectedSlugs.length} article(s) × ${selectedLocales.length} lang`}
               </button>
             </div>
 
@@ -626,36 +641,47 @@ export default function AdminPage() {
           </div>
 
           <div className="space-y-3">
-            {articles.map((article) => (
-              <div
-                key={article.id}
-                className="bg-zinc-900 p-4 rounded-lg border border-zinc-700 hover:border-zinc-500 transition"
-              >
-                <h3 className="font-semibold text-zinc-100">{article.title}</h3>
-                <p className="text-sm text-zinc-400 mt-1">{article.category}</p>
-                <div className="flex flex-wrap gap-2 mt-3">
-                  <button
-                    onClick={() => handleEditArticle(article)}
-                    className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteArticle(article.id)}
-                    className="px-3 py-1 bg-red-700 text-white rounded text-sm hover:bg-red-600"
-                  >
-                    Delete
-                  </button>
-                  <button
-                    onClick={() => handleTranslateArticle(article.slug)}
-                    disabled={translatingSlug === article.slug}
-                    className="px-3 py-1 bg-purple-800 text-purple-200 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
-                  >
-                    {translatingSlug === article.slug ? 'Translating…' : 'Translate'}
-                  </button>
+            {(articles as any[]).map((article) => {
+              const isSelected = selectedSlugs.includes(article.slug)
+              return (
+                <div
+                  key={article.id}
+                  className={`bg-zinc-900 p-4 rounded-lg border transition cursor-pointer ${isSelected ? 'border-purple-600 bg-purple-950/20' : 'border-zinc-700 hover:border-zinc-500'}`}
+                  onClick={() => setSelectedSlugs(prev => isSelected ? prev.filter(s => s !== article.slug) : [...prev, article.slug])}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center ${isSelected ? 'bg-purple-600 border-purple-600' : 'border-zinc-600'}`}>
+                      {isSelected && <span className="text-white text-xs leading-none">✓</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-zinc-100">{article.title}</h3>
+                      <p className="text-sm text-zinc-400 mt-1">{article.category}</p>
+                      <div className="flex flex-wrap gap-2 mt-3" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleEditArticle(article)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteArticle(article.id)}
+                          className="px-3 py-1 bg-red-700 text-white rounded text-sm hover:bg-red-600"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          onClick={() => handleTranslateArticle(article.slug)}
+                          disabled={translatingSlug === article.slug}
+                          className="px-3 py-1 bg-purple-800 text-purple-200 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
+                        >
+                          {translatingSlug === article.slug ? 'Translating…' : 'Translate'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </div>
