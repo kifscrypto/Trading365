@@ -5,6 +5,18 @@ import { useRouter } from 'next/navigation'
 import { categories } from '@/lib/data/categories'
 import TipTapEditor from '@/components/admin/tiptap-editor'
 
+const ALL_LOCALES = [
+  { code: 'es', name: 'Spanish', flag: '🇪🇸' },
+  { code: 'pt', name: 'Portuguese', flag: '🇧🇷' },
+  { code: 'de', name: 'German', flag: '🇩🇪' },
+  { code: 'fr', name: 'French', flag: '🇫🇷' },
+  { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
+  { code: 'ko', name: 'Korean', flag: '🇰🇷' },
+  { code: 'ru', name: 'Russian', flag: '🇷🇺' },
+  { code: 'zh-CN', name: 'Simplified Chinese', flag: '🇨🇳' },
+  { code: 'zh-TW', name: 'Traditional Chinese', flag: '🇹🇼' },
+]
+
 export default function AdminPage() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -21,6 +33,7 @@ export default function AdminPage() {
   const [translationStatus, setTranslationStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [translationLog, setTranslationLog] = useState<string>('')
   const [translatingSlug, setTranslatingSlug] = useState<string | null>(null)
+  const [selectedLocales, setSelectedLocales] = useState<string[]>(['es', 'pt', 'de', 'fr'])
 
   const [formData, setFormData] = useState({
     title: '',
@@ -205,7 +218,8 @@ export default function AdminPage() {
   }
 
   async function handleTranslateAll() {
-    if (!confirm('This will translate ALL articles into all 9 languages using Claude. It may take several minutes. Continue?')) return
+    if (selectedLocales.length === 0) { alert('Select at least one language first.'); return }
+    if (!confirm(`Translate ALL articles into ${selectedLocales.length} language(s)? This may take a few minutes.`)) return
     setTranslationStatus('running')
 
     const total = articles.length
@@ -213,52 +227,54 @@ export default function AdminPage() {
     let errors = 0
 
     for (const article of articles as any[]) {
-      setTranslationLog(`Translating ${done + 1}/${total}: "${article.title}"…`)
-      try {
-        const res = await fetch('/api/translate/article', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug: article.slug, all_locales: true }),
-        })
-        const json = await res.json()
-        if (!res.ok) {
+      setTranslationLog(`Translating ${done + 1}/${total}: "${article.title}" into ${selectedLocales.length} language(s)…`)
+      for (const locale of selectedLocales) {
+        try {
+          const res = await fetch('/api/translate/article', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slug: article.slug, locale }),
+          })
+          const json = await res.json()
+          if (!res.ok || (json.results?.[locale] as string)?.startsWith('error')) {
+            errors++
+            console.error(`Failed ${article.slug} → ${locale}:`, json)
+          }
+        } catch (err: any) {
           errors++
-          console.error(`Failed ${article.slug}:`, json.error)
-        } else {
-          const localeErrors = Object.values(json.results ?? {}).filter((v) => (v as string).startsWith('error')).length
-          errors += localeErrors
+          console.error(`Failed ${article.slug} → ${locale}:`, err.message)
         }
-      } catch (err: any) {
-        errors++
-        console.error(`Failed ${article.slug}:`, err.message)
       }
       done++
     }
 
-    setTranslationLog(`✓ Done — ${done} articles translated. ${errors > 0 ? `${errors} locale error(s) — check console.` : 'No errors.'}`)
+    setTranslationLog(`✓ Done — ${done} articles × ${selectedLocales.length} language(s). ${errors > 0 ? `${errors} error(s) — check console.` : 'No errors.'}`)
     setTranslationStatus(errors > 0 ? 'error' : 'done')
   }
 
   async function handleTranslateArticle(slug: string) {
+    if (selectedLocales.length === 0) { alert('Select at least one language first.'); return }
     setTranslatingSlug(slug)
-    try {
-      const res = await fetch('/api/translate/article', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, all_locales: true }),
-      })
-      const json = await res.json()
-      if (res.ok) {
-        const errors = Object.values(json.results ?? {}).filter((v) => (v as string).startsWith('error')).length
-        alert(errors > 0 ? `Translated with ${errors} errors. Check console.` : `✓ "${slug}" translated into all 9 languages`)
-      } else {
-        alert('Error: ' + (json.error || res.statusText))
+    let errors = 0
+    for (const locale of selectedLocales) {
+      try {
+        const res = await fetch('/api/translate/article', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug, locale }),
+        })
+        const json = await res.json()
+        if (!res.ok || (json.results?.[locale] as string)?.startsWith('error')) {
+          errors++
+          console.error(`Failed ${slug} → ${locale}:`, json)
+        }
+      } catch (err: any) {
+        errors++
+        console.error(`Failed ${slug} → ${locale}:`, err.message)
       }
-    } catch (err: any) {
-      alert('Error: ' + err.message)
-    } finally {
-      setTranslatingSlug(null)
     }
+    alert(errors > 0 ? `Done with ${errors} error(s). Check console.` : `✓ "${slug}" translated into ${selectedLocales.length} language(s)`)
+    setTranslatingSlug(null)
   }
 
   function handleEditArticle(article) {
@@ -544,7 +560,37 @@ export default function AdminPage() {
 
           {/* Translations */}
           <div className="mb-6 rounded-xl border border-zinc-700 bg-zinc-900 p-4">
-            <p className="text-sm font-semibold text-zinc-100 mb-3">Translations (9 languages)</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-zinc-100">Translations</p>
+              <div className="flex gap-2">
+                <button onClick={() => setSelectedLocales(ALL_LOCALES.map(l => l.code))} className="text-xs text-zinc-400 hover:text-zinc-200">All</button>
+                <span className="text-zinc-600">·</span>
+                <button onClick={() => setSelectedLocales([])} className="text-xs text-zinc-400 hover:text-zinc-200">None</button>
+              </div>
+            </div>
+
+            {/* Language toggles */}
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {ALL_LOCALES.map((loc) => {
+                const active = selectedLocales.includes(loc.code)
+                return (
+                  <button
+                    key={loc.code}
+                    onClick={() => setSelectedLocales(prev =>
+                      active ? prev.filter(c => c !== loc.code) : [...prev, loc.code]
+                    )}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? 'bg-purple-800 border-purple-600 text-purple-100'
+                        : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                    }`}
+                  >
+                    {loc.flag} {loc.name}
+                  </button>
+                )
+              })}
+            </div>
+
             <div className="flex flex-wrap gap-2 mb-3">
               <button
                 onClick={handleSetupTranslations}
@@ -555,12 +601,13 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={handleTranslateAll}
-                disabled={translationStatus === 'running'}
+                disabled={translationStatus === 'running' || selectedLocales.length === 0}
                 className="px-3 py-1.5 bg-purple-700 text-white rounded-lg hover:bg-purple-600 text-sm disabled:opacity-50 font-medium"
               >
-                {translationStatus === 'running' ? 'Translating…' : 'Translate All Articles'}
+                {translationStatus === 'running' ? 'Translating…' : `Translate All Articles (${selectedLocales.length} lang)`}
               </button>
             </div>
+
             {translationLog && (
               <p className={`text-xs font-mono px-3 py-2 rounded ${
                 translationStatus === 'error'
@@ -572,7 +619,6 @@ export default function AdminPage() {
                 {translationLog}
               </p>
             )}
-            <p className="text-xs text-zinc-500 mt-2">Run "Setup DB" once, then "Translate All". Use per-article button to re-translate a single article.</p>
           </div>
 
           <div className="space-y-3">
