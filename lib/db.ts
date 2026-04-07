@@ -95,3 +95,77 @@ export async function updateArticle(id: number, data: Partial<Omit<ArticleRow, '
 export async function deleteArticle(id: number): Promise<void> {
   await sql`DELETE FROM articles WHERE id = ${id}`
 }
+
+// ─── Translations ────────────────────────────────────────────────────────────
+
+export type TranslationRow = {
+  id: number
+  article_slug: string
+  locale: string
+  title: string
+  excerpt: string
+  content: string
+  meta_title: string | null
+  meta_description: string | null
+  translated_at: string
+}
+
+export async function createTranslationsTable(): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS article_translations (
+      id SERIAL PRIMARY KEY,
+      article_slug TEXT NOT NULL,
+      locale TEXT NOT NULL,
+      title TEXT NOT NULL,
+      excerpt TEXT NOT NULL,
+      content TEXT NOT NULL,
+      meta_title TEXT,
+      meta_description TEXT,
+      translated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(article_slug, locale)
+    )
+  `
+}
+
+export async function upsertTranslation(data: Omit<TranslationRow, "id" | "translated_at">): Promise<TranslationRow> {
+  const rows = await sql`
+    INSERT INTO article_translations (article_slug, locale, title, excerpt, content, meta_title, meta_description)
+    VALUES (${data.article_slug}, ${data.locale}, ${data.title}, ${data.excerpt}, ${data.content}, ${data.meta_title ?? null}, ${data.meta_description ?? null})
+    ON CONFLICT (article_slug, locale)
+    DO UPDATE SET
+      title = EXCLUDED.title,
+      excerpt = EXCLUDED.excerpt,
+      content = EXCLUDED.content,
+      meta_title = EXCLUDED.meta_title,
+      meta_description = EXCLUDED.meta_description,
+      translated_at = NOW()
+    RETURNING *
+  `
+  return rows[0]
+}
+
+export async function getTranslation(slug: string, locale: string): Promise<TranslationRow | null> {
+  const rows = await sql`
+    SELECT * FROM article_translations
+    WHERE article_slug = ${slug} AND locale = ${locale}
+    LIMIT 1
+  `
+  return rows[0] ?? null
+}
+
+export async function getTranslatedSlugsForLocale(locale: string): Promise<string[]> {
+  const rows = await sql`
+    SELECT article_slug FROM article_translations WHERE locale = ${locale}
+  ` as { article_slug: string }[]
+  return rows.map((r) => r.article_slug)
+}
+
+export async function getAllTranslationsForLocale(locale: string): Promise<TranslationRow[]> {
+  return await sql`
+    SELECT t.*, a.category_slug, a.thumbnail, a.date, a.read_time, a.author, a.rating
+    FROM article_translations t
+    JOIN articles a ON a.slug = t.article_slug
+    WHERE t.locale = ${locale}
+    ORDER BY a.created_at DESC
+  ` as TranslationRow[]
+}

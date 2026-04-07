@@ -1,5 +1,6 @@
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
 import { categories } from "@/lib/data/categories"
+import { LOCALES } from "@/lib/i18n/config"
 import type { MetadataRoute } from "next"
 
 const BASE_URL = "https://www.trading365.org"
@@ -94,5 +95,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   })
 
-  return [...staticPages, ...categoryPages, ...articlePages]
+  // Language landing pages (/es, /pt, /de, etc.)
+  const localePages: MetadataRoute.Sitemap = LOCALES.map((loc) => ({
+    url: `${BASE_URL}/${loc.code}`,
+    lastModified: now,
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
+  }))
+
+  // Localised article pages (/es/reviews/bybit-review etc.)
+  const localeArticlePages: MetadataRoute.Sitemap = LOCALES.flatMap((loc) =>
+    articles.map((article) => ({
+      url: `${BASE_URL}/${loc.code}/${article.categorySlug}/${article.slug}`,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: 0.5,
+    }))
+  )
+
+  return [...staticPages, ...categoryPages, ...articlePages, ...localePages, ...localeArticlePages]
 }

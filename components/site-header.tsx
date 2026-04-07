@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { useState, useEffect } from "react"
-import { Menu } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Menu, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -13,6 +13,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
+import { LOCALES } from "@/lib/i18n/config"
 
 const navLinks = [
   { href: "/reviews", label: "Reviews" },
@@ -27,11 +28,23 @@ const navLinks = [
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
+  const [langOpen, setLangOpen] = useState(false)
+  const langRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
     window.addEventListener("scroll", handleScroll)
     return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setLangOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
   return (
@@ -69,7 +82,40 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden lg:flex">
+        <div className="hidden lg:flex items-center gap-2">
+          {/* Language switcher */}
+          <div className="relative" ref={langRef}>
+            <button
+              onClick={() => setLangOpen(!langOpen)}
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+              aria-label="Select language"
+            >
+              <Globe className="h-4 w-4" />
+              <span className="text-xs">EN</span>
+            </button>
+            {langOpen && (
+              <div className="absolute right-0 top-full mt-1 z-50 w-48 rounded-xl border border-border bg-zinc-900 shadow-xl py-1">
+                <Link
+                  href="/"
+                  onClick={() => setLangOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 text-sm text-foreground bg-primary/10 font-medium"
+                >
+                  <span>🇬🇧</span> English
+                </Link>
+                <div className="border-t border-border my-1" />
+                {LOCALES.map((loc) => (
+                  <Link
+                    key={loc.code}
+                    href={`/${loc.code}`}
+                    onClick={() => setLangOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-sm text-muted-foreground hover:bg-zinc-800 hover:text-foreground transition-colors"
+                  >
+                    <span>{loc.flag}</span> {loc.name}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
           <Button size="sm" className="font-semibold" asChild>
             <Link href="/bonuses">Get Bonuses</Link>
           </Button>
@@ -110,6 +156,19 @@ export function SiteHeader() {
                 <Button className="w-full font-semibold" size="sm" asChild>
                   <Link href="/bonuses">Get Bonuses</Link>
                 </Button>
+              </div>
+              <div className="pt-4 border-t border-border mt-2">
+                <p className="px-3 pb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">Languages</p>
+                {LOCALES.map((loc) => (
+                  <Link
+                    key={loc.code}
+                    href={`/${loc.code}`}
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  >
+                    <span>{loc.flag}</span> {loc.name}
+                  </Link>
+                ))}
               </div>
             </nav>
           </SheetContent>
