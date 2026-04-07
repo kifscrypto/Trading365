@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import type { Metadata } from "next"
 import { isValidLocale, getLocale, LOCALE_CODES } from "@/lib/i18n/config"
 
@@ -63,19 +64,35 @@ export default async function LocalePage({ params }: { params: Promise<{ locale:
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {translations.map((t) => (
-              <Link
-                key={t.article_slug}
-                href={`/${locale}/${t.category_slug}/${t.article_slug}`}
-                className="rounded-xl border border-border bg-card p-5 hover:border-primary/40 transition-colors"
-              >
-                <p className="text-xs text-muted-foreground mb-2 capitalize">
-                  {t.category_slug?.replace("-", " ")}
-                </p>
-                <h2 className="font-semibold text-foreground line-clamp-2">{t.title}</h2>
-                <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{t.excerpt}</p>
-              </Link>
-            ))}
+            {translations.map((t) => {
+              const thumbnail = (t as any).thumbnail as string | null
+              const categorySlug = (t as any).category_slug as string | undefined
+              return (
+                <Link
+                  key={t.article_slug}
+                  href={`/${locale}/${categorySlug}/${t.article_slug}`}
+                  className="rounded-xl border border-border bg-card overflow-hidden hover:border-primary/40 transition-colors"
+                >
+                  {thumbnail && (
+                    <div className="relative h-44 w-full">
+                      <Image
+                        src={thumbnail}
+                        alt={t.title}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  )}
+                  <div className="p-5">
+                    <p className="text-xs text-muted-foreground mb-2 capitalize">
+                      {categorySlug?.replace("-", " ")}
+                    </p>
+                    <h2 className="font-semibold text-foreground line-clamp-2">{t.title}</h2>
+                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{t.excerpt}</p>
+                  </div>
+                </Link>
+              )
+            })}
           </div>
         )}
       </section>
