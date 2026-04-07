@@ -173,13 +173,6 @@ const nextConfig = {
         permanent: true,
       },
 
-      // --- Old WordPress pages ---
-      {
-        source: '/join-our-newsletter',
-        destination: '/#newsletter',
-        permanent: true,
-      },
-
       // --- WordPress system pages ---
       {
         source: '/wp-admin/:path*',
