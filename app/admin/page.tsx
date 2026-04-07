@@ -235,7 +235,9 @@ export default function AdminPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ slug: article.slug, locale }),
           })
-          const json = await res.json()
+          const text = await res.text()
+          let json: any
+          try { json = JSON.parse(text) } catch { errors++; console.error(`Non-JSON response ${article.slug} → ${locale}:`, text); continue }
           if (!res.ok || (json.results?.[locale] as string)?.startsWith('error')) {
             errors++
             console.error(`Failed ${article.slug} → ${locale}:`, json)
@@ -263,17 +265,19 @@ export default function AdminPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ slug, locale }),
         })
-        const json = await res.json()
+        const text = await res.text()
+        let json: any
+        try { json = JSON.parse(text) } catch { errors++; console.error(`Non-JSON ${slug} → ${locale}:`, text.slice(0, 200)); continue }
         if (!res.ok || (json.results?.[locale] as string)?.startsWith('error')) {
           errors++
-          console.error(`Failed ${slug} → ${locale}:`, json)
+          console.error(`Failed ${slug} → ${locale}:`, json.error || json.results?.[locale])
         }
       } catch (err: any) {
         errors++
         console.error(`Failed ${slug} → ${locale}:`, err.message)
       }
     }
-    alert(errors > 0 ? `Done with ${errors} error(s). Check console.` : `✓ "${slug}" translated into ${selectedLocales.length} language(s)`)
+    alert(errors > 0 ? `Done with ${errors} error(s) — open browser console for details.` : `✓ "${slug}" translated into ${selectedLocales.length} language(s)`)
     setTranslatingSlug(null)
   }
 
