@@ -18,6 +18,10 @@ export default function AdminPage() {
   const [thumbnailPreview, setThumbnailPreview] = useState('')
   const [formError, setFormError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [translationStatus, setTranslationStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [translationLog, setTranslationLog] = useState<string>('')
+  const [translatingSlug, setTranslatingSlug] = useState<string | null>(null)
+
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
@@ -179,6 +183,71 @@ export default function AdminPage() {
   function handleCategoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const selected = categories.find((c) => c.slug === e.target.value)
     setFormData({ ...formData, category: selected?.title || '', category_slug: selected?.slug || '' })
+  }
+
+  async function handleSetupTranslations() {
+    setTranslationStatus('running')
+    setTranslationLog('Creating translations table…')
+    try {
+      const res = await fetch('/api/translate/setup', { method: 'POST' })
+      const json = await res.json()
+      if (res.ok) {
+        setTranslationLog('✓ ' + (json.message || 'Table created'))
+        setTranslationStatus('done')
+      } else {
+        setTranslationLog('Error: ' + (json.error || res.statusText))
+        setTranslationStatus('error')
+      }
+    } catch (err: any) {
+      setTranslationLog('Error: ' + err.message)
+      setTranslationStatus('error')
+    }
+  }
+
+  async function handleTranslateAll() {
+    if (!confirm('This will translate ALL articles into all 9 languages using Claude. It may take several minutes. Continue?')) return
+    setTranslationStatus('running')
+    setTranslationLog('Starting bulk translation (this takes a few minutes)…')
+    try {
+      const res = await fetch('/api/translate/article', { method: 'PUT' })
+      const json = await res.json()
+      if (res.ok) {
+        const count = json.translated ?? 0
+        const errors = Object.values(json.results ?? {}).flatMap((r: any) =>
+          Object.entries(r).filter(([, v]) => (v as string).startsWith('error'))
+        ).length
+        setTranslationLog(`✓ Translated ${count} articles. ${errors > 0 ? `${errors} locale errors.` : 'All locales succeeded.'}`)
+        setTranslationStatus('done')
+      } else {
+        setTranslationLog('Error: ' + (json.error || res.statusText))
+        setTranslationStatus('error')
+      }
+    } catch (err: any) {
+      setTranslationLog('Error: ' + err.message)
+      setTranslationStatus('error')
+    }
+  }
+
+  async function handleTranslateArticle(slug: string) {
+    setTranslatingSlug(slug)
+    try {
+      const res = await fetch('/api/translate/article', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, all_locales: true }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        const errors = Object.values(json.results ?? {}).filter((v) => (v as string).startsWith('error')).length
+        alert(errors > 0 ? `Translated with ${errors} errors. Check console.` : `✓ "${slug}" translated into all 9 languages`)
+      } else {
+        alert('Error: ' + (json.error || res.statusText))
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message)
+    } finally {
+      setTranslatingSlug(null)
+    }
   }
 
   function handleEditArticle(article) {
@@ -462,6 +531,39 @@ export default function AdminPage() {
             </button>
           </div>
 
+          {/* Translations */}
+          <div className="mb-6 rounded-xl border border-zinc-700 bg-zinc-900 p-4">
+            <p className="text-sm font-semibold text-zinc-100 mb-3">Translations (9 languages)</p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button
+                onClick={handleSetupTranslations}
+                disabled={translationStatus === 'running'}
+                className="px-3 py-1.5 bg-zinc-700 text-zinc-200 rounded-lg hover:bg-zinc-600 text-sm disabled:opacity-50"
+              >
+                Setup DB
+              </button>
+              <button
+                onClick={handleTranslateAll}
+                disabled={translationStatus === 'running'}
+                className="px-3 py-1.5 bg-purple-700 text-white rounded-lg hover:bg-purple-600 text-sm disabled:opacity-50 font-medium"
+              >
+                {translationStatus === 'running' ? 'Translating…' : 'Translate All Articles'}
+              </button>
+            </div>
+            {translationLog && (
+              <p className={`text-xs font-mono px-3 py-2 rounded ${
+                translationStatus === 'error'
+                  ? 'bg-red-900/30 text-red-400'
+                  : translationStatus === 'done'
+                  ? 'bg-green-900/30 text-green-400'
+                  : 'bg-zinc-800 text-zinc-400'
+              }`}>
+                {translationLog}
+              </p>
+            )}
+            <p className="text-xs text-zinc-500 mt-2">Run "Setup DB" once, then "Translate All". Use per-article button to re-translate a single article.</p>
+          </div>
+
           <div className="space-y-3">
             {articles.map((article) => (
               <div
@@ -470,7 +572,7 @@ export default function AdminPage() {
               >
                 <h3 className="font-semibold text-zinc-100">{article.title}</h3>
                 <p className="text-sm text-zinc-400 mt-1">{article.category}</p>
-                <div className="flex gap-2 mt-3">
+                <div className="flex flex-wrap gap-2 mt-3">
                   <button
                     onClick={() => handleEditArticle(article)}
                     className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
@@ -482,6 +584,13 @@ export default function AdminPage() {
                     className="px-3 py-1 bg-red-700 text-white rounded text-sm hover:bg-red-600"
                   >
                     Delete
+                  </button>
+                  <button
+                    onClick={() => handleTranslateArticle(article.slug)}
+                    disabled={translatingSlug === article.slug}
+                    className="px-3 py-1 bg-purple-800 text-purple-200 rounded text-sm hover:bg-purple-700 disabled:opacity-50"
+                  >
+                    {translatingSlug === article.slug ? 'Translating…' : 'Translate'}
                   </button>
                 </div>
               </div>
