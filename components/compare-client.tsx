@@ -358,6 +358,36 @@ export function CompareClient() {
         )}
       </section>
 
+      {/* Popular Comparisons */}
+      {!showDetail && selected.length === 0 && (
+        <section className="mx-auto max-w-7xl px-4 pb-6">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Popular Comparisons</h2>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {[
+              { a: "bybit", b: "bydfi", label: "Bybit vs BYDFi" },
+              { a: "bybit", b: "mexc", label: "Bybit vs MEXC" },
+              { a: "bybit", b: "okx", label: "Bybit vs OKX" },
+              { a: "mexc", b: "bydfi", label: "MEXC vs BYDFi" },
+              { a: "bitget", b: "bingx", label: "Bitget vs BingX" },
+              { a: "weex", b: "blofin", label: "WEEX vs BloFin" },
+              { a: "kucoin", b: "gateio", label: "KuCoin vs Gate.io" },
+              { a: "mexc", b: "kucoin", label: "MEXC vs KuCoin" },
+              { a: "bybit", b: "bitget", label: "Bybit vs Bitget" },
+              { a: "okx", b: "kucoin", label: "OKX vs KuCoin" },
+            ].map((pair) => (
+              <button
+                key={pair.label}
+                onClick={() => { setSelected([pair.a, pair.b]); setShowDetail(true) }}
+                className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2.5 text-left text-xs font-medium text-foreground hover:border-primary/40 hover:bg-secondary/50 transition-colors"
+              >
+                {pair.label}
+                <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0 ml-1" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Detail Comparison */}
       {showDetail && selectedExchanges.length >= 2 && (
         <section className="mx-auto max-w-7xl px-4 pb-16">

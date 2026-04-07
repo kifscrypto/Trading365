@@ -11,6 +11,29 @@ Trading365 is an independent crypto exchange review and comparison site. We test
 
 ---
 
+### Bybit
+- **URL:** https://www.trading365.org/reviews/bybit-review
+- **Trading365 Rating:** 8.8/10
+- **Founded:** 2018
+- **Headquarters:** Dubai
+- **KYC Required:** Yes — mandatory KYC since 2023, required for all trading and withdrawals
+- **Max Leverage:** 100x
+- **Trading Pairs:** 500+
+- **Futures Maker Fee:** 0.01%
+- **Futures Taker Fee:** 0.06%
+- **Min Deposit:** $1
+- **Withdrawal Speed:** Under 30 minutes
+- **Welcome Bonus:** Up to $30,000 USDT (marketing maximum — real usable value subject to trading volume)
+- **Copy Trading:** Yes — industry-leading platform
+- **Fiat Deposits:** Yes — cards and bank transfers
+- **Debit Card:** Yes — Bybit Card (Mastercard)
+- **Countries:** Not US, Not UK officially. AU, EU, ASIA available.
+- **Security:** Cold storage, 2FA, multi-sig, Proof of Reserves, SOC 2 Type II certified
+- **Best For:** Professional derivatives trading, copy trading, deep liquidity, debit card users
+- **Summary:** One of the world's largest crypto derivatives exchanges with exceptional liquidity, a Bybit debit card, and industry-leading copy trading. KYC mandatory.
+
+---
+
 ### MEXC
 - **URL:** https://www.trading365.org/reviews/mexc-review
 - **Trading365 Rating:** 9.2/10
