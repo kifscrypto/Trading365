@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import Link from "next/link"
+import Image from "next/image"
 import { isValidLocale, getLocale, LOCALE_CODES } from "@/lib/i18n/config"
 import { ArticleContent } from "@/components/article-content"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
@@ -133,6 +134,18 @@ export default async function LocaleArticlePage({
             </div>
           )}
         </header>
+
+        {originalArticle?.thumbnail && (
+          <div className="relative h-64 w-full overflow-hidden rounded-xl md:h-80 mb-8">
+            <Image
+              src={originalArticle.thumbnail}
+              alt={translation.title}
+              fill
+              className="object-cover"
+              priority
+            />
+          </div>
+        )}
 
         <ArticleContent content={translation.content} />
 
