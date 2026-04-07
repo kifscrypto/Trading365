@@ -2,60 +2,57 @@ import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { isValidLocale, getLocale, LOCALE_CODES } from "@/lib/i18n/config"
-import { getTranslation, getArticleBySlug } from "@/lib/db"
 import { ArticleContent } from "@/components/article-content"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
 import { ArrowLeft, Globe } from "lucide-react"
 
 const BASE_URL = "https://www.trading365.org"
 
-// This route handles /[locale]/[category]/[slug] — e.g. /ru/reviews/bybit-review
-// If the first segment is not a valid locale, return 404.
+export async function generateMetadata({
+  params,
+}: {
+  params: { locale: string; category: string; slug: string }
+}): Promise<Metadata> {
+  if (!isValidLocale(params.locale)) return {}
 
-interface Params {
-  category: string  // actually the locale code
-  sub: string       // actually the category slug
-  slug: string
-}
+  const { getTranslation } = await import("@/lib/db")
+  const translation = await getTranslation(params.slug, params.locale).catch(() => null)
+  const loc = getLocale(params.locale)!
 
-export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
-  const { category: locale, sub: category, slug } = await params
-  if (!isValidLocale(locale)) return {}
-
-  const translation = await getTranslation(slug, locale).catch(() => null)
-  const loc = getLocale(locale)!
-
-  const title = translation?.meta_title || translation?.title || slug
+  const title = translation?.meta_title || translation?.title || params.slug
   const description = translation?.meta_description || translation?.excerpt || ""
 
   const hreflangAlternates: Record<string, string> = {
-    "x-default": `${BASE_URL}/${category}/${slug}`,
-    "en": `${BASE_URL}/${category}/${slug}`,
+    "x-default": `${BASE_URL}/${params.category}/${params.slug}`,
+    "en": `${BASE_URL}/${params.category}/${params.slug}`,
   }
   LOCALE_CODES.forEach((lc) => {
-    hreflangAlternates[lc] = `${BASE_URL}/${lc}/${category}/${slug}`
+    hreflangAlternates[lc] = `${BASE_URL}/${lc}/${params.category}/${params.slug}`
   })
 
   return {
     title: `${title} | Trading365 ${loc.name}`,
     description,
     alternates: {
-      canonical: `${BASE_URL}/${locale}/${category}/${slug}`,
+      canonical: `${BASE_URL}/${params.locale}/${params.category}/${params.slug}`,
       languages: hreflangAlternates,
     },
   }
 }
 
-export default async function LocaleArticlePage({ params }: { params: Promise<Params> }) {
-  const { category: locale, sub: category, slug } = await params
+export default async function LocaleArticlePage({
+  params,
+}: {
+  params: { locale: string; category: string; slug: string }
+}) {
+  if (!isValidLocale(params.locale)) notFound()
 
-  if (!isValidLocale(locale)) notFound()
+  const loc = getLocale(params.locale)!
 
-  const loc = getLocale(locale)!
-
+  const { getTranslation, getArticleBySlug } = await import("@/lib/db")
   const [translation, originalArticle] = await Promise.all([
-    getTranslation(slug, locale).catch(() => null),
-    getArticleBySlug(slug).catch(() => null),
+    getTranslation(params.slug, params.locale).catch(() => null),
+    getArticleBySlug(params.slug).catch(() => null),
   ])
 
   if (!translation) {
@@ -71,13 +68,13 @@ export default async function LocaleArticlePage({ params }: { params: Promise<Pa
           </p>
           <div className="flex gap-4 justify-center">
             <Link
-              href={`/${category}/${slug}`}
+              href={`/${params.category}/${params.slug}`}
               className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
             >
               Read in English
             </Link>
             <Link
-              href={`/${locale}`}
+              href={`/${params.locale}`}
               className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground hover:bg-secondary"
             >
               {loc.name} homepage
@@ -88,18 +85,17 @@ export default async function LocaleArticlePage({ params }: { params: Promise<Pa
     )
   }
 
-  const exchange = getExchangeBySlug(slug.replace("-review", ""))
+  const exchange = getExchangeBySlug(params.slug.replace("-review", ""))
 
   return (
     <main className="min-h-screen">
-      {/* Language notice bar */}
       <div className="border-b border-border bg-secondary/30">
         <div className="mx-auto max-w-4xl px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>{loc.flag}</span>
             <span>Reading in {loc.fullName}</span>
           </div>
-          <Link href={`/${category}/${slug}`} className="text-xs text-primary hover:underline">
+          <Link href={`/${params.category}/${params.slug}`} className="text-xs text-primary hover:underline">
             Read in English →
           </Link>
         </div>
@@ -107,15 +103,19 @@ export default async function LocaleArticlePage({ params }: { params: Promise<Pa
 
       <article className="mx-auto max-w-4xl px-4 py-10">
         <Link
-          href={`/${locale}`}
+          href={`/${params.locale}`}
           className="mb-6 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-3 w-3" /> {loc.name} home
         </Link>
 
         <header className="mb-8">
-          <p className="text-xs text-muted-foreground mb-2 capitalize">{category.replace("-", " ")}</p>
-          <h1 className="text-3xl font-bold text-foreground text-balance mb-4">{translation.title}</h1>
+          <p className="text-xs text-muted-foreground mb-2 capitalize">
+            {params.category.replace("-", " ")}
+          </p>
+          <h1 className="text-3xl font-bold text-foreground text-balance mb-4">
+            {translation.title}
+          </h1>
           <p className="text-lg text-muted-foreground">{translation.excerpt}</p>
           {originalArticle && (
             <div className="flex items-center gap-3 mt-4 text-xs text-muted-foreground">
@@ -137,7 +137,9 @@ export default async function LocaleArticlePage({ params }: { params: Promise<Pa
         {exchange && (
           <div className="mt-10 rounded-xl border border-primary/30 bg-primary/5 p-6 text-center">
             <p className="text-sm font-semibold text-foreground mb-3">
-              {translation.title.includes("Review") ? `Sign up for ${exchange.name}` : `Trade on ${exchange.name}`}
+              {translation.title.includes("Review")
+                ? `Sign up for ${exchange.name}`
+                : `Trade on ${exchange.name}`}
             </p>
             <a
               href={exchange.referralLink}
@@ -153,15 +155,18 @@ export default async function LocaleArticlePage({ params }: { params: Promise<Pa
         <div className="mt-8 border-t border-border pt-6">
           <p className="text-xs text-muted-foreground mb-3">Available in other languages:</p>
           <div className="flex flex-wrap gap-2">
-            <Link href={`/${category}/${slug}`} className="text-xs rounded-full border border-border px-3 py-1 text-muted-foreground hover:border-primary hover:text-primary">
+            <Link
+              href={`/${params.category}/${params.slug}`}
+              className="text-xs rounded-full border border-border px-3 py-1 text-muted-foreground hover:border-primary hover:text-primary"
+            >
               🇬🇧 English
             </Link>
-            {LOCALE_CODES.filter((lc) => lc !== locale).map((lc) => {
+            {LOCALE_CODES.filter((lc) => lc !== params.locale).map((lc) => {
               const l = getLocale(lc)!
               return (
                 <Link
                   key={lc}
-                  href={`/${lc}/${category}/${slug}`}
+                  href={`/${lc}/${params.category}/${params.slug}`}
                   className="text-xs rounded-full border border-border px-3 py-1 text-muted-foreground hover:border-primary hover:text-primary"
                 >
                   {l.flag} {l.name}

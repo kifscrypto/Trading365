@@ -42,10 +42,6 @@ import {
 } from "@/lib/schema"
 import { slugifyHeading } from "@/lib/utils/heading"
 
-interface ArticlePageProps {
-  params: Promise<{ category: string; slug: string }>
-}
-
 const BASE_URL = 'https://www.trading365.org'
 const OG_IMAGE = `${BASE_URL}/og-image.jpg`
 
@@ -56,8 +52,7 @@ const TITLE_OVERRIDES: Record<string, string> = {
   'what-is-kyc-crypto': 'What Is KYC in Crypto? 2026 Guide',
 }
 
-export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
-  const { category, slug } = await params
+export async function getArticleMetadata(category: string, slug: string): Promise<Metadata> {
   const article = await getArticleBySlugFromDB(slug)
   if (!article) return { title: 'Article Not Found' }
 
@@ -93,8 +88,7 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
   }
 }
 
-export default async function ArticlePage({ params }: ArticlePageProps) {
-  const { category, slug } = await params
+export default async function ArticlePageContent({ category, slug }: { category: string; slug: string }) {
   const article = await getArticleBySlugFromDB(slug)
   const cat = getCategoryBySlug(category)
   if (!article || !cat) notFound()
