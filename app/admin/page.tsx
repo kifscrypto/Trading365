@@ -207,25 +207,36 @@ export default function AdminPage() {
   async function handleTranslateAll() {
     if (!confirm('This will translate ALL articles into all 9 languages using Claude. It may take several minutes. Continue?')) return
     setTranslationStatus('running')
-    setTranslationLog('Starting bulk translation (this takes a few minutes)…')
-    try {
-      const res = await fetch('/api/translate/article', { method: 'PUT' })
-      const json = await res.json()
-      if (res.ok) {
-        const count = json.translated ?? 0
-        const errors = Object.values(json.results ?? {}).flatMap((r: any) =>
-          Object.entries(r).filter(([, v]) => (v as string).startsWith('error'))
-        ).length
-        setTranslationLog(`✓ Translated ${count} articles. ${errors > 0 ? `${errors} locale errors.` : 'All locales succeeded.'}`)
-        setTranslationStatus('done')
-      } else {
-        setTranslationLog('Error: ' + (json.error || res.statusText))
-        setTranslationStatus('error')
+
+    const total = articles.length
+    let done = 0
+    let errors = 0
+
+    for (const article of articles as any[]) {
+      setTranslationLog(`Translating ${done + 1}/${total}: "${article.title}"…`)
+      try {
+        const res = await fetch('/api/translate/article', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: article.slug, all_locales: true }),
+        })
+        const json = await res.json()
+        if (!res.ok) {
+          errors++
+          console.error(`Failed ${article.slug}:`, json.error)
+        } else {
+          const localeErrors = Object.values(json.results ?? {}).filter((v) => (v as string).startsWith('error')).length
+          errors += localeErrors
+        }
+      } catch (err: any) {
+        errors++
+        console.error(`Failed ${article.slug}:`, err.message)
       }
-    } catch (err: any) {
-      setTranslationLog('Error: ' + err.message)
-      setTranslationStatus('error')
+      done++
     }
+
+    setTranslationLog(`✓ Done — ${done} articles translated. ${errors > 0 ? `${errors} locale error(s) — check console.` : 'No errors.'}`)
+    setTranslationStatus(errors > 0 ? 'error' : 'done')
   }
 
   async function handleTranslateArticle(slug: string) {

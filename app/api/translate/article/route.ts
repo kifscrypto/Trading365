@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+
+export const maxDuration = 300 // 5 minutes — needed for translating one article into all 9 locales
 import { getArticleBySlug, upsertTranslation, getAllArticles } from "@/lib/db"
 import { translateArticle } from "@/lib/i18n/translate"
 import { isValidLocale, LOCALE_CODES } from "@/lib/i18n/config"
