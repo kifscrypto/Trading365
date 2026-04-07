@@ -33,6 +33,7 @@ export interface Exchange {
     AU: boolean
     CA: boolean
     EU: boolean
+    ASIA: boolean
   }
 }
 

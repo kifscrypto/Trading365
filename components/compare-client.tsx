@@ -12,9 +12,9 @@ import {
 
 type SortKey = "rating" | "fees.maker" | "leverage" | "bonusAmount" | "tradingPairs"
 type SortDir = "asc" | "desc"
-type Country = "US" | "UK" | "AU" | "CA" | "EU"
+type Country = "US" | "UK" | "AU" | "CA" | "EU" | "ASIA"
 
-const COUNTRIES: Country[] = ["US", "UK", "AU", "CA", "EU"]
+const COUNTRIES: Country[] = ["US", "UK", "AU", "CA", "EU", "ASIA"]
 
 function getSortValue(e: Exchange, key: SortKey): number {
   if (key === "rating") return e.rating
