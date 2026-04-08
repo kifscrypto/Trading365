@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import type { Metadata } from "next"
 import { getArticleMetadata, default as ArticlePageContent } from "@/lib/page-templates/article"
 
