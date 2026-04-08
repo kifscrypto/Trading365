@@ -16,14 +16,14 @@ export default function AdminLogin() {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/admin/session', {
+      const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ password }),
       })
 
       if (res.ok) {
-        router.push('/admin/dashboard')
+        router.push('/admin')
       } else {
         setError('Invalid credentials')
       }

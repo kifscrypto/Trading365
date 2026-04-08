@@ -3,7 +3,7 @@
  * Converts snake_case DB rows to the camelCase Article shape used by the UI.
  * Falls back to static articles.ts data when DB is unavailable.
  */
-import { getAllArticles, getArticleBySlug as dbGetBySlug, getArticlesByCategory as dbGetByCategory } from '@/lib/db'
+import { getPublishedArticles, getArticleBySlug as dbGetBySlug, getPublishedArticlesByCategory as dbGetByCategory } from '@/lib/db'
 import { articles as staticArticles } from '@/lib/data/articles'
 import type { Article } from '@/lib/data/types'
 import type { ArticleRow } from '@/lib/db'
@@ -32,7 +32,7 @@ export function rowToArticle(row: ArticleRow): Article {
 
 export async function getAllArticlesFromDB(): Promise<Article[]> {
   try {
-    const rows = await getAllArticles()
+    const rows = await getPublishedArticles()
     if (rows.length > 0) return rows.map(rowToArticle)
   } catch {
     // DB unavailable — fall back to static

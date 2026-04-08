@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { updateArticle, deleteArticle } from '@/lib/db'
+import { updateArticle, deleteArticle, setArticlePublished } from '@/lib/db'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -23,6 +23,25 @@ export async function PUT(
   } catch (error: any) {
     console.error('Failed to update article:', error)
     return NextResponse.json({ error: error?.message ?? 'Failed to update article' }, { status: 500 })
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!(await checkAuth())) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const { id } = await params
+    const { published } = await request.json()
+    const article = await setArticlePublished(parseInt(id), published)
+    return NextResponse.json(article)
+  } catch (error: any) {
+    console.error('Failed to toggle publish:', error)
+    return NextResponse.json({ error: error?.message ?? 'Failed to toggle publish' }, { status: 500 })
   }
 }
 

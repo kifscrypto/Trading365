@@ -148,6 +148,11 @@ export default function AdminPage() {
         body: JSON.stringify(payload),
       })
 
+      if (res.status === 401) {
+        setIsAuthenticated(false)
+        return
+      }
+
       if (res.ok) {
         setFormData({
           title: '', slug: '', excerpt: '', content: '',
@@ -164,6 +169,21 @@ export default function AdminPage() {
       }
     } catch (err: any) {
       alert(`Failed to save article: ${err.message ?? 'Unknown error'}`)
+    }
+  }
+
+  async function handleTogglePublish(id: number, currentlyPublished: boolean) {
+    try {
+      const res = await fetch(`/api/admin/articles/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ published: !currentlyPublished }),
+      })
+      if (res.ok) {
+        fetchArticles()
+      }
+    } catch (err) {
+      console.error('Failed to toggle publish')
     }
   }
 
@@ -191,6 +211,7 @@ export default function AdminPage() {
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
+      if (res.status === 401) { setIsAuthenticated(false); return }
       const json = await res.json()
       if (!res.ok || !json.url) throw new Error(json.error ?? 'Upload failed')
       setFormData((prev) => ({ ...prev, thumbnail: json.url }))
@@ -664,7 +685,12 @@ export default function AdminPage() {
                       {isSelected && <span className="text-white text-xs leading-none">✓</span>}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-zinc-100">{article.title}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-zinc-100">{article.title}</h3>
+                        {!article.published && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-900/50 text-yellow-400 font-medium">Draft</span>
+                        )}
+                      </div>
                       <p className="text-sm text-zinc-400 mt-1">{article.category}</p>
                       {/* Translation status flags */}
                       {(() => {
@@ -693,6 +719,12 @@ export default function AdminPage() {
                           className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
                         >
                           Edit
+                        </button>
+                        <button
+                          onClick={() => handleTogglePublish(article.id, article.published)}
+                          className={`px-3 py-1 rounded text-sm font-medium ${article.published ? 'bg-yellow-700 text-yellow-100 hover:bg-yellow-600' : 'bg-green-700 text-white hover:bg-green-600'}`}
+                        >
+                          {article.published ? 'Unpublish' : 'Publish'}
                         </button>
                         <button
                           onClick={() => handleDeleteArticle(article.id)}

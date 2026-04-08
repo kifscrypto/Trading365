@@ -16,6 +16,7 @@ export async function POST() {
     await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS meta_title TEXT`
     await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS meta_description TEXT`
     await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS meta_keywords TEXT`
+    await sql`ALTER TABLE articles ADD COLUMN IF NOT EXISTS published BOOLEAN NOT NULL DEFAULT TRUE`
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

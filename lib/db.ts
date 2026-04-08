@@ -21,6 +21,7 @@ export type ArticleRow = {
   meta_title: string | null
   meta_description: string | null
   meta_keywords: string | null
+  published: boolean
   created_at: string
   updated_at: string
 }
@@ -32,9 +33,17 @@ export async function getAllArticles(): Promise<ArticleRow[]> {
   `
 }
 
+export async function getPublishedArticles(): Promise<ArticleRow[]> {
+  return await sql`
+    SELECT * FROM articles
+    WHERE published = true
+    ORDER BY created_at DESC
+  `
+}
+
 export async function getArticleBySlug(slug: string): Promise<ArticleRow | null> {
   const rows = await sql`
-    SELECT * FROM articles WHERE slug = ${slug} LIMIT 1
+    SELECT * FROM articles WHERE slug = ${slug} AND published = true LIMIT 1
   `
   return rows[0] ?? null
 }
@@ -45,6 +54,23 @@ export async function getArticlesByCategory(categorySlug: string): Promise<Artic
     WHERE category_slug = ${categorySlug}
     ORDER BY created_at DESC
   `
+}
+
+export async function getPublishedArticlesByCategory(categorySlug: string): Promise<ArticleRow[]> {
+  return await sql`
+    SELECT * FROM articles
+    WHERE category_slug = ${categorySlug} AND published = true
+    ORDER BY created_at DESC
+  `
+}
+
+export async function setArticlePublished(id: number, published: boolean): Promise<ArticleRow> {
+  const rows = await sql`
+    UPDATE articles SET published = ${published}, updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING *
+  `
+  return rows[0]
 }
 
 export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' | 'updated_at'>): Promise<ArticleRow> {
@@ -165,7 +191,7 @@ export async function getAllTranslationsForLocale(locale: string): Promise<Trans
     SELECT t.*, a.category_slug, a.thumbnail, a.date, a.read_time, a.author, a.rating
     FROM article_translations t
     JOIN articles a ON a.slug = t.article_slug
-    WHERE t.locale = ${locale}
+    WHERE t.locale = ${locale} AND a.published = true
     ORDER BY a.created_at DESC
   ` as TranslationRow[]
 }
