@@ -3,7 +3,7 @@
  * Converts snake_case DB rows to the camelCase Article shape used by the UI.
  * Falls back to static articles.ts data when DB is unavailable.
  */
-import { getPublishedArticles, getArticleBySlug as dbGetBySlug, getPublishedArticlesByCategory as dbGetByCategory } from '@/lib/db'
+import { getAllArticles, getPublishedArticles, getArticleBySlug as dbGetBySlug, getArticlesByCategory, getPublishedArticlesByCategory } from '@/lib/db'
 import { articles as staticArticles } from '@/lib/data/articles'
 import type { Article } from '@/lib/data/types'
 import type { ArticleRow } from '@/lib/db'
@@ -35,7 +35,13 @@ export async function getAllArticlesFromDB(): Promise<Article[]> {
     const rows = await getPublishedArticles()
     if (rows.length > 0) return rows.map(rowToArticle)
   } catch {
-    // DB unavailable — fall back to static
+    // published column may not exist yet — try without filter
+    try {
+      const rows = await getAllArticles()
+      if (rows.length > 0) return rows.map(rowToArticle)
+    } catch {
+      // DB unavailable
+    }
   }
   return staticArticles
 }
@@ -45,17 +51,30 @@ export async function getArticleBySlugFromDB(slug: string): Promise<Article | nu
     const row = await dbGetBySlug(slug)
     if (row) return rowToArticle(row)
   } catch {
-    // DB unavailable — fall back to static
+    // published column may not exist yet — try without filter
+    try {
+      const { sql } = await import('@/lib/db')
+      const rows = await sql`SELECT * FROM articles WHERE slug = ${slug} LIMIT 1`
+      if (rows[0]) return rowToArticle(rows[0] as ArticleRow)
+    } catch {
+      // DB unavailable
+    }
   }
   return staticArticles.find((a) => a.slug === slug) ?? null
 }
 
 export async function getArticlesByCategoryFromDB(categorySlug: string): Promise<Article[]> {
   try {
-    const rows = await dbGetByCategory(categorySlug)
+    const rows = await getPublishedArticlesByCategory(categorySlug)
     if (rows.length > 0) return rows.map(rowToArticle)
   } catch {
-    // DB unavailable — fall back to static
+    // published column may not exist yet — try without filter
+    try {
+      const rows = await getArticlesByCategory(categorySlug)
+      if (rows.length > 0) return rows.map(rowToArticle)
+    } catch {
+      // DB unavailable
+    }
   }
   return staticArticles.filter((a) => a.categorySlug === categorySlug)
 }

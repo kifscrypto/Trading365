@@ -29,7 +29,7 @@ export type ArticleRow = {
 export async function getAllArticles(): Promise<ArticleRow[]> {
   return await sql`
     SELECT * FROM articles
-    ORDER BY created_at DESC
+    ORDER BY date DESC
   `
 }
 
@@ -37,7 +37,7 @@ export async function getPublishedArticles(): Promise<ArticleRow[]> {
   return await sql`
     SELECT * FROM articles
     WHERE published = true
-    ORDER BY created_at DESC
+    ORDER BY date DESC
   `
 }
 
@@ -52,7 +52,7 @@ export async function getArticlesByCategory(categorySlug: string): Promise<Artic
   return await sql`
     SELECT * FROM articles
     WHERE category_slug = ${categorySlug}
-    ORDER BY created_at DESC
+    ORDER BY date DESC
   `
 }
 
@@ -60,7 +60,7 @@ export async function getPublishedArticlesByCategory(categorySlug: string): Prom
   return await sql`
     SELECT * FROM articles
     WHERE category_slug = ${categorySlug} AND published = true
-    ORDER BY created_at DESC
+    ORDER BY date DESC
   `
 }
 
@@ -192,7 +192,7 @@ export async function getAllTranslationsForLocale(locale: string): Promise<Trans
     FROM article_translations t
     JOIN articles a ON a.slug = t.article_slug
     WHERE t.locale = ${locale} AND a.published = true
-    ORDER BY a.created_at DESC
+    ORDER BY a.date DESC
   ` as TranslationRow[]
 }
 
