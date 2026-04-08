@@ -12,6 +12,10 @@ const nextConfig = {
         source: '/llms.txt',
         destination: '/api/llms',
       },
+      {
+        source: '/:locale(es|pt|de|fr|ja|ko|ru|zh-CN|zh-TW)/llms.txt',
+        destination: '/api/llms/:locale',
+      },
     ]
   },
   async redirects() {

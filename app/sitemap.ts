@@ -1,4 +1,5 @@
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
+import { getTranslationLocalesBySlug } from "@/lib/db"
 import { categories } from "@/lib/data/categories"
 import { LOCALES } from "@/lib/i18n/config"
 import type { MetadataRoute } from "next"
@@ -16,62 +17,22 @@ function parseArticleDate(dateStr: string): string {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const articles = await getAllArticlesFromDB()
-  // Pinned to the date of the most recent site-wide SEO update
-  const now = "2026-03-20T00:00:00.000Z"
-  const siteLastRefresh = "2026-03-20T00:00:00.000Z"
+  const [articles, translationMap] = await Promise.all([
+    getAllArticlesFromDB(),
+    getTranslationLocalesBySlug().catch(() => ({} as Record<string, string[]>)),
+  ])
+  const now = new Date().toISOString()
 
   // Static pages
   const staticPages: MetadataRoute.Sitemap = [
-    {
-      url: BASE_URL,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 1.0,
-    },
-    {
-      url: `${BASE_URL}/about`,
-      lastModified: siteLastRefresh,
-      changeFrequency: "monthly",
-      priority: 0.5,
-    },
-    {
-      url: `${BASE_URL}/compare`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/bonuses`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/join-our-newsletter`,
-      lastModified: siteLastRefresh,
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
-    // Legal pages (linked in footer; low crawl priority)
-    {
-      url: `${BASE_URL}/disclaimer`,
-      lastModified: siteLastRefresh,
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
-    {
-      url: `${BASE_URL}/privacy`,
-      lastModified: siteLastRefresh,
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
-    {
-      url: `${BASE_URL}/terms`,
-      lastModified: siteLastRefresh,
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
+    { url: BASE_URL, lastModified: now, changeFrequency: "daily", priority: 1.0 },
+    { url: `${BASE_URL}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${BASE_URL}/compare`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${BASE_URL}/bonuses`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${BASE_URL}/join-our-newsletter`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${BASE_URL}/disclaimer`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${BASE_URL}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${BASE_URL}/terms`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
   ]
 
   // Category pages — exclude "bonuses" as it has its own dedicated static page above
@@ -103,14 +64,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }))
 
-  // Localised article pages (/es/reviews/bybit-review etc.)
+  // Localised article pages — only include articles that are actually translated
   const localeArticlePages: MetadataRoute.Sitemap = LOCALES.flatMap((loc) =>
-    articles.map((article) => ({
-      url: `${BASE_URL}/${loc.code}/${article.categorySlug}/${article.slug}`,
-      lastModified: now,
-      changeFrequency: "monthly" as const,
-      priority: 0.5,
-    }))
+    articles
+      .filter((article) => translationMap[article.slug]?.includes(loc.code))
+      .map((article) => ({
+        url: `${BASE_URL}/${loc.code}/${article.categorySlug}/${article.slug}`,
+        lastModified: now,
+        changeFrequency: "monthly" as const,
+        priority: 0.5,
+      }))
   )
 
   return [...staticPages, ...categoryPages, ...articlePages, ...localePages, ...localeArticlePages]
