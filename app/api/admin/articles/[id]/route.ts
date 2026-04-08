@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { updateArticle, deleteArticle, setArticlePublished } from '@/lib/db'
+import { pingIndexNow, articleUrl } from '@/lib/indexnow'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -19,6 +20,7 @@ export async function PUT(
     const { id } = await params
     const data = await request.json()
     const article = await updateArticle(parseInt(id), data)
+    pingIndexNow([articleUrl(article.category_slug, article.slug)])
     return NextResponse.json(article)
   } catch (error: any) {
     console.error('Failed to update article:', error)
@@ -38,6 +40,7 @@ export async function PATCH(
     const { id } = await params
     const { published } = await request.json()
     const article = await setArticlePublished(parseInt(id), published)
+    if (published) pingIndexNow([articleUrl(article.category_slug, article.slug)])
     return NextResponse.json(article)
   } catch (error: any) {
     console.error('Failed to toggle publish:', error)

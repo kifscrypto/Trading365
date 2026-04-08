@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getAllArticles, createArticle } from '@/lib/db'
+import { pingIndexNow, articleUrl } from '@/lib/indexnow'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
   try {
     const data = await request.json()
     const article = await createArticle(data)
+    pingIndexNow([articleUrl(article.category_slug, article.slug)])
     return NextResponse.json(article, { status: 201 })
   } catch (error: any) {
     console.error('Failed to create article:', error)
