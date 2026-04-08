@@ -35,6 +35,7 @@ export default function AdminPage() {
   const [translatingSlug, setTranslatingSlug] = useState<string | null>(null)
   const [selectedLocales, setSelectedLocales] = useState<string[]>(['es', 'pt', 'de', 'fr'])
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([])
+  const [translatedLocales, setTranslatedLocales] = useState<Record<string, string[]>>({})
 
   const [formData, setFormData] = useState({
     title: '',
@@ -97,11 +98,18 @@ export default function AdminPage() {
 
   async function fetchArticles() {
     try {
-      const res = await fetch('/api/admin/articles', { cache: 'no-store' })
-      if (res.ok) {
-        const data = await res.json()
+      const [articlesRes, statusRes] = await Promise.all([
+        fetch('/api/admin/articles', { cache: 'no-store' }),
+        fetch('/api/translate/status', { cache: 'no-store' }),
+      ])
+      if (articlesRes.ok) {
+        const data = await articlesRes.json()
         setArticles(data)
         setShowArticles(true)
+      }
+      if (statusRes.ok) {
+        const status = await statusRes.json()
+        setTranslatedLocales(status)
       }
     } catch (err) {
       console.error('Failed to fetch articles')
@@ -255,6 +263,7 @@ export default function AdminPage() {
 
     setTranslationLog(`✓ Done — ${done} articles × ${selectedLocales.length} language(s). ${errors > 0 ? `${errors} error(s) — check console.` : 'No errors.'}`)
     setTranslationStatus(errors > 0 ? 'error' : 'done')
+    fetch('/api/translate/status', { cache: 'no-store' }).then(r => r.ok && r.json()).then(s => s && setTranslatedLocales(s))
   }
 
   async function handleTranslateArticle(slug: string) {
@@ -282,6 +291,7 @@ export default function AdminPage() {
     }
     alert(errors > 0 ? `Done with ${errors} error(s) — open browser console for details.` : `✓ "${slug}" translated into ${selectedLocales.length} language(s)`)
     setTranslatingSlug(null)
+    fetch('/api/translate/status', { cache: 'no-store' }).then(r => r.ok && r.json()).then(s => s && setTranslatedLocales(s))
   }
 
   function handleEditArticle(article) {
@@ -656,6 +666,27 @@ export default function AdminPage() {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-zinc-100">{article.title}</h3>
                       <p className="text-sm text-zinc-400 mt-1">{article.category}</p>
+                      {/* Translation status flags */}
+                      {(() => {
+                        const done = translatedLocales[article.slug] ?? []
+                        const missing = ALL_LOCALES.filter(l => !done.includes(l.code))
+                        return (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {ALL_LOCALES.map(loc => {
+                              const translated = done.includes(loc.code)
+                              return (
+                                <span
+                                  key={loc.code}
+                                  title={`${loc.name}${translated ? ' — translated' : ' — not translated'}`}
+                                  className={`text-sm px-1.5 py-0.5 rounded text-xs ${translated ? 'bg-green-900/50 text-green-300' : 'bg-zinc-800 text-zinc-600'}`}
+                                >
+                                  {loc.flag}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )
+                      })()}
                       <div className="flex flex-wrap gap-2 mt-3" onClick={e => e.stopPropagation()}>
                         <button
                           onClick={() => handleEditArticle(article)}

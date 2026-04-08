@@ -169,3 +169,15 @@ export async function getAllTranslationsForLocale(locale: string): Promise<Trans
     ORDER BY a.created_at DESC
   ` as TranslationRow[]
 }
+
+export async function getTranslationLocalesBySlug(): Promise<Record<string, string[]>> {
+  const rows = await sql`
+    SELECT article_slug, locale FROM article_translations ORDER BY article_slug, locale
+  ` as { article_slug: string; locale: string }[]
+  const map: Record<string, string[]> = {}
+  for (const row of rows) {
+    if (!map[row.article_slug]) map[row.article_slug] = []
+    map[row.article_slug].push(row.locale)
+  }
+  return map
+}
