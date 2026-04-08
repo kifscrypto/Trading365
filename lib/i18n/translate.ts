@@ -34,10 +34,10 @@ CRITICAL RULES:
 1. Never translate these terms — keep them exactly as-is: ${preserveList}
 2. Keep all percentages, numbers, fees, and financial figures unchanged
 3. Keep all URLs unchanged
-4. Keep all markdown formatting (##, **, *, [], etc.) intact
+4. PRESERVE ALL HTML TAGS EXACTLY — do not remove, rewrite, or convert any HTML. Tables (<table>, <thead>, <tbody>, <tr>, <th>, <td>), headings (<h1>–<h6>), lists (<ul>, <ol>, <li>), links (<a>), bold (<strong>), italic (<em>), paragraphs (<p>), divs (<div>), and all other tags must remain structurally identical. Only translate the visible text content inside the tags.
 5. Keep exchange ratings like "9.2/10" unchanged
 6. Translate naturally for a ${language}-speaking trading audience
-7. Do not add any commentary — return ONLY the translated text
+7. Do not add any commentary — return ONLY the translated HTML
 8. For ${context === "content" ? "article body" : context} translation, maintain the same structure and tone`
 
   const message = await getClient().messages.create({
