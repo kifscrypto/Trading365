@@ -124,6 +124,31 @@ export function buildEmailHtml(article: ArticleForNewsletter): string {
           </td>
         </tr>` : ''}
 
+        <!-- The Challenge section -->
+        <tr>
+          <td style="padding:0 36px 36px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border:2px solid #d97706;border-radius:10px;overflow:hidden;">
+              <tr>
+                <td style="padding:22px 24px;">
+                  <p style="margin:0 0 2px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#d97706;">Live Trading Journal</p>
+                  <p style="margin:0 0 8px;font-size:17px;font-weight:700;color:#09090b;">The BYDFi Challenge — Can We Turn $500 Into $5,000?</p>
+                  <p style="margin:0 0 16px;font-size:14px;line-height:1.55;color:#52525b;">We're trading live on BYDFi with real money and documenting every week. Wins, losses, strategy — all of it. Follow along and see if it's possible.</p>
+                  <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="background:#09090b;border-radius:8px;">
+                        <a href="https://www.kifscrypto.com/blog/week-1-bydfi-the-challenge-begins" target="_blank" rel="noopener noreferrer"
+                          style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;">
+                          Follow the Challenge &rarr;
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
         <!-- Divider -->
         <tr>
           <td style="padding:0 36px;">
