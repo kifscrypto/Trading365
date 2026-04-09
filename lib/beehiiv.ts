@@ -123,8 +123,10 @@ export function buildEmailHtml(article: ArticleForNewsletter): string {
 
 export async function createBeehiivDraft(article: ArticleForNewsletter): Promise<{ id: string; url: string }> {
   const apiKey = process.env.BEEHIIV_API_KEY
-  const publicationId = process.env.BEEHIIV_PUBLICATION_ID
-  if (!apiKey || !publicationId) throw new Error('Beehiiv not configured')
+  const rawId = process.env.BEEHIIV_PUBLICATION_ID
+  if (!apiKey || !rawId) throw new Error('Beehiiv not configured')
+  // Posts API requires pub_ prefix; subscriptions API works without it
+  const publicationId = rawId.startsWith('pub_') ? rawId : `pub_${rawId}`
 
   const html = buildEmailHtml(article)
   const thumbnailUrl = article.thumbnail
