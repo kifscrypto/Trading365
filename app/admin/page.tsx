@@ -33,8 +33,9 @@ export default function AdminPage() {
   const [translationStatus, setTranslationStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [translationLog, setTranslationLog] = useState<string>('')
   const [translatingSlug, setTranslatingSlug] = useState<string | null>(null)
-  const [newsletterStatus, setNewsletterStatus] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
-  const [newsletterUrls, setNewsletterUrls] = useState<Record<string, string>>({})
+  const [newsletterLoading, setNewsletterLoading] = useState<string | null>(null)
+  const [newsletterModal, setNewsletterModal] = useState<{ slug: string; title: string; html: string } | null>(null)
+  const [htmlCopied, setHtmlCopied] = useState(false)
   const [selectedLocales, setSelectedLocales] = useState<string[]>(['es', 'pt', 'de', 'fr'])
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([])
   const [translatedLocales, setTranslatedLocales] = useState<Record<string, string[]>>({})
@@ -289,8 +290,8 @@ export default function AdminPage() {
     fetch('/api/translate/status', { cache: 'no-store' }).then(r => r.ok && r.json()).then(s => s && setTranslatedLocales(s))
   }
 
-  async function handleSendNewsletter(slug: string) {
-    setNewsletterStatus(prev => ({ ...prev, [slug]: 'loading' }))
+  async function handleSendNewsletter(slug: string, title: string) {
+    setNewsletterLoading(slug)
     try {
       const res = await fetch('/api/admin/newsletter', {
         method: 'POST',
@@ -299,11 +300,12 @@ export default function AdminPage() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Failed')
-      setNewsletterUrls(prev => ({ ...prev, [slug]: json.url }))
-      setNewsletterStatus(prev => ({ ...prev, [slug]: 'done' }))
+      setNewsletterModal({ slug, title, html: json.html })
+      setHtmlCopied(false)
     } catch (err: any) {
       alert(`Newsletter error: ${err.message}`)
-      setNewsletterStatus(prev => ({ ...prev, [slug]: 'error' }))
+    } finally {
+      setNewsletterLoading(null)
     }
   }
 
@@ -759,24 +761,13 @@ export default function AdminPage() {
                         >
                           {translatingSlug === article.slug ? 'Translating…' : 'Translate'}
                         </button>
-                        {newsletterStatus[article.slug] === 'done' ? (
-                          <a
-                            href={newsletterUrls[article.slug]}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1 bg-green-700 text-white rounded text-sm hover:bg-green-600"
-                          >
-                            ✓ Open Draft
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => handleSendNewsletter(article.slug)}
-                            disabled={newsletterStatus[article.slug] === 'loading'}
-                            className="px-3 py-1 bg-amber-600 text-white rounded text-sm hover:bg-amber-500 disabled:opacity-50"
-                          >
-                            {newsletterStatus[article.slug] === 'loading' ? 'Creating…' : 'Newsletter'}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleSendNewsletter(article.slug, article.title)}
+                          disabled={newsletterLoading === article.slug}
+                          className="px-3 py-1 bg-amber-600 text-white rounded text-sm hover:bg-amber-500 disabled:opacity-50"
+                        >
+                          {newsletterLoading === article.slug ? 'Building…' : 'Newsletter'}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -786,6 +777,69 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+
+      {/* Newsletter HTML Modal */}
+      {newsletterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-700">
+              <div>
+                <p className="text-xs text-zinc-400 mb-0.5">Newsletter email HTML</p>
+                <p className="text-sm font-semibold text-zinc-100 line-clamp-1">{newsletterModal.title}</p>
+              </div>
+              <button
+                onClick={() => setNewsletterModal(null)}
+                className="text-zinc-400 hover:text-zinc-100 text-xl leading-none px-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-5 py-4 border-b border-zinc-700 bg-zinc-800/50">
+              <p className="text-xs text-zinc-300 font-medium mb-1">How to send via Beehiiv:</p>
+              <ol className="text-xs text-zinc-400 space-y-0.5 list-decimal list-inside">
+                <li>Copy the HTML below</li>
+                <li>Go to <span className="text-amber-400">app.beehiiv.com</span> → New Post</li>
+                <li>Click <span className="text-amber-400">Edit HTML</span> (or the &lt;/&gt; button)</li>
+                <li>Paste and save — then preview &amp; send</li>
+              </ol>
+              <p className="text-xs text-zinc-500 mt-2">
+                Or connect your RSS feed at <span className="text-amber-400">trading365.org/feed.xml</span> to auto-send new articles.
+              </p>
+            </div>
+
+            <textarea
+              readOnly
+              value={newsletterModal.html}
+              className="flex-1 bg-zinc-950 text-zinc-300 text-xs font-mono p-4 resize-none outline-none overflow-y-auto"
+              onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+            />
+
+            <div className="px-5 py-4 border-t border-zinc-700 flex gap-3">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(newsletterModal.html)
+                  setHtmlCopied(true)
+                  setTimeout(() => setHtmlCopied(false), 3000)
+                }}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  htmlCopied
+                    ? 'bg-green-700 text-white'
+                    : 'bg-amber-600 text-white hover:bg-amber-500'
+                }`}
+              >
+                {htmlCopied ? '✓ Copied!' : 'Copy HTML'}
+              </button>
+              <button
+                onClick={() => setNewsletterModal(null)}
+                className="px-6 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-100 border border-zinc-700 hover:border-zinc-500"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

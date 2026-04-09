@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getArticleBySlugFromDB } from '@/lib/data/articles-db'
-import { createBeehiivDraft } from '@/lib/beehiiv'
+import { buildEmailHtml } from '@/lib/beehiiv'
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
@@ -15,20 +15,15 @@ export async function POST(req: NextRequest) {
   const article = await getArticleBySlugFromDB(slug)
   if (!article) return NextResponse.json({ error: 'Article not found' }, { status: 404 })
 
-  try {
-    const { id, url } = await createBeehiivDraft({
-      slug: article.slug,
-      title: article.title,
-      excerpt: article.excerpt,
-      category: article.category,
-      categorySlug: article.categorySlug,
-      thumbnail: article.thumbnail ?? null,
-      rating: article.rating ?? null,
-    })
-    return NextResponse.json({ success: true, id, url })
-  } catch (err: any) {
-    const msg = err.message ?? 'Failed to create draft'
-    console.error('Beehiiv draft error:', msg)
-    return NextResponse.json({ error: msg }, { status: 500 })
-  }
+  const html = buildEmailHtml({
+    slug: article.slug,
+    title: article.title,
+    excerpt: article.excerpt,
+    category: article.category,
+    categorySlug: article.categorySlug,
+    thumbnail: article.thumbnail ?? null,
+    rating: article.rating ?? null,
+  })
+
+  return NextResponse.json({ html })
 }

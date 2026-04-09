@@ -56,6 +56,7 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <meta name="naver-site-verification" content="1790ce3ad7df54aff5e6fd5ac1c784a6c5da2264" />
+        <link rel="alternate" type="application/rss+xml" title="Trading365 RSS Feed" href="/feed.xml" />
         <link rel="alternate" type="text/plain" title="Trading365 LLM Index" href="/llms.txt" />
         <link rel="alternate" type="text/plain" title="Trading365 LLM Full Dataset" href="/llms-full.txt" />
       </head>
