@@ -33,6 +33,7 @@ import { ArticleCard } from "@/components/article-card"
 import { getCategoryBySlug } from "@/lib/data/categories"
 import { getAllArticlesFromDB, getArticleBySlugFromDB, getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
+import { LOCALE_CODES } from "@/lib/i18n/config"
 import {
   generateArticleSchema,
   generateReviewSchema,
@@ -61,12 +62,21 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   const pageTitle = TITLE_OVERRIDES[slug] ?? article.metaTitle ?? article.title
   const pageDescription = article.metaDescription ?? article.excerpt
 
+  const hreflangAlternates: Record<string, string> = {
+    'x-default': canonicalUrl,
+    'en': canonicalUrl,
+  }
+  for (const lc of LOCALE_CODES) {
+    hreflangAlternates[lc] = `${BASE_URL}/${lc}/${category}/${slug}`
+  }
+
   return {
     title: pageTitle,
     description: pageDescription,
     keywords: article.metaKeywords ?? undefined,
     alternates: {
       canonical: canonicalUrl,
+      languages: hreflangAlternates,
     },
     openGraph: {
       type: 'article',

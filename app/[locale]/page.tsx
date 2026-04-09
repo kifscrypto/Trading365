@@ -80,14 +80,23 @@ export async function generateStaticParams() {
   return LOCALE_CODES.map((locale) => ({ locale }))
 }
 
+const BASE_URL = 'https://www.trading365.org'
+
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params
   const loc = getLocale(locale)
   if (!loc) return {}
+
+  const hreflangAlternates: Record<string, string> = { 'x-default': BASE_URL, 'en': BASE_URL }
+  for (const lc of LOCALE_CODES) hreflangAlternates[lc] = `${BASE_URL}/${lc}`
+
   return {
     title: `Trading365 — ${loc.name}`,
     description: `Crypto exchange reviews and comparisons in ${loc.fullName}.`,
-    alternates: { canonical: `https://www.trading365.org/${locale}` },
+    alternates: {
+      canonical: `${BASE_URL}/${locale}`,
+      languages: hreflangAlternates,
+    },
   }
 }
 

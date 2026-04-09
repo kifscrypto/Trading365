@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 
+import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight, Star, Zap, ShieldOff, Gift } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,19 @@ import { FeaturedAdvertisers } from "@/components/featured-advertisers"
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
 import { exchanges } from "@/lib/data/exchanges"
 import { generateWebsiteSchema, generateOrganizationStandaloneSchema } from "@/lib/schema"
+import { LOCALE_CODES } from "@/lib/i18n/config"
+
+const BASE_URL = 'https://www.trading365.org'
+
+const _hreflangAlternates: Record<string, string> = { 'x-default': BASE_URL, 'en': BASE_URL }
+for (const lc of LOCALE_CODES) _hreflangAlternates[lc] = `${BASE_URL}/${lc}`
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: BASE_URL,
+    languages: _hreflangAlternates,
+  },
+}
 
 const topExchanges = exchanges.filter((e) =>
   ["weex", "bydfi", "bitunix"].includes(e.slug)
