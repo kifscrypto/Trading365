@@ -150,7 +150,11 @@ export async function createBeehiivDraft(article: ArticleForNewsletter): Promise
   })
 
   const data = await res.json()
-  if (!res.ok) throw new Error(data?.message ?? `Beehiiv API error ${res.status}`)
+  if (!res.ok) {
+    const detail = JSON.stringify(data)
+    console.error('Beehiiv 400 detail:', detail)
+    throw new Error(`Beehiiv ${res.status}: ${detail}`)
+  }
 
   const id: string = data?.data?.id ?? ''
   return { id, url: `https://app.beehiiv.com/posts/${id}` }

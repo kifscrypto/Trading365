@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ success: true, id, url })
   } catch (err: any) {
-    console.error('Beehiiv draft error:', err)
-    return NextResponse.json({ error: err.message ?? 'Failed to create draft' }, { status: 500 })
+    const msg = err.message ?? 'Failed to create draft'
+    console.error('Beehiiv draft error:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
