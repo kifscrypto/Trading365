@@ -55,6 +55,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
+        <meta name="naver-site-verification" content="naver706f92ce0c34cbfe5895f574ab2ccd6c" />
         <link rel="alternate" type="text/plain" title="Trading365 LLM Index" href="/llms.txt" />
         <link rel="alternate" type="text/plain" title="Trading365 LLM Full Dataset" href="/llms-full.txt" />
       </head>
