@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getArticleBySlugFromDB } from '@/lib/data/articles-db'
+import { getExchangeBySlug } from '@/lib/data/exchanges'
 import { buildEmailHtml } from '@/lib/beehiiv'
 
 export async function POST(req: NextRequest) {
@@ -15,6 +16,10 @@ export async function POST(req: NextRequest) {
   const article = await getArticleBySlugFromDB(slug)
   if (!article) return NextResponse.json({ error: 'Article not found' }, { status: 404 })
 
+  // Look up exchange data for review articles (slug pattern: {exchange}-review)
+  const exchangeSlug = slug.replace(/-review$/, '')
+  const exchange = getExchangeBySlug(exchangeSlug)
+
   const html = buildEmailHtml({
     slug: article.slug,
     title: article.title,
@@ -23,6 +28,9 @@ export async function POST(req: NextRequest) {
     categorySlug: article.categorySlug,
     thumbnail: article.thumbnail ?? null,
     rating: article.rating ?? null,
+    exchangeName: exchange?.name ?? null,
+    referralLink: exchange?.referralLink ?? null,
+    bonus: exchange?.bonus ?? null,
   })
 
   return NextResponse.json({ html })

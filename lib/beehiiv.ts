@@ -16,6 +16,9 @@ export interface ArticleForNewsletter {
   categorySlug: string
   thumbnail?: string | null
   rating?: number | null
+  exchangeName?: string | null
+  referralLink?: string | null
+  bonus?: string | null
 }
 
 function esc(str: string | null | undefined): string {
@@ -27,7 +30,7 @@ function esc(str: string | null | undefined): string {
 }
 
 export function buildEmailHtml(article: ArticleForNewsletter): string {
-  const { slug, title, excerpt, category, categorySlug, thumbnail, rating } = article
+  const { slug, title, excerpt, category, categorySlug, thumbnail, rating, exchangeName, referralLink, bonus } = article
   const articleUrl = `${BASE_URL}/${categorySlug}/${slug}`
   const ctaText = categorySlug === 'reviews' ? 'Read the full review' : 'Read the full article'
   const imgSrc = thumbnail
@@ -82,7 +85,7 @@ export function buildEmailHtml(article: ArticleForNewsletter): string {
             <!-- Excerpt -->
             <p style="margin:0 0 28px;font-size:16px;line-height:1.65;color:#3f3f46;">${esc(excerpt)}</p>
 
-            <!-- CTA Button -->
+            <!-- CTA Buttons -->
             <table cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td style="background:#d97706;border-radius:8px;">
@@ -94,6 +97,32 @@ export function buildEmailHtml(article: ArticleForNewsletter): string {
 
           </td>
         </tr>
+
+        ${referralLink && exchangeName ? `
+        <!-- Exchange direct CTA -->
+        <tr>
+          <td style="padding:0 36px 36px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#09090b;border-radius:10px;overflow:hidden;">
+              <tr>
+                <td style="padding:24px 28px;">
+                  <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#d97706;">Exclusive Offer</p>
+                  <p style="margin:0 0 4px;font-size:18px;font-weight:700;color:#ffffff;">Skip the article — claim your bonus now</p>
+                  ${bonus ? `<p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">Bonus: <strong style="color:#fbbf24;">${esc(bonus)}</strong></p>` : `<p style="margin:0 0 16px;font-size:14px;color:#a1a1aa;">Sign up via Trading365 for the best available offer.</p>`}
+                  <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="background:#d97706;border-radius:8px;">
+                        <a href="${esc(referralLink)}" target="_blank" rel="noopener noreferrer sponsored"
+                          style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">
+                          Go to ${esc(exchangeName)} &rarr;
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>` : ''}
 
         <!-- Divider -->
         <tr>
