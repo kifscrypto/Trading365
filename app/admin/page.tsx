@@ -33,6 +33,8 @@ export default function AdminPage() {
   const [translationStatus, setTranslationStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [translationLog, setTranslationLog] = useState<string>('')
   const [translatingSlug, setTranslatingSlug] = useState<string | null>(null)
+  const [newsletterStatus, setNewsletterStatus] = useState<Record<string, 'idle' | 'loading' | 'done' | 'error'>>({})
+  const [newsletterUrls, setNewsletterUrls] = useState<Record<string, string>>({})
   const [selectedLocales, setSelectedLocales] = useState<string[]>(['es', 'pt', 'de', 'fr'])
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([])
   const [translatedLocales, setTranslatedLocales] = useState<Record<string, string[]>>({})
@@ -285,6 +287,24 @@ export default function AdminPage() {
     setTranslationLog(`✓ Done — ${done} articles × ${selectedLocales.length} language(s). ${errors > 0 ? `${errors} error(s) — check console.` : 'No errors.'}`)
     setTranslationStatus(errors > 0 ? 'error' : 'done')
     fetch('/api/translate/status', { cache: 'no-store' }).then(r => r.ok && r.json()).then(s => s && setTranslatedLocales(s))
+  }
+
+  async function handleSendNewsletter(slug: string) {
+    setNewsletterStatus(prev => ({ ...prev, [slug]: 'loading' }))
+    try {
+      const res = await fetch('/api/admin/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed')
+      setNewsletterUrls(prev => ({ ...prev, [slug]: json.url }))
+      setNewsletterStatus(prev => ({ ...prev, [slug]: 'done' }))
+    } catch (err: any) {
+      alert(`Newsletter error: ${err.message}`)
+      setNewsletterStatus(prev => ({ ...prev, [slug]: 'error' }))
+    }
   }
 
   async function handleTranslateArticle(slug: string) {
@@ -739,6 +759,24 @@ export default function AdminPage() {
                         >
                           {translatingSlug === article.slug ? 'Translating…' : 'Translate'}
                         </button>
+                        {newsletterStatus[article.slug] === 'done' ? (
+                          <a
+                            href={newsletterUrls[article.slug]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 bg-green-700 text-white rounded text-sm hover:bg-green-600"
+                          >
+                            ✓ Open Draft
+                          </a>
+                        ) : (
+                          <button
+                            onClick={() => handleSendNewsletter(article.slug)}
+                            disabled={newsletterStatus[article.slug] === 'loading'}
+                            className="px-3 py-1 bg-amber-600 text-white rounded text-sm hover:bg-amber-500 disabled:opacity-50"
+                          >
+                            {newsletterStatus[article.slug] === 'loading' ? 'Creating…' : 'Newsletter'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
