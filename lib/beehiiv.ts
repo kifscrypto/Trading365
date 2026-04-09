@@ -132,13 +132,13 @@ export async function createBeehiivDraft(article: ArticleForNewsletter): Promise
     : undefined
 
   const body: Record<string, unknown> = {
-    web_title: article.title,
+    title: article.title,
     subtitle: article.excerpt,
     preview_text: article.excerpt,
     status: 'draft',
-    content: html,
+    body_content: html,
   }
-  if (thumbnailUrl) body.thumbnail_url = thumbnailUrl
+  if (thumbnailUrl) body.thumbnail_image_url = thumbnailUrl
 
   const res = await fetch(`${BEEHIIV_BASE}/publications/${publicationId}/posts`, {
     method: 'POST',
