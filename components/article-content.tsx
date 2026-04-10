@@ -115,7 +115,7 @@ export function ArticleContent({ content }: { content: string }) {
   // Legacy Markdown fallback for existing articles
   // Split by double newlines but keep table blocks together
   const blocks: string[] = []
-  const rawBlocks = content.split("\n\n")
+  const rawBlocks = content.split(/\n\s*\n/)
 
   let tableBuffer: string[] = []
   let inTable = false
