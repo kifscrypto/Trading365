@@ -8,7 +8,7 @@ async function checkAuth() {
   return !!cookieStore.get('admin_auth')
 }
 
-export const maxDuration = 30
+export const maxDuration = 300
 
 export async function POST(request: Request) {
   if (!(await checkAuth())) {

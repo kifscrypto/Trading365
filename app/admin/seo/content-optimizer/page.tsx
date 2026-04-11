@@ -280,11 +280,21 @@ function ContentOptimizerInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: content.trim(), url: auditUrl.trim() }),
       })
-      const text = await res.text()
-      let data: any
-      try { data = JSON.parse(text) } catch { throw new Error(text.slice(0, 300) || 'Server error') }
-      if (!res.ok) throw new Error(data.error ?? 'Audit failed')
-      setAuditMarkdown(data.analysis ?? '')
+      if (!res.ok) {
+        const text = await res.text()
+        let errMsg = 'Audit failed'
+        try { errMsg = JSON.parse(text).error ?? errMsg } catch { errMsg = text.slice(0, 300) || errMsg }
+        throw new Error(errMsg)
+      }
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        accumulated += decoder.decode(value, { stream: true })
+        setAuditMarkdown(accumulated)
+      }
       setLoadingState('done')
     } catch (err: any) {
       setError(err.message)

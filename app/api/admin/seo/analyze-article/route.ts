@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
 import { getPublishedArticles } from '@/lib/db'
@@ -8,11 +7,11 @@ async function checkAuth() {
   return !!cookieStore.get('admin_auth')
 }
 
-export const maxDuration = 30
+export const maxDuration = 300
 
 export async function POST(request: Request) {
   if (!(await checkAuth())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } })
   }
 
   try {
@@ -36,7 +35,7 @@ export async function POST(request: Request) {
     }
 
     if (!articleContent) {
-      return NextResponse.json({ error: 'No content provided' }, { status: 400 })
+      return new Response(JSON.stringify({ error: 'No content provided' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
     }
 
     const articles = await getPublishedArticles()
@@ -46,7 +45,7 @@ export async function POST(request: Request) {
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const message = await anthropic.messages.create({
+    const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 3000,
       messages: [{
@@ -98,9 +97,32 @@ ${siteUrls || 'None available'}`,
       }],
     })
 
-    const analysis = message.content[0].type === 'text' ? message.content[0].text : ''
-    return NextResponse.json({ analysis })
+    const encoder = new TextEncoder()
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            if (
+              chunk.type === 'content_block_delta' &&
+              chunk.delta.type === 'text_delta'
+            ) {
+              controller.enqueue(encoder.encode(chunk.delta.text))
+            }
+          }
+          controller.close()
+        } catch (err) {
+          controller.error(err)
+        }
+      },
+    })
+
+    return new Response(readable, {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message ?? 'Analysis failed' }, { status: 500 })
+    return new Response(JSON.stringify({ error: error.message ?? 'Analysis failed' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 }

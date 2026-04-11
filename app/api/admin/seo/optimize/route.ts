@@ -8,7 +8,7 @@ async function checkAuth() {
   return !!cookieStore.get('admin_auth')
 }
 
-export const maxDuration = 30
+export const maxDuration = 300
 
 function extractJson(text: string, fallback: unknown) {
   const arr = text.match(/\[[\s\S]*\]/)
