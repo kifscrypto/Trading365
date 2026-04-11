@@ -28,6 +28,23 @@ function AuditMarkdown({ text, onFix, isDone }: {
   const compression = parseSection('Compression Summary')
   const linking = parseSection('Internal Linking Gaps')
 
+  function handleFixAll() {
+    const parts: string[] = []
+    if (priorities.length) {
+      parts.push('TOP PRIORITY ACTIONS:\n' + priorities.map((p, i) => `${i + 1}. ${p}`).join('\n'))
+    }
+    if (weaknesses.length) {
+      parts.push('KEY WEAKNESSES TO ADDRESS:\n' + weaknesses.map(w => `- ${w}`).join('\n'))
+    }
+    if (compression.length) {
+      parts.push('COMPRESSION IMPROVEMENTS:\n' + compression.map(c => `- ${c}`).join('\n'))
+    }
+    if (linking.length) {
+      parts.push('INTERNAL LINKING TO ADD:\n' + linking.map(l => `- ${l}`).join('\n'))
+    }
+    onFix('Apply ALL of the following improvements simultaneously:\n\n' + parts.join('\n\n'))
+  }
+
   const fixBtn = (label: string) => isDone ? (
     <button
       onClick={() => onFix(label)}
@@ -37,18 +54,30 @@ function AuditMarkdown({ text, onFix, isDone }: {
     </button>
   ) : null
 
+  const totalIssues = priorities.length + weaknesses.length + compression.length + linking.length
+
   return (
     <div className="space-y-5">
-      {/* Score */}
+      {/* Score + Fix All */}
       {score !== null && (
-        <div className="flex items-center gap-4 pb-4 border-b border-zinc-700">
-          <div className={`text-5xl font-bold ${score >= 75 ? 'text-green-400' : score >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
-            {score}
+        <div className="flex items-center justify-between gap-4 pb-4 border-b border-zinc-700">
+          <div className="flex items-center gap-4">
+            <div className={`text-5xl font-bold ${score >= 75 ? 'text-green-400' : score >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+              {score}
+            </div>
+            <div>
+              <p className="text-base font-semibold text-zinc-100">/ 100</p>
+              <p className="text-xs text-zinc-500 mt-0.5">Ranking + conversion score</p>
+            </div>
           </div>
-          <div>
-            <p className="text-base font-semibold text-zinc-100">/ 100</p>
-            <p className="text-xs text-zinc-500 mt-0.5">Ranking + conversion score</p>
-          </div>
+          {isDone && totalIssues > 0 && (
+            <button
+              onClick={handleFixAll}
+              className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-medium whitespace-nowrap"
+            >
+              Fix All Issues ({totalIssues})
+            </button>
+          )}
         </div>
       )}
 
@@ -605,7 +634,7 @@ function ContentOptimizerInner() {
                   <p className="text-xs text-zinc-500 mb-4 animate-pulse">Analysing article…</p>
                 )}
                 {loadingState === 'done' && (
-                  <p className="text-xs text-zinc-600 mb-4">Click <span className="text-green-400 font-medium">Fix Now</span> on any issue to apply it automatically.</p>
+                  <p className="text-xs text-zinc-600 mb-4">Click <span className="text-blue-400 font-medium">Fix All Issues</span> to apply everything at once, or <span className="text-green-400 font-medium">Fix Now</span> on any individual issue.</p>
                 )}
                 <AuditMarkdown
                   text={auditMarkdown}
@@ -623,7 +652,8 @@ function ContentOptimizerInner() {
                     <h3 className="text-sm font-semibold text-green-400">Fixed Article</h3>
                     {fixingIssue && (
                       <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                        <span className="text-zinc-400">Fix applied:</span> {fixingIssue}
+                        <span className="text-zinc-400">Fix applied:</span>{' '}
+                        {fixingIssue.startsWith('Apply ALL') ? 'All identified issues' : fixingIssue}
                       </p>
                     )}
                   </div>
