@@ -19,37 +19,72 @@ export async function POST(request: Request) {
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+    const weaknessList = Array.isArray(weaknesses)
+      ? (weaknesses as string[]).join('\n')
+      : weaknesses
+
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1500,
       messages: [{
         role: 'user',
-        content: `You are a crypto content strategist building an article outline designed to beat the current Google rankings.
+        content: `You are a content strategist.
 
-Keyword: "${keyword}"
-Intent: ${intent}
+Your job is to create a STRUCTURE that beats current SERP results.
 
-Weaknesses in current top-ranking pages to exploit:
-${(weaknesses as string[]).map((w, i) => `${i + 1}. ${w}`).join('\n')}
-
-Create a tight, specific article outline that:
-1. Matches the intent — review articles lead with verdict, comparison articles lead with the direct contrast, informational leads with the answer
-2. Has a section that directly addresses each major weakness above
-3. Prioritises decision-making flow — every section moves the reader toward a decision
-4. Contains NO padding sections — every section must earn its place
-5. Reads like it was built by someone who knows the topic, not a content brief template
-
-Format: numbered sections with sub-points where needed. Add a 1-sentence note under each section explaining what it must accomplish.
-
-REFERENCE STRUCTURES (adapt — do not copy blindly):
-- Review intent: Verdict → What it is → Our Testing Experience → Fees / KYC / Risk (combined if similar weight) → How it compares → Final Call
-- Comparison intent: Verdict → Head-to-head breakdown → Key differences that actually matter → When to use each → Our pick and why
-- Informational intent: The direct answer → Why it matters → How it works (with specifics) → What to watch out for → Bottom line
+You must:
+- adapt to search intent
+- remove unnecessary sections
+- prioritize decision-making flow
 
 DO NOT:
-- Add FAQ sections just to add FAQs
-- Include generic "About [Exchange]" or "History" sections unless they're essential
-- Force any template — the structure must serve this specific keyword`,
+- use generic blog structures
+- force full templates
+- add filler sections
+
+STRICT RULES:
+- Keep structure lean
+- Combine sections where possible
+- Focus on what helps the user decide
+
+OUTPUT FORMAT:
+
+## Recommended Article Structure
+
+1. **Verdict**
+   - 1 paragraph max
+   - Clear decision
+
+2. **Introduction**
+   - What it is
+   - Who it's for
+   - Key differentiator
+
+3. **Our Experience**
+   - Real usage
+   - Friction points
+   - Who it suits
+
+4. **Core Sections**
+   - Only include what matters
+   - Combine where possible
+
+5. **Comparison**
+   - Direct vs competitors
+
+6. **Final Verdict**
+   - Reinforce decision
+
+---
+
+KEYWORD:
+${keyword}
+
+INTENT:
+${intent}
+
+WEAKNESSES:
+${weaknessList}`,
       }],
     })
 
