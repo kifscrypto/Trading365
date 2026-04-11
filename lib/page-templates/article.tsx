@@ -98,6 +98,26 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   }
 }
 
+/**
+ * Remove the "Quick Facts" section from article content when the template
+ * already renders it from exchange data — prevents the section appearing twice.
+ */
+function stripQuickFacts(content: string): string {
+  // HTML (TipTap): find the Quick Facts h2 and remove it plus everything until the next h2
+  if (/<[a-zA-Z]/.test(content)) {
+    const match = content.match(/<h2[^>]*>[\s\S]*?Quick\s*Facts[\s\S]*?<\/h2>/i)
+    if (!match || match.index === undefined) return content
+    const start = match.index
+    const afterSection = content.slice(start + match[0].length)
+    const nextH2 = afterSection.search(/<h2/i)
+    const end = nextH2 === -1 ? content.length : start + match[0].length + nextH2
+    return content.slice(0, start) + content.slice(end)
+  }
+  // Markdown: split on ## headings and drop the Quick Facts section
+  const sections = content.split(/(?=^## )/m)
+  return sections.filter(s => !/^## Quick\s*Facts/i.test(s)).join('')
+}
+
 export default async function ArticlePageContent({ category, slug }: { category: string; slug: string }) {
   const article = await getArticleBySlugFromDB(slug)
   const cat = getCategoryBySlug(category)
@@ -113,21 +133,24 @@ export default async function ArticlePageContent({ category, slug }: { category:
     .filter((a) => a.slug !== slug)
     .slice(0, 3)
 
+  // Strip Quick Facts from content when the template card is already showing it
+  const displayContent = exchange ? stripQuickFacts(article.content) : article.content
+
   // Extract h2 headings for TOC — supports both HTML (TipTap) and legacy Markdown
-  const isHtml = /<[a-zA-Z]/.test(article.content)
+  const isHtml = /<[a-zA-Z]/.test(displayContent)
   const tocHeadings: { text: string; id: string }[] = isHtml
-    ? [...article.content.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)].map((m) => {
+    ? [...displayContent.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)].map((m) => {
         const text = m[1].replace(/<[^>]+>/g, '').trim()
         return { text, id: slugifyHeading(text) }
       })
-    : article.content.split("\n\n")
+    : displayContent.split("\n\n")
         .filter((s) => s.startsWith("## "))
         .map((s) => {
           const text = s.replace("## ", "").split("\n")[0]
           return { text, id: slugifyHeading(text) }
         })
   // Keep legacy variable for non-TOC uses
-  const sections = article.content.split("\n\n")
+  const sections = displayContent.split("\n\n")
 
   const articleSchema = generateArticleSchema(article, !!exchange)
   const breadcrumbSchema = generateBreadcrumbSchema([
@@ -290,7 +313,7 @@ export default async function ArticlePageContent({ category, slug }: { category:
             )}
 
             {/* Article Body */}
-            <ArticleContent content={article.content} />
+            <ArticleContent content={displayContent} />
 
             {/* FAQ Section */}
             {article.faqs && article.faqs.length > 0 && (
