@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
 import { scrapeSerp, type SerpResult } from '@/lib/seo/scraper'
@@ -12,12 +11,14 @@ export const maxDuration = 60
 
 export async function POST(request: Request) {
   if (!(await checkAuth())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } })
   }
 
   try {
     const { keyword, serpResults: existingSerp } = await request.json()
-    if (!keyword?.trim()) return NextResponse.json({ error: 'Keyword required' }, { status: 400 })
+    if (!keyword?.trim()) {
+      return new Response(JSON.stringify({ error: 'Keyword required' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+    }
 
     // Use existing SERP data if passed, otherwise scrape fresh
     const serpResults: SerpResult[] = existingSerp?.length
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const message = await anthropic.messages.create({
+    const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 2500,
       messages: [{
@@ -78,10 +79,33 @@ ${serpData}`,
       }],
     })
 
-    const analysis = message.content[0].type === 'text' ? message.content[0].text : ''
-    return NextResponse.json({ keyword, analysis })
+    const encoder = new TextEncoder()
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            if (
+              chunk.type === 'content_block_delta' &&
+              chunk.delta.type === 'text_delta'
+            ) {
+              controller.enqueue(encoder.encode(chunk.delta.text))
+            }
+          }
+          controller.close()
+        } catch (err) {
+          controller.error(err)
+        }
+      },
+    })
+
+    return new Response(readable, {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    })
   } catch (error: any) {
     console.error('SEO weaknesses error:', error)
-    return NextResponse.json({ error: error.message ?? 'Analysis failed' }, { status: 500 })
+    return new Response(JSON.stringify({ error: error.message ?? 'Analysis failed' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 }
