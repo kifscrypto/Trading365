@@ -8,6 +8,84 @@ import { Suspense } from 'react'
 type Tab = 'compress' | 'links' | 'audit'
 type LoadingState = 'idle' | 'loading' | 'done' | 'error'
 
+function LinkingMarkdown({ text }: { text: string }) {
+  // Split into "Internal Link Opportunities" and "End of Article Links" sections
+  const oppMatch = text.match(/## Internal Link Opportunities\n([\s\S]*?)(?=\n## |$)/)
+  const endMatch = text.match(/## End of Article Links\n([\s\S]*?)(?=\n## |$)/)
+
+  const oppBlocks = oppMatch
+    ? oppMatch[1].trim().split(/(?=\n\d+\.\s+\*\*)/).filter(Boolean)
+    : []
+
+  const endLinks = endMatch
+    ? endMatch[1].trim().split('\n').filter(l => l.trim().startsWith('-')).map(l => l.replace(/^-\s*/, '').trim())
+    : []
+
+  if (!oppBlocks.length && !endLinks.length) {
+    return <pre className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">{text.trim()}</pre>
+  }
+
+  return (
+    <div className="space-y-4">
+      {oppBlocks.length > 0 && (
+        <div className="space-y-3">
+          {oppBlocks.map((block, i) => {
+            const titleMatch = block.match(/\*\*(.+?)\*\*/)
+            const title = titleMatch?.[1] ?? `Link ${i + 1}`
+            const anchorMatch = block.match(/Anchor:\s*"?([^"\n]+)"?/)
+            const linkMatch = block.match(/Link to:\s*([^\n]+)/)
+            const reasonMatch = block.match(/Reason:\s*([^\n]+)/)
+            return (
+              <div key={i} className="border border-zinc-700 rounded-lg overflow-hidden">
+                <div className="bg-zinc-800 px-4 py-2.5 flex items-center gap-2">
+                  <span className="text-xs font-bold text-blue-400">{i + 1}</span>
+                  <span className="text-sm font-semibold text-zinc-100">{title}</span>
+                </div>
+                <div className="px-4 py-3 space-y-1.5">
+                  {anchorMatch && (
+                    <div className="flex gap-2 text-sm">
+                      <span className="text-zinc-500 shrink-0 w-20">Anchor:</span>
+                      <span className="text-blue-300 font-mono text-xs bg-zinc-800 px-2 py-0.5 rounded">"{anchorMatch[1].trim()}"</span>
+                    </div>
+                  )}
+                  {linkMatch && (
+                    <div className="flex gap-2 text-sm">
+                      <span className="text-zinc-500 shrink-0 w-20">Link to:</span>
+                      <span className="text-zinc-300 font-mono text-xs">{linkMatch[1].trim()}</span>
+                    </div>
+                  )}
+                  {reasonMatch && (
+                    <div className="flex gap-2 text-sm">
+                      <span className="text-amber-400 shrink-0 w-20 font-medium">Reason:</span>
+                      <span className="text-zinc-300">{reasonMatch[1].trim()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {endLinks.length > 0 && (
+        <div className="border border-zinc-700 rounded-lg overflow-hidden">
+          <div className="bg-zinc-800 px-4 py-2.5">
+            <span className="text-sm font-semibold text-zinc-100">End of Article Links</span>
+          </div>
+          <ul className="px-4 py-3 space-y-1.5">
+            {endLinks.map((l, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-blue-400 shrink-0">→</span>
+                {l}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CompressionMarkdown({ text }: { text: string }) {
   // Split on numbered items: "1. **Title**"
   const blocks = text.split(/(?=\n\d+\.\s+\*\*)/).filter(Boolean)
@@ -59,7 +137,7 @@ function ContentOptimizerInner() {
   const [content, setContent] = useState('')
   const [auditUrl, setAuditUrl] = useState('')
   const [compressionMarkdown, setCompressionMarkdown] = useState<string>('')
-  const [linkingSuggestions, setLinkingSuggestions] = useState<string[]>([])
+  const [linkingMarkdown, setLinkingMarkdown] = useState<string>('')
   const [auditResult, setAuditResult] = useState<{
     overall_score?: number
     priority_actions?: string[]
@@ -81,7 +159,7 @@ function ContentOptimizerInner() {
     setError('')
     setLoadingState('loading')
     setCompressionMarkdown('')
-    setLinkingSuggestions([])
+    setLinkingMarkdown('')
 
     try {
       const res = await fetch('/api/admin/seo/optimize', {
@@ -92,7 +170,7 @@ function ContentOptimizerInner() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Optimization failed')
       if (data.compressionMarkdown) setCompressionMarkdown(data.compressionMarkdown)
-      if (data.linkingSuggestions) setLinkingSuggestions(data.linkingSuggestions)
+      if (data.linkingMarkdown) setLinkingMarkdown(data.linkingMarkdown)
       setLoadingState('done')
     } catch (err: any) {
       setError(err.message)
@@ -216,19 +294,10 @@ function ContentOptimizerInner() {
               </div>
             </div>
 
-            {linkingSuggestions.length > 0 && (
+            {linkingMarkdown && (
               <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6">
-                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">
-                  🔗 {linkingSuggestions.length} Link Suggestions
-                </h3>
-                <ul className="space-y-3">
-                  {linkingSuggestions.map((s, i) => (
-                    <li key={i} className="flex items-start gap-3 p-3 bg-zinc-800/50 rounded-lg">
-                      <span className="text-blue-400 mt-0.5 shrink-0 text-xs font-bold">→</span>
-                      <span className="text-sm text-zinc-300 leading-relaxed">{s}</span>
-                    </li>
-                  ))}
-                </ul>
+                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">🔗 Internal Link Opportunities</h3>
+                <LinkingMarkdown text={linkingMarkdown} />
               </div>
             )}
           </div>

@@ -75,39 +75,53 @@ ${content}`,
 
     if (mode === 'links' || mode === 'both') {
       const articles = await getPublishedArticles()
-      const siteUrls = articles
+      const sitePages = articles
         .map(a => `/${a.category_slug}/${a.slug} — ${a.title}`)
         .join('\n')
 
       const msg = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1500,
+        max_tokens: 2000,
         messages: [{
           role: 'user',
-          content: `Suggest internal links for this article. Only suggest links that genuinely help the reader.
+          content: `You are an SEO internal linking specialist.
 
-Article:
+Your job is to suggest EXACT internal links.
+
+STRICT RULES:
+- Must include placement (where in article)
+- Must include anchor text
+- Must include reason
+- No vague suggestions
+
+OUTPUT FORMAT:
+
+## Internal Link Opportunities
+
+1. **[Section or Paragraph]**
+   - Anchor: "[exact phrase]"
+   - Link to: [URL or slug]
+   - Reason:
+
+2. ...
+
+## End of Article Links
+
+- [Comparison page]
+- [Review]
+- [Guide]
+
+---
+
+ARTICLE:
 ${content}
 
-Available site pages:
-${siteUrls}
-
-Rules:
-- Specify exact placement (paragraph number, section name, or after a specific phrase)
-- Use natural anchor text that matches reader intent at that point in the article
-- 3–6 links maximum — do not pad
-- Include 1–2 end-of-article "related reading" suggestions
-
-Return ONLY a JSON array:
-[
-  "In paragraph 3, after mentioning KYC-free withdrawals — link 'best no-KYC exchanges' to /no-kyc/best-no-kyc-exchanges",
-  "In the Fees section, after the maker/taker rates — link 'compare fees against MEXC' to /comparisons/mexc-vs-[exchange]",
-  "End of article: add related reading — /reviews/mexc-review (Best No-KYC Alternative) and /no-kyc/best-no-kyc-exchanges (Full No-KYC Rankings)"
-]`,
+SITE PAGES:
+${sitePages}`,
         }],
       })
-      const raw = msg.content[0].type === 'text' ? msg.content[0].text : '[]'
-      results.linkingSuggestions = extractJson(raw, [])
+      const raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
+      results.linkingMarkdown = raw
     }
 
     return NextResponse.json(results)
