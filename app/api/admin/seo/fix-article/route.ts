@@ -71,6 +71,8 @@ RULES:
 - Make the minimum change needed — don't rewrite whole paragraphs for a one-line fix
 - For insertions: include the line/heading just before the insert point in "find", then put that line + new content in "replace"
 - Maximum 12 patches
+- NEVER introduce fake reviewer names, bylines, credentials, or "Last updated:" / "Reviewed by:" lines
+- The current year is 2026 — do not introduce 2025 as current in any replacement text
 
 ARTICLE:
 ${articleContent}`,

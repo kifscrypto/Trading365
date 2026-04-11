@@ -47,6 +47,9 @@ SECTION REQUIREMENTS:
 - Cover: signing up, trading interface, daily use, what surprised us, friction points
 - Be specific to this exchange (fees, interface quirks, deposit methods)
 - Match the writing style and tone of the rest of the article exactly
+- Do NOT invent reviewer names, bylines, or credentials
+- Do NOT add "Last updated:" or "Reviewed by:" lines
+- The current year is 2026 — do not reference 2025 as current
 
 PLACEMENT:
 - Insert it naturally — after the initial overview/hook sections, before the detailed features breakdown
