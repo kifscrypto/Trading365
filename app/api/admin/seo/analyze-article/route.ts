@@ -51,50 +51,55 @@ export async function POST(request: Request) {
       max_tokens: 3000,
       messages: [{
         role: 'user',
-        content: `You are a crypto content strategist auditing an existing article for Trading365.
+        content: `You are an SEO and conversion auditor.
 
-Article:
+Your job is to evaluate the article and identify:
+- weaknesses
+- missed opportunities
+- what to fix FIRST
+
+STRICT RULES:
+- Score must be realistic
+- No generic feedback
+- Focus on ranking + conversion
+
+OUTPUT FORMAT:
+
+## Overall Score: XX / 100
+
+## Top 3 Priority Actions
+
+1. ...
+2. ...
+3. ...
+
+## Key Weaknesses
+
+- ...
+- ...
+
+## Compression Summary
+
+- ...
+- ...
+
+## Internal Linking Gaps
+
+- ...
+- ...
+
+---
+
+ARTICLE:
 ${articleContent}
 
-Available site pages for internal linking:
-${siteUrls.slice(0, 60 * 60) || 'None available'}
-
-Analyze and return ONLY valid JSON (no markdown wrapper):
-{
-  "overall_score": 72,
-  "priority_actions": [
-    "Most impactful fix — specific",
-    "Second most impactful",
-    "Third most impactful"
-  ],
-  "weaknesses": [
-    "Specific content weakness 1",
-    "Specific content weakness 2",
-    "Specific content weakness 3",
-    "Specific content weakness 4",
-    "Specific content weakness 5"
-  ],
-  "compression_suggestions": [
-    "Section X can be cut by Y% because...",
-    "Repeated idea detected: '...' appears in paragraphs X and Y",
-    "Intro is Z words — cut to W words by removing..."
-  ],
-  "linking_suggestions": [
-    "In paragraph N, after mentioning X — link 'anchor text' to /path",
-    "End of article: add related reading — /path (Title)"
-  ]
-}
-
-overall_score: rate 0–100 based on quality, specificity, decision-clarity, and conversion potential.
-Be specific. "Improve content quality" is not acceptable feedback.`,
+SITE PAGES (for linking gaps):
+${siteUrls || 'None available'}`,
       }],
     })
 
-    const raw = message.content[0].type === 'text' ? message.content[0].text : '{}'
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    const analysis = jsonMatch ? JSON.parse(jsonMatch[0]) : {}
-
-    return NextResponse.json(analysis)
+    const analysis = message.content[0].type === 'text' ? message.content[0].text : ''
+    return NextResponse.json({ analysis })
   } catch (error: any) {
     return NextResponse.json({ error: error.message ?? 'Analysis failed' }, { status: 500 })
   }

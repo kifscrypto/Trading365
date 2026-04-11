@@ -8,6 +8,100 @@ import { Suspense } from 'react'
 type Tab = 'compress' | 'links' | 'audit'
 type LoadingState = 'idle' | 'loading' | 'done' | 'error'
 
+function AuditMarkdown({ text }: { text: string }) {
+  const scoreMatch = text.match(/## Overall Score:\s*(\d+)\s*\/\s*100/)
+  const score = scoreMatch ? parseInt(scoreMatch[1]) : null
+
+  function parseSection(heading: string): string[] {
+    const re = new RegExp(`## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`)
+    const m = text.match(re)
+    if (!m) return []
+    return m[1].trim().split('\n').filter(l => l.trim()).map(l => l.replace(/^[-\d.]\s*/, '').trim()).filter(Boolean)
+  }
+
+  const priorities = parseSection('Top 3 Priority Actions')
+  const weaknesses = parseSection('Key Weaknesses')
+  const compression = parseSection('Compression Summary')
+  const linking = parseSection('Internal Linking Gaps')
+
+  return (
+    <div className="space-y-5">
+      {/* Score */}
+      {score !== null && (
+        <div className="flex items-center gap-4 pb-4 border-b border-zinc-700">
+          <div className={`text-5xl font-bold ${score >= 75 ? 'text-green-400' : score >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+            {score}
+          </div>
+          <div>
+            <p className="text-base font-semibold text-zinc-100">/ 100</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Ranking + conversion score</p>
+          </div>
+        </div>
+      )}
+
+      {/* Priority Actions */}
+      {priorities.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-3">🎯 Top 3 Priority Actions</h3>
+          <ol className="space-y-2">
+            {priorities.map((p, i) => (
+              <li key={i} className="flex items-start gap-3 p-3 bg-zinc-800/50 rounded-lg">
+                <span className="text-blue-400 font-bold shrink-0 text-sm">{i + 1}.</span>
+                <span className="text-sm text-zinc-200">{p}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* Weaknesses */}
+      {weaknesses.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">⚔️ Key Weaknesses</h3>
+          <ul className="space-y-1.5">
+            {weaknesses.map((w, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-red-500 shrink-0 mt-0.5">→</span>
+                {w}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Compression */}
+      {compression.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-3">✂️ Compression Summary</h3>
+          <ul className="space-y-1.5">
+            {compression.map((c, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-amber-400 shrink-0 mt-0.5">→</span>
+                {c}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Linking Gaps */}
+      {linking.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">🔗 Internal Linking Gaps</h3>
+          <ul className="space-y-1.5">
+            {linking.map((l, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+                <span className="text-blue-400 shrink-0 mt-0.5">→</span>
+                {l}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function LinkingMarkdown({ text }: { text: string }) {
   // Split into "Internal Link Opportunities" and "End of Article Links" sections
   const oppMatch = text.match(/## Internal Link Opportunities\n([\s\S]*?)(?=\n## |$)/)
@@ -138,13 +232,7 @@ function ContentOptimizerInner() {
   const [auditUrl, setAuditUrl] = useState('')
   const [compressionMarkdown, setCompressionMarkdown] = useState<string>('')
   const [linkingMarkdown, setLinkingMarkdown] = useState<string>('')
-  const [auditResult, setAuditResult] = useState<{
-    overall_score?: number
-    priority_actions?: string[]
-    weaknesses?: string[]
-    compression_suggestions?: string[]
-    linking_suggestions?: string[]
-  } | null>(null)
+  const [auditMarkdown, setAuditMarkdown] = useState<string>('')
   const [loadingState, setLoadingState] = useState<LoadingState>('idle')
   const [error, setError] = useState('')
 
@@ -182,7 +270,7 @@ function ContentOptimizerInner() {
     if (!content.trim() && !auditUrl.trim()) { setError('Paste content or enter a URL'); return }
     setError('')
     setLoadingState('loading')
-    setAuditResult(null)
+    setAuditMarkdown('')
 
     try {
       const res = await fetch('/api/admin/seo/analyze-article', {
@@ -192,7 +280,7 @@ function ContentOptimizerInner() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Audit failed')
-      setAuditResult(data)
+      setAuditMarkdown(data.analysis ?? '')
       setLoadingState('done')
     } catch (err: any) {
       setError(err.message)
@@ -345,79 +433,9 @@ function ContentOptimizerInner() {
               </div>
             </div>
 
-            {auditResult && (
-              <div className="space-y-4">
-                {/* Score + Priority */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 flex items-center gap-4">
-                    <div className={`text-4xl font-bold ${
-                      (auditResult.overall_score ?? 0) >= 75 ? 'text-green-400' :
-                      (auditResult.overall_score ?? 0) >= 50 ? 'text-amber-400' : 'text-red-400'
-                    }`}>
-                      {auditResult.overall_score ?? '—'}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-zinc-200">Content Score</p>
-                      <p className="text-xs text-zinc-500">Quality, specificity, decision-clarity</p>
-                    </div>
-                  </div>
-                  <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5">
-                    <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">🎯 Priority Actions</h3>
-                    <ol className="space-y-1.5">
-                      {auditResult.priority_actions?.map((a, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
-                          <span className="text-blue-400 font-bold shrink-0">{i + 1}.</span>
-                          {a}
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                </div>
-
-                {/* Weaknesses */}
-                {auditResult.weaknesses?.length ? (
-                  <div className="bg-zinc-900 border border-red-900/40 rounded-xl p-5">
-                    <h3 className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">⚔️ Content Weaknesses</h3>
-                    <ul className="space-y-2">
-                      {auditResult.weaknesses.map((w, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
-                          <span className="text-red-500 shrink-0 mt-0.5">→</span>
-                          {w}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {/* Compression */}
-                {auditResult.compression_suggestions?.length ? (
-                  <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5">
-                    <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">✂️ Compression Suggestions</h3>
-                    <ul className="space-y-2">
-                      {auditResult.compression_suggestions.map((s, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-zinc-300 p-2 bg-zinc-800/50 rounded">
-                          <span className="text-amber-400 shrink-0 mt-0.5">→</span>
-                          {s}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {/* Linking */}
-                {auditResult.linking_suggestions?.length ? (
-                  <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5">
-                    <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">🔗 Linking Suggestions</h3>
-                    <ul className="space-y-2">
-                      {auditResult.linking_suggestions.map((s, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-zinc-300 p-2 bg-zinc-800/50 rounded">
-                          <span className="text-blue-400 shrink-0 mt-0.5">→</span>
-                          {s}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+            {auditMarkdown && (
+              <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6">
+                <AuditMarkdown text={auditMarkdown} />
               </div>
             )}
           </div>
