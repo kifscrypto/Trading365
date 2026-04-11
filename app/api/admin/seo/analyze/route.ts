@@ -22,11 +22,11 @@ export async function POST(request: Request) {
     const serpResults = await scrapeSerp(keyword.trim())
     const hasSerpData = serpResults.length > 0
 
-    const serpContext = hasSerpData
+    const serpData = hasSerpData
       ? serpResults.map((r) =>
           `${r.position}. "${r.title}"\n   URL: ${r.url}\n   Snippet: ${r.snippet || 'n/a'}`
         ).join('\n\n')
-      : `No live SERP data retrieved. Use your training knowledge of what typically ranks for crypto exchange content related to "${keyword}".`
+      : `No live SERP data retrieved. Apply your training knowledge of what typically ranks for crypto exchange content related to "${keyword}".`
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -35,44 +35,62 @@ export async function POST(request: Request) {
       max_tokens: 2000,
       messages: [{
         role: 'user',
-        content: `You are a crypto content strategist. Analyze the Google SERP for the keyword: "${keyword}"
+        content: `You are an SEO strategist focused on beating current SERP results, not copying them.
 
-${hasSerpData ? 'Live SERP data:' : 'Note: No live data — apply your knowledge of crypto exchange SERPs.'}
-${serpContext}
+Analyze the keyword below using the provided SERP data.
 
-Return ONLY valid JSON (no markdown wrapper, no explanation) with exactly this structure:
-{
-  "intent": "review | comparison | informational | hybrid",
-  "what_google_rewards": "2-3 plain English sentences. What pattern do the ranking pages share? Why does Google reward them for this keyword?",
-  "weaknesses": [
-    "Specific, actionable weakness 1 — not generic",
-    "Specific, actionable weakness 2",
-    "Specific, actionable weakness 3",
-    "Specific, actionable weakness 4",
-    "Specific, actionable weakness 5",
-    "Specific, actionable weakness 6"
-  ],
-  "content_patterns": {
-    "dominant_type": "review | comparison | guide | mixed",
-    "typical_length": "short (under 1000w) | medium (1000-3000w) | long (3000w+)",
-    "common_sections": ["array", "of", "heading", "types", "seen"]
-  }
-}
+Your job:
+- Identify the TRUE search intent
+- Explain what Google is currently rewarding
+- Identify patterns across top ranking pages
+- Identify at least 6 SPECIFIC weaknesses in those pages
+- Recommend a clear strategy to outperform them
 
-Weaknesses must be:
-- Specific to crypto exchange content (reference fees, KYC requirements, leverage, spreads, UI, security, withdrawal speed, etc.)
-- Actionable — each one should imply a clear opportunity to do better
-- NOT generic ("content is thin" or "needs more detail" is not acceptable)
-- Written as a clear observation, e.g. "No section covering actual withdrawal experience — all fee data is from the exchange's own marketing"`,
+STRICT RULES:
+- No generic SEO advice
+- No fluff
+- No long paragraphs
+- Every point must be actionable
+- Write in plain English
+
+OUTPUT FORMAT (FOLLOW EXACTLY):
+
+## Search Intent
+[One line only]
+
+## What Google Rewards
+[2–3 sentences max]
+
+## Top Ranking Patterns
+- ...
+- ...
+- ...
+
+## SERP Weaknesses
+- ...
+- ...
+- ...
+(minimum 6)
+
+## Recommended Strategy
+- ...
+- ...
+- ...
+(3–5 bullets max)
+
+---
+
+KEYWORD:
+${keyword}
+
+SERP DATA:
+${serpData}`,
       }],
     })
 
-    const raw = message.content[0].type === 'text' ? message.content[0].text : ''
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) throw new Error('Claude did not return valid JSON')
-    const analysis = JSON.parse(jsonMatch[0])
+    const analysis = message.content[0].type === 'text' ? message.content[0].text : ''
 
-    return NextResponse.json({ keyword, serpResults, hasSerpData, ...analysis })
+    return NextResponse.json({ keyword, serpResults, hasSerpData, analysis })
   } catch (error: any) {
     console.error('SEO analyze error:', error)
     return NextResponse.json({ error: error.message ?? 'Analysis failed' }, { status: 500 })

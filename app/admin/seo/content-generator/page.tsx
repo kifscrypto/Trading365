@@ -36,8 +36,23 @@ export default function ContentGeneratorPage() {
       try {
         const data = JSON.parse(saved)
         if (data.keyword) setKeyword(data.keyword)
-        if (data.intent) setIntent(data.intent)
-        if (data.weaknesses?.length) setWeaknesses(data.weaknesses.join('\n'))
+        // Parse intent from markdown analysis
+        if (data.analysis) {
+          const intentMatch = data.analysis.match(/## Search Intent\n([^\n]+)/)
+          if (intentMatch) {
+            const raw = intentMatch[1].toLowerCase()
+            if (raw.includes('comparison')) setIntent('comparison')
+            else if (raw.includes('informational')) setIntent('informational')
+            else if (raw.includes('hybrid')) setIntent('hybrid')
+            else setIntent('review')
+          }
+          // Parse weaknesses from markdown
+          const weakMatch = data.analysis.match(/## SERP Weaknesses\n([\s\S]*?)(?=\n## |$)/)
+          if (weakMatch) {
+            const lines = weakMatch[1].trim().split('\n').filter((l: string) => l.trim().startsWith('-')).map((l: string) => l.replace(/^-\s*/, '').trim())
+            if (lines.length) setWeaknesses(lines.join('\n'))
+          }
+        }
       } catch {}
     }
 

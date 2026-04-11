@@ -7,23 +7,43 @@ import type { SerpResult } from '@/lib/seo/scraper'
 
 interface Analysis {
   keyword: string
-  intent: string
-  what_google_rewards: string
-  weaknesses: string[]
-  content_patterns: {
-    dominant_type: string
-    typical_length: string
-    common_sections: string[]
-  }
+  analysis: string
   serpResults: SerpResult[]
   hasSerpData: boolean
 }
 
-const INTENT_COLORS: Record<string, string> = {
-  review: 'bg-blue-900/50 text-blue-300 border-blue-700',
-  comparison: 'bg-purple-900/50 text-purple-300 border-purple-700',
-  informational: 'bg-green-900/50 text-green-300 border-green-700',
-  hybrid: 'bg-amber-900/50 text-amber-300 border-amber-700',
+function parseSection(text: string, heading: string): string[] | string | null {
+  const regex = new RegExp(`## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`)
+  const match = text.match(regex)
+  if (!match) return null
+  const body = match[1].trim()
+  if (body.startsWith('-')) {
+    return body.split('\n').filter(l => l.trim().startsWith('-')).map(l => l.replace(/^-\s*/, '').trim())
+  }
+  return body
+}
+
+function AnalysisSection({ title, content, accent }: { title: string; content: string[] | string | null; accent?: string }) {
+  if (!content) return null
+  return (
+    <div className={`bg-zinc-900 border rounded-xl p-5 ${accent ?? 'border-zinc-700'}`}>
+      <h3 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${accent === 'border-red-900/50' ? 'text-red-400' : accent === 'border-blue-900/50' ? 'text-blue-400' : 'text-zinc-400'}`}>
+        {title}
+      </h3>
+      {Array.isArray(content) ? (
+        <ul className="space-y-2">
+          {content.map((item, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+              <span className={`mt-0.5 shrink-0 ${accent === 'border-red-900/50' ? 'text-red-500' : 'text-zinc-500'}`}>→</span>
+              {item}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-zinc-300 leading-relaxed">{content}</p>
+      )}
+    </div>
+  )
 }
 
 export default function KeywordAnalysisPage() {
@@ -63,6 +83,12 @@ export default function KeywordAnalysisPage() {
     }
   }
 
+  const intent = analysis ? parseSection(analysis.analysis, 'Search Intent') : null
+  const rewards = analysis ? parseSection(analysis.analysis, 'What Google Rewards') : null
+  const patterns = analysis ? parseSection(analysis.analysis, 'Top Ranking Patterns') : null
+  const weaknesses = analysis ? parseSection(analysis.analysis, 'SERP Weaknesses') : null
+  const strategy = analysis ? parseSection(analysis.analysis, 'Recommended Strategy') : null
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <nav className="bg-zinc-900 border-b border-zinc-700 px-6 py-3 flex items-center gap-4">
@@ -72,7 +98,6 @@ export default function KeywordAnalysisPage() {
       </nav>
 
       <div className="max-w-5xl mx-auto px-6 py-8">
-        {/* Input */}
         <form onSubmit={handleAnalyze} className="flex gap-3 mb-8">
           <input
             type="text"
@@ -97,19 +122,16 @@ export default function KeywordAnalysisPage() {
         {loading && (
           <div className="text-center py-16 text-zinc-500">
             <div className="text-4xl mb-3">🔍</div>
-            <p>Scraping SERPs and analyzing with Claude…</p>
-            <p className="text-xs mt-1 text-zinc-600">This takes 10–20 seconds</p>
+            <p>Scraping SERPs and analyzing…</p>
+            <p className="text-xs mt-1 text-zinc-600">Takes 10–20 seconds</p>
           </div>
         )}
 
         {analysis && !loading && (
-          <div className="space-y-6">
-            {/* Header row */}
-            <div className="flex items-center gap-3 flex-wrap">
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center gap-3 flex-wrap mb-2">
               <h2 className="text-xl font-bold text-zinc-100">"{analysis.keyword}"</h2>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${INTENT_COLORS[analysis.intent] ?? 'bg-zinc-800 text-zinc-300 border-zinc-600'}`}>
-                {analysis.intent}
-              </span>
               {!analysis.hasSerpData && (
                 <span className="px-2 py-0.5 bg-yellow-900/40 text-yellow-400 border border-yellow-700 rounded text-xs">
                   No live SERP — Claude knowledge used
@@ -117,45 +139,30 @@ export default function KeywordAnalysisPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* What Google rewards */}
-              <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5">
-                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">What Google Is Rewarding</h3>
-                <p className="text-sm text-zinc-300 leading-relaxed">{analysis.what_google_rewards}</p>
-                <div className="mt-4 pt-4 border-t border-zinc-800">
-                  <p className="text-xs text-zinc-500 mb-2">Content patterns</p>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="px-2 py-0.5 bg-zinc-800 text-zinc-300 text-xs rounded">{analysis.content_patterns?.dominant_type}</span>
-                    <span className="px-2 py-0.5 bg-zinc-800 text-zinc-300 text-xs rounded">{analysis.content_patterns?.typical_length}</span>
-                  </div>
-                  {analysis.content_patterns?.common_sections?.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {analysis.content_patterns.common_sections.map((s, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-zinc-800/50 text-zinc-500 text-xs rounded">{s}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
+            {/* Intent — inline pill */}
+            {intent && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-500 uppercase tracking-wider">Search Intent</span>
+                <span className="px-3 py-1 bg-blue-900/50 border border-blue-700 text-blue-300 rounded-full text-sm font-medium">
+                  {typeof intent === 'string' ? intent : intent[0]}
+                </span>
               </div>
+            )}
 
-              {/* Weaknesses */}
-              <div className="bg-zinc-900 border border-red-900/40 rounded-xl p-5">
-                <h3 className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-3">⚔️ Weaknesses to Exploit</h3>
-                <ul className="space-y-2">
-                  {analysis.weaknesses?.map((w, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
-                      <span className="text-red-500 mt-0.5 shrink-0">→</span>
-                      {w}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <AnalysisSection title="What Google Rewards" content={rewards} />
+              <AnalysisSection title="Top Ranking Patterns" content={patterns} />
             </div>
 
-            {/* SERP Results */}
+            <AnalysisSection title="⚔️ SERP Weaknesses" content={weaknesses} accent="border-red-900/50" />
+            <AnalysisSection title="✅ Recommended Strategy" content={strategy} accent="border-blue-900/50" />
+
+            {/* SERP list */}
             {analysis.serpResults?.length > 0 && (
               <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5">
-                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Top {analysis.serpResults.length} Results</h3>
+                <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">
+                  Top {analysis.serpResults.length} Results
+                </h3>
                 <div className="space-y-3">
                   {analysis.serpResults.map((r) => (
                     <div key={r.position} className="flex items-start gap-3">
@@ -163,7 +170,7 @@ export default function KeywordAnalysisPage() {
                       <div className="min-w-0">
                         <p className="text-sm text-zinc-200 font-medium leading-tight">{r.title}</p>
                         <p className="text-xs text-zinc-500 mt-0.5 truncate">{r.url}</p>
-                        {r.snippet && <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{r.snippet}</p>}
+                        {r.snippet && <p className="text-xs text-zinc-600 mt-1 line-clamp-2">{r.snippet}</p>}
                       </div>
                     </div>
                   ))}
@@ -171,7 +178,6 @@ export default function KeywordAnalysisPage() {
               </div>
             )}
 
-            {/* CTA */}
             <div className="flex gap-3 pt-2">
               <Link
                 href="/admin/seo/content-generator"
