@@ -1,6 +1,5 @@
 import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
-import { getPublishedArticles } from '@/lib/db'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -15,7 +14,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { content, url } = await request.json()
+    const { content, url, fix } = await request.json()
 
     let articleContent = content?.trim() || ''
 
@@ -31,69 +30,38 @@ export async function POST(request: Request) {
         .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
-        .slice(0, 12000)
+        .slice(0, 15000)
     }
 
     if (!articleContent) {
-      return new Response(JSON.stringify({ error: 'No content provided' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'No article content to fix' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
     }
-
-    const articles = await getPublishedArticles()
-    const siteUrls = articles
-      .map(a => `/${a.category_slug}/${a.slug} — ${a.title}`)
-      .join('\n')
+    if (!fix?.trim()) {
+      return new Response(JSON.stringify({ error: 'Fix instruction required' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+    }
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
+      max_tokens: 8000,
       messages: [{
         role: 'user',
-        content: `You are an SEO and conversion auditor.
+        content: `You are a skilled editor for a crypto exchange review site.
 
-Your job is to evaluate the article and identify:
-- weaknesses
-- missed opportunities
-- what to fix FIRST
+Apply the following fix to the article below, then output the complete improved article.
 
-STRICT RULES:
-- Score must be realistic
-- No generic feedback
-- Focus on ranking + conversion
+FIX TO APPLY:
+${fix}
 
-OUTPUT FORMAT:
-
-## Overall Score: XX / 100
-
-## Top 3 Priority Actions
-
-1. ...
-2. ...
-3. ...
-
-## Key Weaknesses
-
-- ...
-- ...
-
-## Compression Summary
-
-- ...
-- ...
-
-## Internal Linking Gaps
-
-- ...
-- ...
-
----
+CRITICAL RULES:
+- Output ONLY the article — no intro like "Here is the updated article:", no explanation after
+- Apply ONLY the fix above — change nothing else
+- Keep all other sections word-for-word as written
+- Maintain the exact same writing style and tone
 
 ARTICLE:
-${articleContent}
-
-SITE PAGES (for linking gaps):
-${siteUrls || 'None available'}`,
+${articleContent}`,
       }],
     })
 
@@ -102,10 +70,7 @@ ${siteUrls || 'None available'}`,
       async start(controller) {
         try {
           for await (const chunk of stream) {
-            if (
-              chunk.type === 'content_block_delta' &&
-              chunk.delta.type === 'text_delta'
-            ) {
+            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
               controller.enqueue(encoder.encode(chunk.delta.text))
             }
           }
@@ -120,7 +85,7 @@ ${siteUrls || 'None available'}`,
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     })
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message ?? 'Analysis failed' }), {
+    return new Response(JSON.stringify({ error: error.message ?? 'Fix failed' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
