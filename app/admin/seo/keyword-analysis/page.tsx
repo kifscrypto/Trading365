@@ -12,6 +12,54 @@ interface Analysis {
   hasSerpData: boolean
 }
 
+function renderWeaknessMarkdown(text: string) {
+  // Split on numbered weakness blocks: "1. **Title**"
+  const blocks = text.split(/(?=\n\d+\.\s+\*\*)/).filter(Boolean)
+  if (blocks.length <= 1) {
+    // Fallback: render as plain text
+    return <p className="text-sm text-zinc-300 whitespace-pre-wrap">{text.trim()}</p>
+  }
+  return (
+    <div className="space-y-5">
+      {blocks.map((block, i) => {
+        const titleMatch = block.match(/\*\*(.+?)\*\*/)
+        const title = titleMatch?.[1] ?? `Weakness ${i + 1}`
+        const wrongMatch = block.match(/What's wrong:\s*([^\n]+)/)
+        const mattersMatch = block.match(/Why it matters:\s*([^\n]+)/)
+        const exploitMatch = block.match(/How to exploit it:\s*([^\n]+)/)
+        return (
+          <div key={i} className="border border-zinc-700 rounded-lg overflow-hidden">
+            <div className="bg-zinc-800 px-4 py-2.5 flex items-center gap-2">
+              <span className="text-xs font-bold text-red-400">{i + 1}</span>
+              <span className="text-sm font-semibold text-zinc-100">{title}</span>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              {wrongMatch && (
+                <div className="flex gap-2 text-sm">
+                  <span className="text-zinc-500 shrink-0 w-28">What&apos;s wrong:</span>
+                  <span className="text-zinc-300">{wrongMatch[1].trim()}</span>
+                </div>
+              )}
+              {mattersMatch && (
+                <div className="flex gap-2 text-sm">
+                  <span className="text-zinc-500 shrink-0 w-28">Why it matters:</span>
+                  <span className="text-zinc-300">{mattersMatch[1].trim()}</span>
+                </div>
+              )}
+              {exploitMatch && (
+                <div className="flex gap-2 text-sm">
+                  <span className="text-amber-400 shrink-0 w-28 font-medium">How to exploit:</span>
+                  <span className="text-zinc-200">{exploitMatch[1].trim()}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function parseSection(text: string, heading: string): string[] | string | null {
   const regex = new RegExp(`## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`)
   const match = text.match(regex)
@@ -52,12 +100,36 @@ export default function KeywordAnalysisPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
+  const [deepWeakness, setDeepWeakness] = useState<string | null>(null)
+  const [deepLoading, setDeepLoading] = useState(false)
+  const [deepError, setDeepError] = useState('')
 
   useEffect(() => {
     fetch('/api/admin/check-session').then(r => { if (!r.ok) router.push('/admin') })
     const saved = localStorage.getItem('seo_keyword_analysis')
     if (saved) { try { setAnalysis(JSON.parse(saved)) } catch {} }
   }, [router])
+
+  async function handleDeepWeakness() {
+    if (!analysis) return
+    setDeepLoading(true)
+    setDeepError('')
+    setDeepWeakness(null)
+    try {
+      const res = await fetch('/api/admin/seo/weaknesses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: analysis.keyword, serpResults: analysis.serpResults }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Analysis failed')
+      setDeepWeakness(data.analysis)
+    } catch (err: any) {
+      setDeepError(err.message)
+    } finally {
+      setDeepLoading(false)
+    }
+  }
 
   async function handleAnalyze(e: React.FormEvent) {
     e.preventDefault()
@@ -156,6 +228,41 @@ export default function KeywordAnalysisPage() {
 
             <AnalysisSection title="⚔️ SERP Weaknesses" content={weaknesses} accent="border-red-900/50" />
             <AnalysisSection title="✅ Recommended Strategy" content={strategy} accent="border-blue-900/50" />
+
+            {/* Deep Weakness Analysis */}
+            <div className="bg-zinc-900 border border-red-900/30 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-red-400">⚔️ Deep Weakness Analysis</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">Detailed breakdown — what&apos;s wrong, why it matters, how to exploit it</p>
+                </div>
+                <button
+                  onClick={handleDeepWeakness}
+                  disabled={deepLoading}
+                  className="px-4 py-2 bg-red-900/50 border border-red-700 text-red-300 hover:bg-red-900 rounded-lg text-xs font-medium disabled:opacity-50 whitespace-nowrap"
+                >
+                  {deepLoading ? 'Analyzing…' : deepWeakness ? 'Re-run' : 'Run Deep Analysis'}
+                </button>
+              </div>
+
+              {deepError && (
+                <p className="text-xs text-red-400 mb-3">{deepError}</p>
+              )}
+
+              {deepLoading && (
+                <div className="text-center py-6 text-zinc-600 text-sm">Running deep weakness analysis…</div>
+              )}
+
+              {deepWeakness && !deepLoading && (
+                <div className="mt-2">
+                  {renderWeaknessMarkdown(deepWeakness)}
+                </div>
+              )}
+
+              {!deepWeakness && !deepLoading && !deepError && (
+                <p className="text-xs text-zinc-600 text-center py-4">Click &ldquo;Run Deep Analysis&rdquo; to get a detailed weakness breakdown with exploitation strategies.</p>
+              )}
+            </div>
 
             {/* SERP list */}
             {analysis.serpResults?.length > 0 && (
