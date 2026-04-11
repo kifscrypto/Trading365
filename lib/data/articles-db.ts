@@ -24,6 +24,8 @@ export function rowToArticle(row: ArticleRow): Article {
     thumbnail: row.thumbnail,
     tags: row.tags ?? [],
     faqs: row.faqs ?? [],
+    pros: row.pros ?? undefined,
+    cons: row.cons ?? undefined,
     metaTitle: row.meta_title ?? undefined,
     metaDescription: row.meta_description ?? undefined,
     metaKeywords: row.meta_keywords ?? undefined,

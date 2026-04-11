@@ -279,10 +279,13 @@ export default async function ArticlePageContent({ category, slug }: { category:
               </div>
             )}
 
-            {/* Pros/Cons for reviews */}
-            {exchange && (
+            {/* Pros/Cons — use DB values if present, otherwise fall back to exchange data */}
+            {(article.pros?.length || article.cons?.length || exchange) && (
               <div className="mb-8">
-                <ProsConsList pros={exchange.pros} cons={exchange.cons} />
+                <ProsConsList
+                  pros={article.pros?.length ? article.pros : (exchange?.pros ?? [])}
+                  cons={article.cons?.length ? article.cons : (exchange?.cons ?? [])}
+                />
               </div>
             )}
 

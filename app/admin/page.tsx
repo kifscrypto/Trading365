@@ -58,6 +58,24 @@ export default function AdminPage() {
     meta_keywords: '',
   })
 
+  const [pros, setPros] = useState<string[]>([])
+  const [cons, setCons] = useState<string[]>([])
+  const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>([])
+
+  function addPro() { setPros(p => [...p, '']) }
+  function removePro(i: number) { setPros(p => p.filter((_, idx) => idx !== i)) }
+  function updatePro(i: number, val: string) { setPros(p => p.map((v, idx) => idx === i ? val : v)) }
+
+  function addCon() { setCons(p => [...p, '']) }
+  function removeCon(i: number) { setCons(p => p.filter((_, idx) => idx !== i)) }
+  function updateCon(i: number, val: string) { setCons(p => p.map((v, idx) => idx === i ? val : v)) }
+
+  function addFaq() { setFaqs(p => [...p, { question: '', answer: '' }]) }
+  function removeFaq(i: number) { setFaqs(p => p.filter((_, idx) => idx !== i)) }
+  function updateFaq(i: number, field: 'question' | 'answer', val: string) {
+    setFaqs(p => p.map((f, idx) => idx === i ? { ...f, [field]: val } : f))
+  }
+
   useEffect(() => {
     checkAuth()
   }, [])
@@ -138,6 +156,9 @@ export default function AdminPage() {
         meta_description: formData.meta_description || null,
         meta_keywords: formData.meta_keywords || null,
         thumbnail: formData.thumbnail || null,
+        pros: pros.filter(p => p.trim()),
+        cons: cons.filter(c => c.trim()),
+        faqs: faqs.filter(f => f.question.trim() || f.answer.trim()),
       }
 
       const url = editingArticle
@@ -163,6 +184,9 @@ export default function AdminPage() {
           date: new Date().toISOString().split('T')[0], thumbnail: '',
           tags: '', meta_title: '', meta_description: '', meta_keywords: '',
         })
+        setPros([])
+        setCons([])
+        setFaqs([])
         setThumbnailPreview('')
         setEditingArticle(null)
         fetchArticles()
@@ -357,6 +381,9 @@ export default function AdminPage() {
       meta_description: article.meta_description || '',
       meta_keywords: article.meta_keywords || '',
     })
+    setPros(Array.isArray(article.pros) ? article.pros : [])
+    setCons(Array.isArray(article.cons) ? article.cons : [])
+    setFaqs(Array.isArray(article.faqs) ? article.faqs : [])
   }
 
   const inputClass = 'w-full px-3 py-2 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-zinc-500'
@@ -428,6 +455,9 @@ export default function AdminPage() {
                     date: new Date().toISOString().split('T')[0], thumbnail: '',
                     tags: '', meta_title: '', meta_description: '', meta_keywords: '',
                   })
+                  setPros([])
+                  setCons([])
+                  setFaqs([])
                 }}
                 className="text-zinc-400 hover:text-zinc-100 text-sm flex items-center gap-1"
               >
@@ -529,6 +559,102 @@ export default function AdminPage() {
               />
             </div>
 
+            {/* Pros */}
+            <div className="border-t border-zinc-700 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-zinc-300">Pros</p>
+                <button type="button" onClick={addPro} className="text-xs px-2.5 py-1 bg-green-800 text-green-200 rounded-lg hover:bg-green-700">+ Add Pro</button>
+              </div>
+              {pros.length === 0 && (
+                <p className="text-xs text-zinc-600 mb-2">No pros yet — click &ldquo;Add Pro&rdquo; to add one.</p>
+              )}
+              <div className="space-y-2">
+                {pros.map((pro, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={pro}
+                      onChange={(e) => updatePro(i, e.target.value)}
+                      placeholder={`Pro #${i + 1}`}
+                      className={inputClass}
+                    />
+                    <button type="button" onClick={() => removePro(i)} className="px-2 text-red-400 hover:text-red-300 text-lg leading-none">×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Cons */}
+            <div className="border-t border-zinc-700 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-zinc-300">Cons</p>
+                <button type="button" onClick={addCon} className="text-xs px-2.5 py-1 bg-red-900 text-red-200 rounded-lg hover:bg-red-800">+ Add Con</button>
+              </div>
+              {cons.length === 0 && (
+                <p className="text-xs text-zinc-600 mb-2">No cons yet — click &ldquo;Add Con&rdquo; to add one.</p>
+              )}
+              <div className="space-y-2">
+                {cons.map((con, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={con}
+                      onChange={(e) => updateCon(i, e.target.value)}
+                      placeholder={`Con #${i + 1}`}
+                      className={inputClass}
+                    />
+                    <button type="button" onClick={() => removeCon(i)} className="px-2 text-red-400 hover:text-red-300 text-lg leading-none">×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* FAQs */}
+            <div className="border-t border-zinc-700 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-zinc-300">FAQs</p>
+                <button type="button" onClick={addFaq} className="text-xs px-2.5 py-1 bg-blue-800 text-blue-200 rounded-lg hover:bg-blue-700">+ Add FAQ</button>
+              </div>
+              {faqs.length === 0 && (
+                <p className="text-xs text-zinc-600 mb-2">No FAQs yet — click &ldquo;Add FAQ&rdquo; to add one.</p>
+              )}
+              <div className="space-y-2">
+                {faqs.map((faq, i) => (
+                  <details key={i} className="group border border-zinc-700 rounded-lg bg-zinc-800" open>
+                    <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 list-none select-none hover:bg-zinc-700 rounded-lg group-open:rounded-b-none group-open:border-b group-open:border-zinc-700 transition-colors">
+                      <span className="text-sm text-zinc-300 truncate">{faq.question.trim() || `FAQ #${i + 1}`}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button type="button" onClick={(e) => { e.preventDefault(); removeFaq(i) }} className="text-xs text-red-400 hover:text-red-300">Remove</button>
+                        <span className="text-zinc-500 text-lg leading-none group-open:rotate-45 transition-transform">+</span>
+                      </div>
+                    </summary>
+                    <div className="px-4 py-3 space-y-2">
+                      <div>
+                        <label className="block text-xs text-zinc-400 mb-1">Question</label>
+                        <input
+                          type="text"
+                          value={faq.question}
+                          onChange={(e) => updateFaq(i, 'question', e.target.value)}
+                          placeholder="e.g. Is this exchange regulated?"
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-zinc-400 mb-1">Answer</label>
+                        <textarea
+                          value={faq.answer}
+                          onChange={(e) => updateFaq(i, 'answer', e.target.value)}
+                          rows={3}
+                          placeholder="Paste or type the answer here…"
+                          className={inputClass}
+                        />
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </div>
+
             {/* SEO */}
             <div className="border-t border-zinc-700 pt-4">
               <p className="text-sm font-semibold text-zinc-300 mb-3">SEO</p>
@@ -592,6 +718,9 @@ export default function AdminPage() {
                       date: new Date().toISOString().split('T')[0], thumbnail: '',
                       tags: '', meta_title: '', meta_description: '', meta_keywords: '',
                     })
+                    setPros([])
+                    setCons([])
+                    setFaqs([])
                   }}
                   className="flex-1 bg-zinc-700 text-zinc-200 py-2 rounded-lg hover:bg-zinc-600 font-medium"
                 >

@@ -18,6 +18,8 @@ export type ArticleRow = {
   thumbnail: string
   tags: string[]
   faqs: { question: string; answer: string }[] | null
+  pros: string[] | null
+  cons: string[] | null
   meta_title: string | null
   meta_description: string | null
   meta_keywords: string | null
@@ -77,13 +79,14 @@ export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' |
   const rows = await sql`
     INSERT INTO articles (
       slug, title, excerpt, content, category, category_slug,
-      date, updated_date, read_time, author, rating, thumbnail, tags, faqs,
+      date, updated_date, read_time, author, rating, thumbnail, tags, faqs, pros, cons,
       meta_title, meta_description, meta_keywords
     ) VALUES (
       ${data.slug}, ${data.title}, ${data.excerpt}, ${data.content},
       ${data.category}, ${data.category_slug}, ${data.date}, ${data.updated_date ?? null},
       ${data.read_time}, ${data.author}, ${data.rating}, ${data.thumbnail},
       ${data.tags}, ${JSON.stringify(data.faqs ?? [])},
+      ${JSON.stringify(data.pros ?? [])}, ${JSON.stringify(data.cons ?? [])},
       ${data.meta_title ?? null}, ${data.meta_description ?? null}, ${data.meta_keywords ?? null}
     )
     RETURNING *
@@ -108,6 +111,8 @@ export async function updateArticle(id: number, data: Partial<Omit<ArticleRow, '
       thumbnail = COALESCE(${data.thumbnail ?? null}, thumbnail),
       tags = COALESCE(${data.tags ?? null}, tags),
       faqs = COALESCE(${data.faqs ? JSON.stringify(data.faqs) : null}::jsonb, faqs),
+      pros = COALESCE(${data.pros ? JSON.stringify(data.pros) : null}::jsonb, pros),
+      cons = COALESCE(${data.cons ? JSON.stringify(data.cons) : null}::jsonb, cons),
       meta_title = COALESCE(${data.meta_title ?? null}, meta_title),
       meta_description = COALESCE(${data.meta_description ?? null}, meta_description),
       meta_keywords = COALESCE(${data.meta_keywords ?? null}, meta_keywords),

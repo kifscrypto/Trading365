@@ -52,6 +52,8 @@ export interface Article {
   thumbnail?: string
   tags: string[]
   faqs?: { question: string; answer: string }[]
+  pros?: string[]
+  cons?: string[]
   metaTitle?: string
   metaDescription?: string
   metaKeywords?: string
