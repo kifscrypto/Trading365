@@ -8,6 +8,49 @@ import { Suspense } from 'react'
 type Tab = 'compress' | 'links' | 'audit'
 type LoadingState = 'idle' | 'loading' | 'done' | 'error'
 
+function CompressionMarkdown({ text }: { text: string }) {
+  // Split on numbered items: "1. **Title**"
+  const blocks = text.split(/(?=\n\d+\.\s+\*\*)/).filter(Boolean)
+  if (blocks.length <= 1) {
+    return <pre className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">{text.trim()}</pre>
+  }
+  return (
+    <div className="space-y-4">
+      {blocks.map((block, i) => {
+        const titleMatch = block.match(/\*\*(.+?)\*\*/)
+        const title = titleMatch?.[1] ?? `Item ${i + 1}`
+        const bullets = block
+          .split('\n')
+          .filter(l => l.trim().startsWith('-'))
+          .map(l => l.replace(/^[\s-]+/, '').trim())
+        return (
+          <div key={i} className="border border-zinc-700 rounded-lg overflow-hidden">
+            <div className="bg-zinc-800 px-4 py-2.5 flex items-center gap-2">
+              <span className="text-xs font-bold text-amber-400">{i + 1}</span>
+              <span className="text-sm font-semibold text-zinc-100">{title}</span>
+            </div>
+            {bullets.length > 0 && (
+              <ul className="px-4 py-3 space-y-1.5">
+                {bullets.map((b, j) => {
+                  const isReduce = b.toLowerCase().startsWith('can reduce')
+                  const isIssue = b.toLowerCase().startsWith('issue')
+                  const isFix = b.toLowerCase().startsWith('fix') || b.toLowerCase().startsWith('keep')
+                  return (
+                    <li key={j} className="flex items-start gap-2 text-sm">
+                      <span className={`shrink-0 mt-0.5 ${isFix ? 'text-amber-400' : isIssue ? 'text-red-400' : 'text-zinc-500'}`}>→</span>
+                      <span className={isFix ? 'text-zinc-200' : 'text-zinc-400'}>{b}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function ContentOptimizerInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -15,7 +58,7 @@ function ContentOptimizerInner() {
   const [tab, setTab] = useState<Tab>(searchParams.get('mode') === 'existing' ? 'audit' : 'compress')
   const [content, setContent] = useState('')
   const [auditUrl, setAuditUrl] = useState('')
-  const [compressionSuggestions, setCompressionSuggestions] = useState<string[]>([])
+  const [compressionMarkdown, setCompressionMarkdown] = useState<string>('')
   const [linkingSuggestions, setLinkingSuggestions] = useState<string[]>([])
   const [auditResult, setAuditResult] = useState<{
     overall_score?: number
@@ -37,7 +80,7 @@ function ContentOptimizerInner() {
     if (!content.trim()) { setError('Paste article content first'); return }
     setError('')
     setLoadingState('loading')
-    setCompressionSuggestions([])
+    setCompressionMarkdown('')
     setLinkingSuggestions([])
 
     try {
@@ -48,7 +91,7 @@ function ContentOptimizerInner() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Optimization failed')
-      if (data.compressionSuggestions) setCompressionSuggestions(data.compressionSuggestions)
+      if (data.compressionMarkdown) setCompressionMarkdown(data.compressionMarkdown)
       if (data.linkingSuggestions) setLinkingSuggestions(data.linkingSuggestions)
       setLoadingState('done')
     } catch (err: any) {
@@ -140,19 +183,10 @@ function ContentOptimizerInner() {
               </div>
             </div>
 
-            {compressionSuggestions.length > 0 && (
+            {compressionMarkdown && (
               <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6">
-                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">
-                  ✂️ {compressionSuggestions.length} Compression Suggestions
-                </h3>
-                <ul className="space-y-3">
-                  {compressionSuggestions.map((s, i) => (
-                    <li key={i} className="flex items-start gap-3 p-3 bg-zinc-800/50 rounded-lg">
-                      <span className="text-amber-400 mt-0.5 shrink-0 text-xs font-bold">→</span>
-                      <span className="text-sm text-zinc-300 leading-relaxed">{s}</span>
-                    </li>
-                  ))}
-                </ul>
+                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">✂️ Compression Opportunities</h3>
+                <CompressionMarkdown text={compressionMarkdown} />
               </div>
             )}
           </div>
