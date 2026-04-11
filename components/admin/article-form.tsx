@@ -29,6 +29,22 @@ export default function ArticleForm({ article }: { article?: any }) {
     meta_keywords: article?.meta_keywords || '',
   })
 
+  const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>(
+    Array.isArray(article?.faqs) ? article.faqs : []
+  )
+
+  function addFaq() {
+    setFaqs((prev) => [...prev, { question: '', answer: '' }])
+  }
+
+  function removeFaq(index: number) {
+    setFaqs((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  function updateFaq(index: number, field: 'question' | 'answer', value: string) {
+    setFaqs((prev) => prev.map((faq, i) => i === index ? { ...faq, [field]: value } : faq))
+  }
+
   function handleCategoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const selected = categories.find((c) => c.slug === e.target.value)
     setFormData({
@@ -76,6 +92,7 @@ export default function ArticleForm({ article }: { article?: any }) {
         meta_title: formData.meta_title || null,
         meta_description: formData.meta_description || null,
         meta_keywords: formData.meta_keywords || null,
+        faqs: faqs.filter((f) => f.question.trim() || f.answer.trim()),
       }
 
       if (article) {
@@ -267,6 +284,73 @@ export default function ArticleForm({ article }: { article?: any }) {
             rows={20}
             className={`${inputClass} font-mono text-sm`}
           />
+        </section>
+
+        {/* FAQs */}
+        <section className="bg-white rounded-lg border border-slate-200 p-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">FAQs</h2>
+              <p className="text-sm text-slate-500 mt-0.5">These appear as an accordion below the article body.</p>
+            </div>
+            <button
+              type="button"
+              onClick={addFaq}
+              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 font-medium"
+            >
+              + Add FAQ
+            </button>
+          </div>
+
+          {faqs.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-6 border border-dashed border-slate-200 rounded-lg">
+              No FAQs yet — click &ldquo;Add FAQ&rdquo; to get started.
+            </p>
+          )}
+
+          <div className="space-y-3">
+            {faqs.map((faq, i) => (
+              <details key={i} className="group border border-slate-200 rounded-lg" open>
+                <summary className="flex cursor-pointer items-center justify-between gap-4 px-5 py-3 list-none select-none hover:bg-slate-50 transition-colors rounded-lg group-open:rounded-b-none group-open:border-b group-open:border-slate-200">
+                  <span className="text-sm font-medium text-slate-700">
+                    {faq.question.trim() ? faq.question : `FAQ #${i + 1}`}
+                  </span>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); removeFaq(i) }}
+                      className="text-xs text-red-500 hover:text-red-700 font-medium"
+                    >
+                      Remove
+                    </button>
+                    <span className="text-slate-400 text-lg leading-none group-open:rotate-45 transition-transform">+</span>
+                  </div>
+                </summary>
+                <div className="px-5 py-4 space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Question</label>
+                    <input
+                      type="text"
+                      value={faq.question}
+                      onChange={(e) => updateFaq(i, 'question', e.target.value)}
+                      placeholder="e.g. Is this exchange regulated?"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Answer</label>
+                    <textarea
+                      value={faq.answer}
+                      onChange={(e) => updateFaq(i, 'answer', e.target.value)}
+                      rows={4}
+                      placeholder="Paste or type the answer here…"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              </details>
+            ))}
+          </div>
         </section>
 
         {/* SEO */}
