@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
+import { getArticleById } from '@/lib/db'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -14,11 +15,25 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { content, url, fix } = await request.json()
+    const { content, url, articleId, fix } = await request.json()
 
-    let articleContent = content?.trim() || ''
+    if (!fix?.trim()) {
+      return new Response(JSON.stringify({ error: 'Fix instruction required' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+    }
 
-    if (!articleContent && url) {
+    let articleContent = ''
+    let isHtml = false
+
+    // Priority: DB HTML (via articleId) → pasted content → URL fetch
+    if (articleId) {
+      const article = await getArticleById(parseInt(articleId))
+      if (!article) return new Response(JSON.stringify({ error: 'Article not found in database' }), { status: 404, headers: { 'Content-Type': 'application/json' } })
+      articleContent = article.content
+      isHtml = true
+    } else if (content?.trim()) {
+      articleContent = content.trim()
+      isHtml = /<[a-z][\s\S]*>/i.test(articleContent)
+    } else if (url) {
       const res = await fetch(url, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
         signal: AbortSignal.timeout(8000),
@@ -36,18 +51,27 @@ export async function POST(request: Request) {
     if (!articleContent) {
       return new Response(JSON.stringify({ error: 'No article content to fix' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
     }
-    if (!fix?.trim()) {
-      return new Response(JSON.stringify({ error: 'Fix instruction required' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
-    }
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8000,
-      messages: [{
-        role: 'user',
-        content: `You are a skilled editor for a crypto exchange review site.
+    const prompt = isHtml
+      ? `You are editing an HTML article for a crypto exchange review site.
+
+Apply the following fix to the article below.
+
+FIX TO APPLY:
+${fix}
+
+CRITICAL RULES:
+- Return ONLY the HTML content — no intro, no explanation, no markdown fences
+- Keep ALL existing HTML tags, attributes, and structure exactly as-is
+- Only change text content where the fix requires it
+- Apply ONLY the fix described above — change nothing else
+- Maintain the same writing style and tone
+
+ARTICLE HTML:
+${articleContent}`
+      : `You are a skilled editor for a crypto exchange review site.
 
 Apply the following fix to the article below, then output the complete improved article.
 
@@ -61,8 +85,12 @@ CRITICAL RULES:
 - Maintain the exact same writing style and tone
 
 ARTICLE:
-${articleContent}`,
-      }],
+${articleContent}`
+
+    const stream = anthropic.messages.stream({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8000,
+      messages: [{ role: 'user', content: prompt }],
     })
 
     const encoder = new TextEncoder()

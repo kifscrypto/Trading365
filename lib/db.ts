@@ -28,6 +28,11 @@ export type ArticleRow = {
   updated_at: string
 }
 
+export async function getArticleById(id: number): Promise<ArticleRow | null> {
+  const rows = await sql`SELECT * FROM articles WHERE id = ${id} LIMIT 1`
+  return rows[0] ?? null
+}
+
 export async function getAllArticles(): Promise<ArticleRow[]> {
   return await sql`
     SELECT * FROM articles

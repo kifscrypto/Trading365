@@ -264,15 +264,41 @@ function ContentOptimizerInner() {
   const [fixLoading, setFixLoading] = useState(false)
   const [fixError, setFixError] = useState('')
   const [copied, setCopied] = useState(false)
+  // Publish state
+  const [publishLoading, setPublishLoading] = useState(false)
+  const [publishError, setPublishError] = useState('')
+  const [published, setPublished] = useState(false)
+  // Article lookup (for URL-based audits)
+  const [articleLookup, setArticleLookup] = useState<{ id: number; title: string; slug: string; category_slug: string } | null>(null)
+  const [lookupError, setLookupError] = useState('')
   // Track what was audited so Fix Now works even when URL was used
   const auditSourceRef = useRef<{ content: string; url: string }>({ content: '', url: '' })
   const fixPanelRef = useRef<HTMLDivElement>(null)
+  const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/check-session').then(r => { if (!r.ok) router.push('/admin') })
     const saved = localStorage.getItem('seo_optimize_content')
     if (saved) { setContent(saved); localStorage.removeItem('seo_optimize_content') }
   }, [router])
+
+  function handleAuditUrlChange(url: string) {
+    setAuditUrl(url)
+    setArticleLookup(null)
+    setLookupError('')
+    if (lookupTimer.current) clearTimeout(lookupTimer.current)
+    if (!url.trim()) return
+    lookupTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/admin/seo/article-lookup?url=${encodeURIComponent(url.trim())}`)
+        const data = await res.json()
+        if (!res.ok) { setLookupError(data.error ?? 'Not found'); return }
+        setArticleLookup({ id: data.id, title: data.title, slug: data.slug, category_slug: data.category_slug })
+      } catch {
+        setLookupError('Lookup failed')
+      }
+    }, 600)
+  }
 
   async function runOptimize(mode: 'compress' | 'links' | 'both') {
     if (!content.trim()) { setError('Paste article content first'); return }
@@ -307,6 +333,8 @@ function ContentOptimizerInner() {
     setAuditMarkdown('')
     setFixedContent('')
     setFixingIssue('')
+    setPublished(false)
+    setPublishError('')
     auditSourceRef.current = { content: content.trim(), url: auditUrl.trim() }
 
     try {
@@ -343,6 +371,8 @@ function ContentOptimizerInner() {
     setFixedContent('')
     setFixingIssue(fix)
     setCopied(false)
+    setPublished(false)
+    setPublishError('')
 
     // Scroll to fix panel after a tick
     setTimeout(() => fixPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
@@ -354,6 +384,7 @@ function ContentOptimizerInner() {
         body: JSON.stringify({
           content: auditSourceRef.current.content,
           url: auditSourceRef.current.url,
+          articleId: articleLookup?.id ?? null,
           fix,
         }),
       })
@@ -392,6 +423,26 @@ function ContentOptimizerInner() {
     setAuditMarkdown('')
     setLoadingState('idle')
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function handlePublish() {
+    if (!articleLookup || !fixedContent) return
+    setPublishLoading(true)
+    setPublishError('')
+    try {
+      const res = await fetch(`/api/admin/articles/${articleLookup.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: fixedContent }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Publish failed')
+      setPublished(true)
+    } catch (err: any) {
+      setPublishError(err.message)
+    } finally {
+      setPublishLoading(false)
+    }
   }
 
   const inputClass = 'w-full px-3 py-2 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-zinc-500 text-sm'
@@ -522,10 +573,18 @@ function ContentOptimizerInner() {
                   <input
                     type="url"
                     value={auditUrl}
-                    onChange={e => setAuditUrl(e.target.value)}
+                    onChange={e => handleAuditUrlChange(e.target.value)}
                     placeholder="https://trading365.org/reviews/mexc-review"
                     className={inputClass}
                   />
+                  {articleLookup && (
+                    <p className="mt-1.5 text-xs text-green-400">
+                      ✓ Article found: <span className="font-medium">{articleLookup.title}</span> — fixes will update the live article
+                    </p>
+                  )}
+                  {lookupError && (
+                    <p className="mt-1.5 text-xs text-amber-400">Article not found in DB — fixes won&apos;t auto-publish</p>
+                  )}
                 </div>
               </div>
               <div className="mt-4">
@@ -569,7 +628,7 @@ function ContentOptimizerInner() {
                     )}
                   </div>
                   {!fixLoading && fixedContent && (
-                    <div className="flex gap-2 shrink-0">
+                    <div className="flex gap-2 shrink-0 flex-wrap justify-end">
                       <button
                         onClick={handleCopy}
                         className={`px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
@@ -582,16 +641,32 @@ function ContentOptimizerInner() {
                       </button>
                       <button
                         onClick={handleUseAndReaudit}
-                        className="px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded text-xs font-medium"
+                        className="px-3 py-1.5 bg-zinc-700 text-zinc-200 hover:bg-zinc-600 rounded text-xs font-medium"
                       >
-                        Use & Re-audit
+                        Re-audit
                       </button>
+                      {articleLookup && (
+                        <button
+                          onClick={handlePublish}
+                          disabled={publishLoading || published}
+                          className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                            published
+                              ? 'bg-green-700 text-white'
+                              : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-zinc-700 disabled:text-zinc-400'
+                          }`}
+                        >
+                          {published ? '✓ Published' : publishLoading ? 'Publishing…' : 'Publish to Site'}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {fixError && (
                   <p className="text-xs text-red-400 mb-3">{fixError}</p>
+                )}
+                {publishError && (
+                  <p className="text-xs text-red-400 mb-3">Publish failed: {publishError}</p>
                 )}
 
                 {fixLoading && !fixedContent && (
