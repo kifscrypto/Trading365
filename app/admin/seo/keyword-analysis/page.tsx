@@ -61,6 +61,7 @@ function renderWeaknessMarkdown(text: string) {
 }
 
 function parseSection(text: string, heading: string): string[] | string | null {
+  if (!text || typeof text !== 'string') return null
   const regex = new RegExp(`## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`)
   const match = text.match(regex)
   if (!match) return null
@@ -107,7 +108,17 @@ export default function KeywordAnalysisPage() {
   useEffect(() => {
     fetch('/api/admin/check-session').then(r => { if (!r.ok) router.push('/admin') })
     const saved = localStorage.getItem('seo_keyword_analysis')
-    if (saved) { try { setAnalysis(JSON.parse(saved)) } catch {} }
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        // Validate format — analysis must be a string (not old JSON object format)
+        if (parsed && typeof parsed.analysis === 'string') {
+          setAnalysis(parsed)
+        } else {
+          localStorage.removeItem('seo_keyword_analysis')
+        }
+      } catch {}
+    }
   }, [router])
 
   async function handleDeepWeakness() {
