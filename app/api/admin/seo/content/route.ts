@@ -99,6 +99,9 @@ HARD RULES:
 - NO fluff sections (staking, earn, etc.) unless it's a core differentiator
 - NO repeating the same idea multiple times
 - NO padding for word count
+- NO fake reviewer names, bylines, or credentials — never invent people
+- NO "Last updated:" or "Reviewed by:" lines — do not add them under any circumstances
+- The current year is 2026 — do not reference 2025 as current or recent
 
 FINAL CHECK — before output, ask:
 "Would this page beat the current top 3 Google results?"
