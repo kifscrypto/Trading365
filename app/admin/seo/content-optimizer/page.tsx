@@ -13,20 +13,21 @@ function AuditMarkdown({ text, onFix, isDone }: {
   onFix: (fix: string) => void
   isDone: boolean
 }) {
-  const scoreMatch = text.match(/## Overall Score:\s*(\d+)\s*\/\s*100/)
+  const scoreMatch = text.match(/(\d+)\s*\/\s*100/)
   const score = scoreMatch ? parseInt(scoreMatch[1]) : null
 
   function parseSection(heading: string): string[] {
-    const re = new RegExp(`## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`)
+    const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const re = new RegExp(`### ${escaped}\\n([\\s\\S]*?)(?=\\n### |\\n---|$)`)
     const m = text.match(re)
     if (!m) return []
     return m[1].trim().split('\n').filter(l => l.trim()).map(l => l.replace(/^[-\d.]\s*/, '').trim()).filter(Boolean)
   }
 
-  const priorities = parseSection('Top 3 Priority Actions')
-  const weaknesses = parseSection('Key Weaknesses')
-  const compression = parseSection('Compression Summary')
-  const linking = parseSection('Internal Linking Gaps')
+  const priorities = parseSection('🎯 Top 3 Priority Actions')
+  const weaknesses = parseSection('⚔️ Key Weaknesses')
+  const compression = parseSection('✂️ Compression Opportunities')
+  const linking = parseSection('🔗 Internal Linking Gaps')
 
   function handleFixAll() {
     const parts: string[] = []

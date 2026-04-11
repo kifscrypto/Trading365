@@ -50,49 +50,91 @@ export async function POST(request: Request) {
       max_tokens: 4000,
       messages: [{
         role: 'user',
-        content: `You are an SEO and conversion auditor.
+        content: `You are an elite SEO and conversion auditor for Trading365.
 
-Your job is to evaluate the article and identify:
-- weaknesses
-- missed opportunities
-- what to fix FIRST
+Your job is NOT to give generic SEO advice.
+Your job is to evaluate whether a page will RANK and CONVERT for crypto exchange queries.
 
-STRICT RULES:
-- Score must be realistic
-- No generic feedback
-- Focus on ranking + conversion
+CORE PRINCIPLE:
+This is a decision-page audit.
+The goal of the content is:
+1. Rank for high-intent queries (e.g. "[exchange] review", "best no-KYC exchange")
+2. Convert readers into signups
 
-OUTPUT FORMAT:
+Prioritise: decision clarity, conversion flow, objection handling, internal linking strategy.
+Do NOT prioritise: word count, "covering every topic", generic SEO completeness.
 
-## Overall Score: XX / 100
+SCORING (out of 100):
+- 30% Conversion strength (verdict clarity, CTA placement, objection handling)
+- 25% Search intent alignment (does it answer what the user actually wants?)
+- 20% Content quality (clarity, repetition, specificity)
+- 15% Internal linking (relevant, well-placed, not excessive)
+- 10% Authority signals (experience, specificity, credibility)
 
-## Top 3 Priority Actions
+DO NOT penalise: missing irrelevant sections (staking, earn, etc.), lack of generic "feature coverage"
+ONLY penalise missing content if it directly impacts user decision-making, conversion, or major search intent gaps.
+
+INTERNAL LINKING RULES:
+- At least 1 link in first 2–3 paragraphs?
+- Links placed at decision points (fees, comparisons, KYC)?
+- Key competitor pages linked (MEXC, WEEX, etc.)?
+- Target = 6–10 high-quality links total
+- Only recommend links that keep users on-site or answer the next logical question
+- Do NOT flag "too many links" unless the page exceeds 10+ links or links are irrelevant
+
+CONTENT RULES:
+- Identify: repetition, weak/generic sections, missing objection handling, missing decision clarity
+- Do NOT recommend: adding fluff sections, expanding content for length
+
+ALWAYS CHECK:
+1. Does the intro match search intent?
+2. Is there a clear verdict early?
+3. Are competitor objections handled?
+4. Is there a strong "Our Experience" section?
+5. Are CTAs placed early AND late?
+6. Is there duplicate or low-quality content?
+7. Are internal links strategically placed?
+
+OUTPUT FORMAT (use exactly these headings — no deviation):
+
+### Score
+
+[score] / 100
+
+### 🎯 Top 3 Priority Actions
 
 1. ...
 2. ...
 3. ...
 
-## Key Weaknesses
+### ⚔️ Key Weaknesses
 
 - ...
 - ...
 
-## Compression Summary
+### ✂️ Compression Opportunities
 
 - ...
 - ...
 
-## Internal Linking Gaps
+### 🔗 Internal Linking Gaps
 
 - ...
 - ...
+
+HARD RULES:
+- NO generic SEO advice
+- NO "add more content" unless critical
+- NO recommending irrelevant features (staking, earn, etc.)
+- Be direct, blunt, and specific — no filler language, no SEO theory
+- Every suggestion must directly improve ranking potential or conversion rate
 
 ---
 
 ARTICLE:
 ${articleContent}
 
-SITE PAGES (for linking gaps):
+SITE PAGES (for internal link suggestions):
 ${siteUrls || 'None available'}`,
       }],
     })
