@@ -132,9 +132,11 @@ export default function KeywordAnalysisPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword: analysis.keyword, serpResults: analysis.serpResults }),
       })
-      const data = await res.json()
+      const text = await res.text()
+      let data: { analysis?: string; error?: string }
+      try { data = JSON.parse(text) } catch { throw new Error(text.slice(0, 300) || 'Server error') }
       if (!res.ok) throw new Error(data.error ?? 'Analysis failed')
-      setDeepWeakness(data.analysis)
+      setDeepWeakness(data.analysis ?? '')
     } catch (err: any) {
       setDeepError(err.message)
     } finally {
@@ -155,7 +157,9 @@ export default function KeywordAnalysisPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword: keyword.trim() }),
       })
-      const data = await res.json()
+      const text = await res.text()
+      let data: any
+      try { data = JSON.parse(text) } catch { throw new Error(text.slice(0, 300) || 'Server error') }
       if (!res.ok) throw new Error(data.error ?? 'Analysis failed')
       setAnalysis(data)
       localStorage.setItem('seo_keyword_analysis', JSON.stringify(data))

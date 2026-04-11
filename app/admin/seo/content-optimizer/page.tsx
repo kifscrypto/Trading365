@@ -255,7 +255,9 @@ function ContentOptimizerInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, mode }),
       })
-      const data = await res.json()
+      const text = await res.text()
+      let data: any
+      try { data = JSON.parse(text) } catch { throw new Error(text.slice(0, 300) || 'Server error') }
       if (!res.ok) throw new Error(data.error ?? 'Optimization failed')
       if (data.compressionMarkdown) setCompressionMarkdown(data.compressionMarkdown)
       if (data.linkingMarkdown) setLinkingMarkdown(data.linkingMarkdown)
@@ -278,7 +280,9 @@ function ContentOptimizerInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: content.trim(), url: auditUrl.trim() }),
       })
-      const data = await res.json()
+      const text = await res.text()
+      let data: any
+      try { data = JSON.parse(text) } catch { throw new Error(text.slice(0, 300) || 'Server error') }
       if (!res.ok) throw new Error(data.error ?? 'Audit failed')
       setAuditMarkdown(data.analysis ?? '')
       setLoadingState('done')
