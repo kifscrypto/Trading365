@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 export async function POST(request: Request) {
   const cookieStore = await cookies()
