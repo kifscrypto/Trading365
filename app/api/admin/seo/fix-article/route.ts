@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
 import { getArticleById } from '@/lib/db'
@@ -7,32 +8,28 @@ async function checkAuth() {
   return !!cookieStore.get('admin_auth')
 }
 
-export const maxDuration = 300
+export const maxDuration = 120
 
 export async function POST(request: Request) {
   if (!(await checkAuth())) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
     const { content, url, articleId, fix } = await request.json()
 
     if (!fix?.trim()) {
-      return new Response(JSON.stringify({ error: 'Fix instruction required' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+      return NextResponse.json({ error: 'Fix instruction required' }, { status: 400 })
     }
 
     let articleContent = ''
-    let isHtml = false
 
-    // Priority: DB HTML (via articleId) → pasted content → URL fetch
     if (articleId) {
       const article = await getArticleById(parseInt(articleId))
-      if (!article) return new Response(JSON.stringify({ error: 'Article not found in database' }), { status: 404, headers: { 'Content-Type': 'application/json' } })
+      if (!article) return NextResponse.json({ error: 'Article not found' }, { status: 404 })
       articleContent = article.content
-      isHtml = true
     } else if (content?.trim()) {
       articleContent = content.trim()
-      isHtml = /<[a-z][\s\S]*>/i.test(articleContent)
     } else if (url) {
       const res = await fetch(url, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -49,73 +46,72 @@ export async function POST(request: Request) {
     }
 
     if (!articleContent) {
-      return new Response(JSON.stringify({ error: 'No article content to fix' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
+      return NextResponse.json({ error: 'No article content to fix' }, { status: 400 })
     }
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const prompt = isHtml
-      ? `You are editing an HTML article for a crypto exchange review site.
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: `You are making targeted edits to an article.
 
-Apply the following fix to the article below.
-
-FIX TO APPLY:
+FIXES TO APPLY:
 ${fix}
 
-CRITICAL RULES:
-- Return ONLY the HTML content — no intro, no explanation, no markdown fences
-- Keep ALL existing HTML tags, attributes, and structure exactly as-is
-- Only change text content where the fix requires it
-- Apply ONLY the fix described above — change nothing else
-- Maintain the same writing style and tone
+Return a JSON array of find-replace patches. Each patch:
+{ "find": "exact verbatim text from article", "replace": "replacement text" }
 
-ARTICLE HTML:
-${articleContent}`
-      : `You are a skilled editor for a crypto exchange review site.
-
-Apply the following fix to the article below, then output the complete improved article.
-
-FIX TO APPLY:
-${fix}
-
-CRITICAL RULES:
-- Output ONLY the article — no intro like "Here is the updated article:", no explanation after
-- Apply ONLY the fix above — change nothing else
-- Keep all other sections word-for-word as written
-- Maintain the exact same writing style and tone
+RULES:
+- Return ONLY a valid JSON array — no markdown fences, no explanation
+- "find" must be verbatim text copied exactly from the article (15–80 chars, distinctive)
+- Avoid quoting text that appears more than once
+- Make the minimum change needed — don't rewrite whole paragraphs for a one-line fix
+- For insertions: include the line/heading just before the insert point in "find", then put that line + new content in "replace"
+- Maximum 12 patches
 
 ARTICLE:
-${articleContent}`
-
-    const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8000,
-      messages: [{ role: 'user', content: prompt }],
+${articleContent}`,
+      }],
     })
 
-    const encoder = new TextEncoder()
-    const readable = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-              controller.enqueue(encoder.encode(chunk.delta.text))
-            }
-          }
-          controller.close()
-        } catch (err) {
-          controller.error(err)
-        }
-      },
-    })
+    const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
 
-    return new Response(readable, {
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    })
+    // Extract JSON array from response (strip markdown fences if present)
+    const jsonMatch = raw.match(/\[[\s\S]*\]/)
+    if (!jsonMatch) {
+      return NextResponse.json({ error: 'Could not parse patches from response', raw }, { status: 500 })
+    }
+
+    let patches: { find: string; replace: string }[]
+    try {
+      patches = JSON.parse(jsonMatch[0])
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON in response', raw }, { status: 500 })
+    }
+
+    // Apply patches to original article
+    let patched = articleContent
+    const results: { find: string; applied: boolean }[] = []
+
+    for (const { find, replace } of patches) {
+      if (typeof find !== 'string' || typeof replace !== 'string') continue
+      if (patched.includes(find)) {
+        patched = patched.replace(find, replace)
+        results.push({ find, applied: true })
+      } else {
+        results.push({ find, applied: false })
+      }
+    }
+
+    const applied = results.filter(r => r.applied).length
+    const failed = results.filter(r => !r.applied).length
+
+    return NextResponse.json({ content: patched, applied, failed, total: patches.length })
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message ?? 'Fix failed' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    console.error('fix-article error:', error)
+    return NextResponse.json({ error: error.message ?? 'Fix failed' }, { status: 500 })
   }
 }

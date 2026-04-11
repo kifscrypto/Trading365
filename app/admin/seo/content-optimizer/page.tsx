@@ -292,6 +292,7 @@ function ContentOptimizerInner() {
   const [fixingIssue, setFixingIssue] = useState('')
   const [fixLoading, setFixLoading] = useState(false)
   const [fixError, setFixError] = useState('')
+  const [fixStats, setFixStats] = useState<{ applied: number; failed: number; total: number } | null>(null)
   const [copied, setCopied] = useState(false)
   // Publish state
   const [publishLoading, setPublishLoading] = useState(false)
@@ -399,11 +400,11 @@ function ContentOptimizerInner() {
     setFixError('')
     setFixedContent('')
     setFixingIssue(fix)
+    setFixStats(null)
     setCopied(false)
     setPublished(false)
     setPublishError('')
 
-    // Scroll to fix panel after a tick
     setTimeout(() => fixPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
 
     try {
@@ -417,21 +418,10 @@ function ContentOptimizerInner() {
           fix,
         }),
       })
-      if (!res.ok) {
-        const text = await res.text()
-        let errMsg = 'Fix failed'
-        try { errMsg = JSON.parse(text).error ?? errMsg } catch { errMsg = text.slice(0, 300) || errMsg }
-        throw new Error(errMsg)
-      }
-      const reader = res.body!.getReader()
-      const decoder = new TextDecoder()
-      let accumulated = ''
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        accumulated += decoder.decode(value, { stream: true })
-        setFixedContent(accumulated)
-      }
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Fix failed')
+      setFixedContent(data.content ?? '')
+      setFixStats({ applied: data.applied, failed: data.failed, total: data.total })
     } catch (err: any) {
       setFixError(err.message)
     } finally {
@@ -654,6 +644,12 @@ function ContentOptimizerInner() {
                       <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
                         <span className="text-zinc-400">Fix applied:</span>{' '}
                         {fixingIssue.startsWith('Apply ALL') ? 'All identified issues' : fixingIssue}
+                      </p>
+                    )}
+                    {fixStats && (
+                      <p className="text-xs mt-1">
+                        <span className="text-green-400">{fixStats.applied} patch{fixStats.applied !== 1 ? 'es' : ''} applied</span>
+                        {fixStats.failed > 0 && <span className="text-amber-400 ml-2">{fixStats.failed} couldn't match</span>}
                       </p>
                     )}
                   </div>
