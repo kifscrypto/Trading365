@@ -33,6 +33,13 @@ const modules = [
     desc: 'Paste or fetch any published article. Get a full audit — score, weaknesses, compression, linking — with action buttons.',
     badge: 'Full Audit',
   },
+  {
+    href: '/admin/seo/our-experience',
+    label: 'Our Experience Audit',
+    emoji: '📝',
+    desc: 'See which articles are missing the "Our Experience" section. Generate and publish it for any review with one click.',
+    badge: 'Content Gap',
+  },
 ]
 
 export default function SeoSuitePage() {
