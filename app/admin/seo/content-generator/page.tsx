@@ -10,7 +10,7 @@ type Step = 'input' | 'outline' | 'article' | 'links' | 'audit' | 'image' | 'seo
 const ALL_STEPS: Step[] = ['input', 'outline', 'article', 'links', 'audit', 'image', 'seo', 'publish']
 const STEP_LABELS: Record<Step, string> = {
   input: 'Input', outline: 'Outline', article: 'Article',
-  links: 'Links', audit: 'Audit', image: 'Image', seo: 'SEO Tags', publish: 'Publish',
+  links: 'Links', audit: 'Audit', image: 'Image', seo: 'SEO & Details', publish: 'Publish',
 }
 
 const CATEGORIES = [
@@ -295,10 +295,14 @@ export default function ArticleStudioPage() {
   const [imageCopied, setImageCopied] = useState(false)
   const [imageUrl, setImageUrl] = useState('')
 
-  // Step 7: SEO Tags
+  // Step 7: SEO Tags + Details
   const [metaTitle, setMetaTitle] = useState('')
   const [metaDescription, setMetaDescription] = useState('')
   const [metaKeywords, setMetaKeywords] = useState('')
+  const [pros, setPros] = useState('')        // one per line
+  const [cons, setCons] = useState('')        // one per line
+  const [quickFactsMd, setQuickFactsMd] = useState('')
+  const [quickFactsInserted, setQuickFactsInserted] = useState(false)
   const [metaLoading, setMetaLoading] = useState(false)
 
   // Step 8: Publish
@@ -536,6 +540,7 @@ export default function ArticleStudioPage() {
   async function generateMetaTags() {
     setError('')
     setMetaLoading(true)
+    setQuickFactsInserted(false)
     unlock('seo')
     try {
       const res = await fetch('/api/admin/seo/meta-tags', {
@@ -548,11 +553,28 @@ export default function ArticleStudioPage() {
       setMetaTitle(data.meta_title ?? '')
       setMetaDescription(data.meta_description ?? '')
       setMetaKeywords(data.meta_keywords ?? '')
+      setPros((data.pros ?? []).join('\n'))
+      setCons((data.cons ?? []).join('\n'))
+      setQuickFactsMd(data.quick_facts_md ?? '')
     } catch (err: any) {
       setError(err.message)
     } finally {
       setMetaLoading(false)
     }
+  }
+
+  function insertQuickFacts() {
+    if (!quickFactsMd.trim()) return
+    const block = `## Quick Facts\n\n${quickFactsMd.trim()}\n\n`
+    // Insert after the first heading if one exists, otherwise prepend
+    const headingMatch = article.match(/^(#{1,3} .+\n)/m)
+    if (headingMatch && headingMatch.index !== undefined) {
+      const insertAt = headingMatch.index + headingMatch[0].length
+      setArticle(article.slice(0, insertAt) + '\n' + block + article.slice(insertAt))
+    } else {
+      setArticle(block + article)
+    }
+    setQuickFactsInserted(true)
   }
 
   // ── Step 7 → 8: Publish ────────────────────────────────────────────────────
@@ -593,8 +615,8 @@ export default function ArticleStudioPage() {
           thumbnail: imageUrl.trim() || '',
           tags: metaKeywords ? metaKeywords.split(',').map(k => k.trim()).filter(Boolean) : [],
           faqs: null,
-          pros: null,
-          cons: null,
+          pros: pros ? pros.split('\n').map(p => p.trim()).filter(Boolean) : null,
+          cons: cons ? cons.split('\n').map(c => c.trim()).filter(Boolean) : null,
           meta_title: metaTitle.trim() || null,
           meta_description: metaDescription.trim() || null,
           meta_keywords: metaKeywords.trim() || null,
@@ -896,38 +918,100 @@ export default function ArticleStudioPage() {
           </div>
         )}
 
-        {/* ── STEP 7: SEO Tags ── */}
+        {/* ── STEP 7: SEO Tags + Details ── */}
         {isUnlocked('seo') && (
           <div className={panel}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className={h2}>7. SEO Tags</h2>
+              <h2 className={h2}>7. SEO & Details</h2>
               <button onClick={generateMetaTags} disabled={metaLoading} className={secondaryBtn}>
-                {metaLoading ? 'Generating…' : 'Regenerate'}
+                {metaLoading ? 'Generating…' : 'Regenerate All'}
               </button>
             </div>
 
             {metaLoading && (
-              <div className="text-center py-6 text-zinc-500 text-sm animate-pulse">Generating meta tags…</div>
+              <div className="text-center py-6 text-zinc-500 text-sm animate-pulse">Generating SEO tags, pros/cons & quick facts…</div>
             )}
 
-            {(metaTitle || metaDescription || metaKeywords) && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">
-                    Meta Title <span className={`${metaTitle.length > 60 ? 'text-red-400' : 'text-zinc-600'}`}>({metaTitle.length}/60)</span>
-                  </label>
-                  <input type="text" value={metaTitle} onChange={e => setMetaTitle(e.target.value)} className={ic} />
+            {(metaTitle || metaDescription || metaKeywords || pros || cons || quickFactsMd) && (
+              <div className="space-y-6">
+
+                {/* SEO Tags */}
+                <div className="space-y-4">
+                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">SEO Tags</p>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Meta Title <span className={metaTitle.length > 60 ? 'text-red-400' : 'text-zinc-600'}>({metaTitle.length}/60)</span>
+                    </label>
+                    <input type="text" value={metaTitle} onChange={e => setMetaTitle(e.target.value)} className={ic} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Meta Description <span className={metaDescription.length > 155 ? 'text-red-400' : 'text-zinc-600'}>({metaDescription.length}/155)</span>
+                    </label>
+                    <textarea value={metaDescription} onChange={e => setMetaDescription(e.target.value)} rows={3} className={ic} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Keywords <span className="text-zinc-600">(comma-separated)</span></label>
+                    <input type="text" value={metaKeywords} onChange={e => setMetaKeywords(e.target.value)} className={ic} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">
-                    Meta Description <span className={`${metaDescription.length > 155 ? 'text-red-400' : 'text-zinc-600'}`}>({metaDescription.length}/155)</span>
-                  </label>
-                  <textarea value={metaDescription} onChange={e => setMetaDescription(e.target.value)} rows={3} className={ic} />
+
+                <div className="border-t border-zinc-700" />
+
+                {/* Pros & Cons */}
+                <div className="space-y-4">
+                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Pros & Cons</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-zinc-400 mb-1">Pros <span className="text-zinc-600">(one per line)</span></label>
+                      <textarea
+                        value={pros}
+                        onChange={e => setPros(e.target.value)}
+                        rows={6}
+                        placeholder="High leverage up to 200x&#10;No KYC required&#10;Competitive maker fees"
+                        className={`${ic} font-mono text-xs leading-relaxed`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-zinc-400 mb-1">Cons <span className="text-zinc-600">(one per line)</span></label>
+                      <textarea
+                        value={cons}
+                        onChange={e => setCons(e.target.value)}
+                        rows={6}
+                        placeholder="Not available in the US&#10;Limited fiat options&#10;Support can be slow"
+                        className={`${ic} font-mono text-xs leading-relaxed`}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Keywords <span className="text-zinc-600">(comma-separated)</span></label>
-                  <input type="text" value={metaKeywords} onChange={e => setMetaKeywords(e.target.value)} className={ic} />
+
+                <div className="border-t border-zinc-700" />
+
+                {/* Quick Facts */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Quick Facts</p>
+                    <button
+                      onClick={insertQuickFacts}
+                      disabled={!quickFactsMd.trim() || quickFactsInserted}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                        quickFactsInserted
+                          ? 'bg-green-900/40 border border-green-700/60 text-green-400'
+                          : 'bg-zinc-700 text-zinc-200 hover:bg-zinc-600 disabled:text-zinc-500'
+                      }`}
+                    >
+                      {quickFactsInserted ? '✓ Inserted into Article' : 'Insert into Article ↑'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-zinc-600">Edit the table below, then insert it into the article above.</p>
+                  <textarea
+                    value={quickFactsMd}
+                    onChange={e => { setQuickFactsMd(e.target.value); setQuickFactsInserted(false) }}
+                    rows={10}
+                    className={`${ic} font-mono text-xs leading-relaxed`}
+                  />
                 </div>
+
                 {!isUnlocked('publish') && (
                   <div className="pt-2 border-t border-zinc-700">
                     <button onClick={openPublish} className={primaryBtn}>
@@ -950,6 +1034,9 @@ export default function ArticleStudioPage() {
               <span>{article.trim().split(/\s+/).length} words</span>
               <span>{imageUrl ? <span className="text-green-400">Image attached</span> : <span className="text-zinc-600">No image</span>}</span>
               <span>{metaTitle ? <span className="text-green-400">Meta tags set</span> : <span className="text-zinc-600">No meta tags</span>}</span>
+              <span>{pros ? <span className="text-green-400">{pros.split('\n').filter(Boolean).length} pros</span> : <span className="text-zinc-600">No pros</span>}</span>
+              <span>{cons ? <span className="text-green-400">{cons.split('\n').filter(Boolean).length} cons</span> : <span className="text-zinc-600">No cons</span>}</span>
+              <span>{quickFactsInserted ? <span className="text-green-400">Quick facts inserted</span> : <span className="text-zinc-600">No quick facts</span>}</span>
             </div>
 
             <div className="space-y-4">
