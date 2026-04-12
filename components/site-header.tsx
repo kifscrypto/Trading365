@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 import { LOCALES } from "@/lib/i18n/config"
 
 const navLinks = [
+  { href: "/", label: "Home" },
   { href: "/reviews", label: "Reviews" },
   { href: "/comparisons", label: "Comparisons" },
   { href: "/compare", label: "Compare Tool" },
