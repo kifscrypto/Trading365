@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { keyword, outline, intent } = await request.json()
+    const { keyword, outline, intent, affiliateLink } = await request.json()
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -199,6 +199,8 @@ Output a complete, publish-ready article. No commentary. No explanation. Only th
 
 KEYWORD: ${keyword}
 SEARCH INTENT: ${intent || 'Not specified'}
+${affiliateLink ? `CTA LINK: ${affiliateLink}
+Use this exact URL for ALL clickable CTAs ("Start Trading", "Open Account", "Claim Bonus", etc.). Do not invent or substitute other URLs.` : ''}
 
 OUTLINE TO FOLLOW:
 ${outline}`,

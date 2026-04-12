@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { content, instructions, keyword } = await request.json()
+    const { content, instructions, keyword, affiliateLink } = await request.json()
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -33,6 +33,7 @@ RULES:
 - Output the complete revised article only
 
 KEYWORD: ${keyword ?? ''}
+${affiliateLink ? `CTA LINK: ${affiliateLink} — use this exact URL for all CTAs.` : ''}
 
 REFINEMENT INSTRUCTIONS:
 ${instructions}

@@ -269,6 +269,9 @@ export default function ArticleStudioPage() {
   const [intent, setIntent] = useState('review')
   const [weaknesses, setWeaknesses] = useState('')
   const [outlineLoading, setOutlineLoading] = useState(false)
+  const [affiliateLinks, setAffiliateLinks] = useState<{ slug: string; name: string; affiliate_url: string; general_url: string | null }[]>([])
+  const [affiliateLink, setAffiliateLink] = useState('')
+  const [affiliateDetected, setAffiliateDetected] = useState('')  // exchange name shown in UI
 
   // Step 2: Outline
   const [outline, setOutline] = useState('')
@@ -341,6 +344,11 @@ export default function ArticleStudioPage() {
   useEffect(() => {
     fetch('/api/admin/check-session').then(r => { if (!r.ok) router.push('/admin') })
 
+    // Load affiliate links
+    fetch('/api/admin/affiliate-links').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) setAffiliateLinks(data)
+    }).catch(() => {})
+
     const saved = localStorage.getItem('seo_keyword_analysis')
     if (saved) {
       try {
@@ -366,6 +374,28 @@ export default function ArticleStudioPage() {
       } catch {}
     }
   }, [router])
+
+  // ── Affiliate link detection ────────────────────────────────────────────────
+
+  function detectAffiliate(kw: string) {
+    if (!affiliateLinks.length) return
+    const lower = kw.toLowerCase()
+    const match = affiliateLinks.find(l =>
+      lower.includes(l.slug.toLowerCase()) ||
+      lower.includes(l.name.toLowerCase())
+    )
+    if (match) {
+      setAffiliateLink(match.affiliate_url)
+      setAffiliateDetected(match.name)
+    } else {
+      // Don't clear if user manually typed a link
+    }
+  }
+
+  function handleKeywordChange(val: string) {
+    setKeyword(val)
+    detectAffiliate(val)
+  }
 
   // ── Step 1 → 2: Generate outline ───────────────────────────────────────────
 
@@ -402,7 +432,7 @@ export default function ArticleStudioPage() {
       const res = await fetch('/api/admin/seo/content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword, outline, intent }),
+        body: JSON.stringify({ keyword, outline, intent, affiliateLink: affiliateLink.trim() || null }),
       })
       if (!res.ok || !res.body) throw new Error('Content generation failed')
       const reader = res.body.getReader()
@@ -433,7 +463,7 @@ export default function ArticleStudioPage() {
       const res = await fetch('/api/admin/seo/refine-article', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: article, instructions: refineInstructions, keyword }),
+        body: JSON.stringify({ content: article, instructions: refineInstructions, keyword, affiliateLink: affiliateLink.trim() || null }),
       })
       if (!res.ok || !res.body) throw new Error('Refinement failed')
       const reader = res.body.getReader()
@@ -719,7 +749,7 @@ export default function ArticleStudioPage() {
               <input
                 type="text"
                 value={keyword}
-                onChange={e => setKeyword(e.target.value)}
+                onChange={e => handleKeywordChange(e.target.value)}
                 placeholder="e.g. bingx review"
                 className={ic}
               />
@@ -745,6 +775,28 @@ export default function ArticleStudioPage() {
                 className={`${ic} font-mono`}
               />
             </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-zinc-400">
+                  Affiliate / CTA Link
+                  {affiliateDetected && (
+                    <span className="ml-2 text-green-400">✓ {affiliateDetected} detected</span>
+                  )}
+                </label>
+                <Link href="/admin/affiliate-links" target="_blank" className="text-xs text-zinc-600 hover:text-zinc-400">
+                  Manage links →
+                </Link>
+              </div>
+              <input
+                type="url"
+                value={affiliateLink}
+                onChange={e => { setAffiliateLink(e.target.value); setAffiliateDetected('') }}
+                placeholder="Auto-detected from keyword, or paste manually"
+                className={ic}
+              />
+              <p className="mt-1 text-xs text-zinc-600">Used in all CTAs during generation. Leave blank to skip.</p>
+            </div>
+
             <button onClick={generateOutline} disabled={outlineLoading || !keyword.trim()} className={primaryBtn}>
               {outlineLoading ? 'Generating outline…' : 'Generate Outline →'}
             </button>
