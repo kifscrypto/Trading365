@@ -102,8 +102,10 @@ function addHeadingIds(html: string): string {
 }
 
 export function ArticleContent({ content }: { content: string }) {
-  // TipTap HTML output — detect by presence of any HTML tag
-  if (/<[a-zA-Z]/.test(content)) {
+  // TipTap HTML output — detect by presence of actual HTML block/inline elements
+  // Must match a tag name followed by > or space/attribute — avoids false positives on
+  // markdown containing < in comparisons like "< 1 second" or "< 0.1%"
+  if (/<(p|div|h[1-6]|ul|ol|li|table|thead|tbody|tr|th|td|strong|em|br|blockquote|a|span|pre|code|hr|img)\b/i.test(content)) {
     return (
       <div
         className="article-prose"
