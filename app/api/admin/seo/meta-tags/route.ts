@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
+      max_tokens: 2000,
       messages: [{
         role: 'user',
         content: `Generate SEO metadata, pros/cons, and quick facts for this crypto/trading article.
@@ -34,6 +34,7 @@ Rules:
 - pros: 4-6 specific, honest advantages (no fluff like "user-friendly")
 - cons: 3-4 specific, honest disadvantages (regulatory risk, UX issues, fees, limits)
 - quick_facts_md: a markdown table with 6-8 key facts (Founded, Headquarters, Maker Fee, Taker Fee, Max Leverage, KYC Required, Min Deposit, Withdrawal Speed). Use actual values from the article — do NOT invent data not mentioned in the article.
+- faqs: 5-7 questions real users search for, with concise 2-4 sentence answers. Mix informational and decision-intent questions. No generic questions like "Is X safe?" without a specific answer.
 
 Return valid JSON only — no markdown wrapper, no explanation:
 {
@@ -42,7 +43,10 @@ Return valid JSON only — no markdown wrapper, no explanation:
   "meta_keywords": "...",
   "pros": ["...", "..."],
   "cons": ["...", "..."],
-  "quick_facts_md": "| Field | Details |\\n|-------|---------|\\n| **Founded** | ... |\\n..."
+  "quick_facts_md": "| Field | Details |\\n|-------|---------|\\n| **Founded** | ... |\\n...",
+  "faqs": [
+    { "question": "...", "answer": "..." }
+  ]
 }
 
 KEYWORD: ${keyword}
@@ -59,6 +63,7 @@ ARTICLE CONTENT: ${excerpt}`,
       pros: string[]
       cons: string[]
       quick_facts_md: string
+      faqs: { question: string; answer: string }[]
     }
     try {
       const jsonMatch = raw.match(/\{[\s\S]*\}/)
@@ -74,6 +79,7 @@ ARTICLE CONTENT: ${excerpt}`,
       pros: Array.isArray(parsed.pros) ? parsed.pros : [],
       cons: Array.isArray(parsed.cons) ? parsed.cons : [],
       quick_facts_md: parsed.quick_facts_md ?? '',
+      faqs: Array.isArray(parsed.faqs) ? parsed.faqs : [],
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message ?? 'Meta tag generation failed' }, { status: 500 })

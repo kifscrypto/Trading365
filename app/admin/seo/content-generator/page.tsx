@@ -309,6 +309,7 @@ export default function ArticleStudioPage() {
   const [cons, setCons] = useState('')        // one per line
   const [quickFactsMd, setQuickFactsMd] = useState('')
   const [quickFactsInserted, setQuickFactsInserted] = useState(false)
+  const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>([])
   const [metaLoading, setMetaLoading] = useState(false)
 
   // Step 8: Publish
@@ -622,6 +623,7 @@ export default function ArticleStudioPage() {
       setPros((data.pros ?? []).join('\n'))
       setCons((data.cons ?? []).join('\n'))
       setQuickFactsMd(data.quick_facts_md ?? '')
+      setFaqs(data.faqs ?? [])
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -680,7 +682,7 @@ export default function ArticleStudioPage() {
           rating: 0,
           thumbnail: imageUrl.trim() || '',
           tags: metaKeywords ? metaKeywords.split(',').map(k => k.trim()).filter(Boolean) : [],
-          faqs: null,
+          faqs: faqs.length ? faqs : null,
           pros: pros ? pros.split('\n').map(p => p.trim()).filter(Boolean) : null,
           cons: cons ? cons.split('\n').map(c => c.trim()).filter(Boolean) : null,
           meta_title: metaTitle.trim() || null,
@@ -1130,6 +1132,58 @@ export default function ArticleStudioPage() {
                   />
                 </div>
 
+                <div className="border-t border-zinc-700" />
+
+                {/* FAQs */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                      FAQs <span className="normal-case font-normal text-zinc-600">({faqs.length})</span>
+                    </p>
+                    <button
+                      onClick={() => setFaqs(f => [...f, { question: '', answer: '' }])}
+                      className="text-xs text-zinc-400 hover:text-zinc-200"
+                    >
+                      + Add FAQ
+                    </button>
+                  </div>
+                  {faqs.length === 0 && (
+                    <p className="text-xs text-zinc-600">No FAQs generated yet — click Regenerate All above.</p>
+                  )}
+                  <div className="space-y-3">
+                    {faqs.map((faq, i) => (
+                      <div key={i} className="border border-zinc-700 rounded-lg p-4 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <span className="text-xs text-zinc-600 font-mono mt-2 shrink-0">Q{i + 1}</span>
+                          <input
+                            type="text"
+                            value={faq.question}
+                            onChange={e => setFaqs(f => f.map((item, j) => j === i ? { ...item, question: e.target.value } : item))}
+                            placeholder="Question"
+                            className={ic}
+                          />
+                          <button
+                            onClick={() => setFaqs(f => f.filter((_, j) => j !== i))}
+                            className="text-xs text-zinc-600 hover:text-red-400 mt-2 shrink-0"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-xs text-zinc-600 font-mono mt-2 shrink-0">A</span>
+                          <textarea
+                            value={faq.answer}
+                            onChange={e => setFaqs(f => f.map((item, j) => j === i ? { ...item, answer: e.target.value } : item))}
+                            placeholder="Answer"
+                            rows={3}
+                            className={`${ic} text-xs leading-relaxed`}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {!isUnlocked('publish') && (
                   <div className="pt-2 border-t border-zinc-700">
                     <button onClick={openPublish} className={primaryBtn}>
@@ -1155,6 +1209,7 @@ export default function ArticleStudioPage() {
               <span>{pros ? <span className="text-green-400">{pros.split('\n').filter(Boolean).length} pros</span> : <span className="text-zinc-600">No pros</span>}</span>
               <span>{cons ? <span className="text-green-400">{cons.split('\n').filter(Boolean).length} cons</span> : <span className="text-zinc-600">No cons</span>}</span>
               <span>{quickFactsInserted ? <span className="text-green-400">Quick facts inserted</span> : <span className="text-zinc-600">No quick facts</span>}</span>
+              <span>{faqs.length ? <span className="text-green-400">{faqs.length} FAQs</span> : <span className="text-zinc-600">No FAQs</span>}</span>
             </div>
 
             <div className="space-y-4">
