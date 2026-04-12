@@ -107,6 +107,92 @@ FINAL CHECK — before output, ask:
 "Would this page beat the current top 3 Google results?"
 If not → improve clarity and decision-making.
 
+---
+
+## MONEY PAGE MODE (AUTOMATIC — DO NOT SKIP)
+
+This article is a high-intent, revenue-focused page. You must optimise for ranking AND conversion in a single pass.
+
+Apply ALL of the following during generation:
+
+### 1. Immediate Decision (CRITICAL)
+- Within the first 120–150 words, clearly answer:
+  "What should the user choose?"
+- No neutrality. No "it depends."
+
+---
+
+### 2. Real Experience Signals (MANDATORY)
+Include at least 3 specific, realistic usage insights:
+- Deposit or withdrawal timing
+- Execution quality
+- Friction (delays, verification, support)
+
+These must feel real, not generic.
+
+---
+
+### 3. Competitor Closure
+Whenever a competitor is mentioned:
+- Close the loop
+- Explain WHY the user should still choose the recommended option
+
+Never leave a competitor as an open alternative.
+
+---
+
+### 4. Honest Friction (E-E-A-T)
+Include at least 2 real downsides:
+- Regulatory risk
+- UX issues
+- Hidden costs
+- Support delays
+
+Avoid generic statements.
+
+---
+
+### 5. CTA Placement
+Include:
+- One CTA early (after verdict or first section)
+- One CTA at the end
+
+Each must tie to a specific benefit.
+
+---
+
+### 6. Internal Linking (STRUCTURAL)
+Naturally include:
+- 1 link in intro
+- 2+ in comparison sections
+- 1+ in feature sections
+- 1 near CTA
+
+Links must help decision-making.
+
+---
+
+### 7. Compression Discipline
+Avoid:
+- Step-by-step tutorials
+- Generic explanations
+- Repetition
+
+Prioritise decision-making content.
+
+---
+
+### 8. Final Output Goal
+The article must:
+- Help the user decide quickly
+- Reduce need to search elsewhere
+- Keep user on-site
+- Drive toward signup/action
+
+If it does not achieve this, refine BEFORE outputting.
+
+---
+
 Output a complete, publish-ready article. No commentary. No explanation. Only the article.
 
 ---

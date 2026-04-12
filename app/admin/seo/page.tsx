@@ -14,10 +14,10 @@ const modules = [
   },
   {
     href: '/admin/seo/content-generator',
-    label: 'Content Generator',
+    label: 'Article Studio',
     emoji: '✍️',
-    desc: 'Turn keyword analysis into a tight, intent-matched outline and then a full article draft — no fluff.',
-    badge: 'Modules 3 + 4',
+    desc: 'Full end-to-end workflow: outline → article → links → audit → image prompt → SEO tags → publish. One page, no copy-paste.',
+    badge: 'Full Pipeline',
   },
   {
     href: '/admin/seo/content-optimizer',
