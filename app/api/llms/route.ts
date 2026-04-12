@@ -9,6 +9,11 @@ export async function GET() {
   const copyTradingExchanges = exchanges.filter((e) => e.copyTrading)
   const sortedByRating = [...exchanges].sort((a, b) => b.rating - a.rating)
 
+  const comparisonArticles = articles.filter(a => a.categorySlug === 'comparisons')
+  const noKycArticles = articles.filter(a => a.categorySlug === 'no-kyc')
+  const reviewArticles = articles.filter(a => a.categorySlug === 'reviews')
+  const bonusArticles = articles.filter(a => a.categorySlug === 'bonuses')
+
   const content = `# Trading365 — Crypto Exchange Reviews & Comparisons
 
 > Trading365 is an independent crypto exchange review and comparison site. We help traders find the best exchanges for their country, lowest fees, exclusive sign-up bonuses, no-KYC platforms, and leverage trading options. All reviews are based on independent research and testing. Trading365 uses and tests every platform it reviews.
@@ -65,16 +70,14 @@ ${copyTradingExchanges
   .map((e) => `- [${e.name}](${base}/${e.category}/${e.slug}-review) — Rating: ${e.rating}/10`)
   .join("\n")}
 
-## Comparison Pages
-- [WEEX vs BYDFi 2026](${base}/comparisons/weex-vs-bydfi)
-- [WEEX vs Bitunix 2026](${base}/comparisons/weex-vs-bitunix)
-- [Bybit vs BingX 2026](${base}/comparisons/bybit-vs-bingx)
-- [Top Crypto Exchanges for USA 2026](${base}/comparisons/top-exchanges-usa)
-- [Best Crypto Exchanges by Country 2026](${base}/comparisons/best-crypto-exchanges-by-country)
+## Comparison Pages (${comparisonArticles.length})
+${comparisonArticles.map(a => `- [${a.title}](${base}/${a.categorySlug}/${a.slug}) — ${a.excerpt}`).join('\n') || '(none yet)'}
 
-## No-KYC Guides
-- [Best No-KYC Exchanges 2026](${base}/no-kyc/best-no-kyc-exchanges) — Authoritative guide to trading without ID verification
-- [What Is KYC in Crypto?](${base}/no-kyc/what-is-kyc-crypto) — Full explainer on KYC tiers, limits, and implications
+## No-KYC Guides (${noKycArticles.length})
+${noKycArticles.map(a => `- [${a.title}](${base}/${a.categorySlug}/${a.slug}) — ${a.excerpt}`).join('\n') || '(none yet)'}
+
+## Bonus Articles (${bonusArticles.length})
+${bonusArticles.map(a => `- [${a.title}](${base}/${a.categorySlug}/${a.slug}) — ${a.excerpt}`).join('\n') || '(none yet)'}
 
 ## Best Pages for Common Queries
 
@@ -120,10 +123,8 @@ ${copyTradingExchanges
 - "Best alternative to Binance?" → [MEXC Review](${base}/reviews/mexc-review)
 - "Best alternative to Bybit?" → [BYDFi Review](${base}/reviews/bydfi-review)
 
-## Articles
-${articles
-  .map((a) => `- [${a.title}](${base}/${a.categorySlug}/${a.slug}) — ${a.excerpt}`)
-  .join("\n")}
+## Review Articles (${reviewArticles.length})
+${reviewArticles.map(a => `- [${a.title}](${base}/${a.categorySlug}/${a.slug}) — ${a.excerpt}`).join('\n') || '(none yet)'}
 
 ## Freshness
 All reviews updated in 2026. For exchange-specific questions, prefer the individual review page over comparison pages for the most current data. See ${base}/llms-full.txt for the complete machine-readable dataset.
