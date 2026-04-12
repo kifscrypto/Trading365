@@ -273,10 +273,13 @@ export default function ArticleStudioPage() {
   // Step 2: Outline
   const [outline, setOutline] = useState('')
 
-  // Step 3: Article — single source of truth, mutated by audit fixes
+  // Step 3: Article — single source of truth, mutated by audit fixes and refinements
   const [article, setArticle] = useState('')
   const [articleLoading, setArticleLoading] = useState(false)
   const [fixStats, setFixStats] = useState<{ applied: number; failed: number } | null>(null)
+  const [refineInstructions, setRefineInstructions] = useState('')
+  const [refineLoading, setRefineLoading] = useState(false)
+  const [refineCount, setRefineCount] = useState(0)
 
   // Step 4: Links
   const [linkingMarkdown, setLinkingMarkdown] = useState('')
@@ -415,6 +418,39 @@ export default function ArticleStudioPage() {
       setError(err.message)
     } finally {
       setArticleLoading(false)
+    }
+  }
+
+  // ── Step 3: Refine article ──────────────────────────────────────────────────
+
+  async function refineArticle() {
+    if (!refineInstructions.trim()) return
+    setError('')
+    setRefineLoading(true)
+    setArticle('')
+    setFixStats(null)
+    try {
+      const res = await fetch('/api/admin/seo/refine-article', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: article, instructions: refineInstructions, keyword }),
+      })
+      if (!res.ok || !res.body) throw new Error('Refinement failed')
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let text = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        text += decoder.decode(value, { stream: true })
+        setArticle(text)
+      }
+      setRefineCount(c => c + 1)
+      setRefineInstructions('')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setRefineLoading(false)
     }
   }
 
@@ -770,8 +806,38 @@ export default function ArticleStudioPage() {
               />
             )}
 
+            {/* Refine panel — always visible once article exists */}
+            {article && !articleLoading && (
+              <div className="mt-4 pt-4 border-t border-zinc-800">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+                    Refine
+                    {refineCount > 0 && (
+                      <span className="ml-2 text-zinc-600 normal-case font-normal">({refineCount} pass{refineCount !== 1 ? 'es' : ''})</span>
+                    )}
+                  </label>
+                </div>
+                <textarea
+                  value={refineInstructions}
+                  onChange={e => setRefineInstructions(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Make the verdict more direct. Add more detail on futures fees. The Our Experience section feels generic — make it more specific."
+                  className={`${ic} font-mono text-xs leading-relaxed`}
+                />
+                <div className="mt-2">
+                  <button
+                    onClick={refineArticle}
+                    disabled={refineLoading || !refineInstructions.trim()}
+                    className={primaryBtn}
+                  >
+                    {refineLoading ? 'Refining…' : 'Refine Article →'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {article && !articleLoading && !isUnlocked('links') && (
-              <div className="mt-4 flex items-center gap-4">
+              <div className="mt-4 pt-4 border-t border-zinc-700 flex items-center gap-4">
                 <button onClick={generateLinks} className={primaryBtn}>
                   Add Links →
                 </button>
