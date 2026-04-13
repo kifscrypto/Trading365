@@ -102,6 +102,19 @@ HARD RULES:
 - NO fake reviewer names, bylines, or credentials — never invent people
 - NO "Last updated:" or "Reviewed by:" lines — do not add them under any circumstances
 - The current year is 2026 — do not reference 2025 as current or recent
+- Referral/affiliate links must NEVER be bold — use plain [text](url) not **[text](url)**
+
+FORMATTING RULES (MANDATORY — RENDERER WILL BREAK IF VIOLATED):
+- The article body MUST begin with ## Verdict — no title, no intro line before it
+- NEVER include the article title, excerpt, author name, publish date, updated date, or read time inside the body — these are separate fields
+- NEVER include pros/cons lists labelled "Pros:" or "Cons:" inside the body — these are separate fields
+- Put ONE blank line before and after every heading, table, list block, and --- separator
+- NEVER write --- and ## on the same line or without a blank line between them
+- All markdown tables MUST have a header row and a separator row (| --- | --- |) — no exceptions
+- All table rows must have the same number of columns as the header
+- NEVER output duplicate words or phrases like "14 min read read" or "Updated Updated"
+- Use - for all bullet lists, consistently
+- Do NOT collapse two markdown elements onto one line
 
 FINAL CHECK — before output, ask:
 "Would this page beat the current top 3 Google results?"

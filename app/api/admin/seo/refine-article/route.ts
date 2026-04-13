@@ -32,6 +32,16 @@ RULES:
 - Do not add commentary, preamble, or explanation
 - Output the complete revised article only
 
+FORMATTING RULES (DO NOT BREAK):
+- Body must begin with ## Verdict — never add a title, author, date, or read time line before it
+- Never include the article title, excerpt, author, dates, or read time inside the body
+- Never include pros/cons blocks labelled "Pros:" or "Cons:" inside the body
+- Put ONE blank line before and after every heading, table, list, and --- separator
+- Never write --- and ## without a blank line between them
+- All tables must have a header row and separator row (| --- |)
+- Never output duplicate words or phrases
+- Referral/affiliate link text must never be bold — plain [text](url) only
+
 KEYWORD: ${keyword ?? ''}
 ${affiliateLink ? `CTA LINK: ${affiliateLink} — use this exact URL for all CTAs.` : ''}
 
