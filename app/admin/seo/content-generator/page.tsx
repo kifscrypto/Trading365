@@ -287,6 +287,8 @@ export default function ArticleStudioPage() {
   // Step 4: Links
   const [linkingMarkdown, setLinkingMarkdown] = useState('')
   const [linksLoading, setLinksLoading] = useState(false)
+  const [applyLinksLoading, setApplyLinksLoading] = useState(false)
+  const [applyLinksResult, setApplyLinksResult] = useState<{ applied: number; total: number } | null>(null)
 
   // Step 5: Audit
   const [auditMarkdown, setAuditMarkdown] = useState('')
@@ -507,6 +509,28 @@ export default function ArticleStudioPage() {
       setError(err.message)
     } finally {
       setLinksLoading(false)
+    }
+  }
+
+  async function applyLinks() {
+    if (!linkingMarkdown || !article) return
+    setApplyLinksLoading(true)
+    setApplyLinksResult(null)
+    try {
+      const fix = `Apply all of the following internal link suggestions to the article. For each suggestion, find the anchor text in the article and wrap it with the recommended link URL. Only apply a link where the exact anchor text exists in the article — do not force or invent text.\n\nReferral/affiliate links must NOT be bold — use plain [text](url) only.\n\n${linkingMarkdown}`
+      const res = await fetch('/api/admin/seo/fix-article', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: article, fix }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Apply links failed')
+      setArticle(data.content ?? article)
+      setApplyLinksResult({ applied: data.applied, total: data.total })
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setApplyLinksLoading(false)
     }
   }
 
@@ -909,11 +933,22 @@ export default function ArticleStudioPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className={h2}>4. Links</h2>
               <div className="flex items-center gap-3">
-                <span className="text-xs text-zinc-500">Apply suggestions manually in the article above</span>
                 {linkingMarkdown && (
-                  <button onClick={generateLinks} disabled={linksLoading} className="text-xs text-zinc-400 hover:text-zinc-200 disabled:text-zinc-600">
-                    {linksLoading ? 'Regenerating…' : 'Regenerate'}
-                  </button>
+                  <>
+                    {applyLinksResult && (
+                      <span className="text-xs text-green-400">{applyLinksResult.applied}/{applyLinksResult.total} links applied</span>
+                    )}
+                    <button
+                      onClick={applyLinks}
+                      disabled={applyLinksLoading || linksLoading}
+                      className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+                    >
+                      {applyLinksLoading ? 'Applying…' : 'Apply Links'}
+                    </button>
+                    <button onClick={generateLinks} disabled={linksLoading || applyLinksLoading} className="text-xs text-zinc-400 hover:text-zinc-200 disabled:text-zinc-600">
+                      {linksLoading ? 'Regenerating…' : 'Regenerate'}
+                    </button>
+                  </>
                 )}
               </div>
             </div>
