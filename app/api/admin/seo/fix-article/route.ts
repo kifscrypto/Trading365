@@ -61,22 +61,23 @@ export async function POST(request: Request) {
     }
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const truncatedContent = articleContent.slice(0, 18000)
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4000,
+      system: 'You output only a valid JSON array of find-replace patches. No explanation, no markdown fences, no preamble. Output starts with [ and ends with ].',
       messages: [{
         role: 'user',
-        content: `You are making targeted edits to an article.
+        content: `Apply these fixes to the article below.
 
 FIXES TO APPLY:
 ${fix}
 
-Return a JSON array of find-replace patches. Each patch:
+Return a JSON array where each element is:
 { "find": "exact verbatim text from article", "replace": "replacement text" }
 
 RULES:
-- Return ONLY a valid JSON array — no markdown fences, no explanation
 - "find" must be verbatim text copied exactly from the article (15–80 chars, distinctive)
 - Avoid quoting text that appears more than once
 - Make the minimum change needed — don't rewrite whole paragraphs for a one-line fix
@@ -84,9 +85,10 @@ RULES:
 - Maximum 20 patches
 - NEVER introduce fake reviewer names, bylines, credentials, or "Last updated:" / "Reviewed by:" lines
 - The current year is 2026 — do not introduce 2025 as current in any replacement text
+- Referral/affiliate link text must never be bold — use plain [text](url) not **[text](url)**
 
 ARTICLE:
-${articleContent}`,
+${truncatedContent}`,
       }],
     })
 
