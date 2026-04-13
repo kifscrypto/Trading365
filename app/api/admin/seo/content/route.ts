@@ -19,7 +19,9 @@ export async function POST(request: Request) {
       max_tokens: 8000,
       messages: [{
         role: 'user',
-        content: `You are an elite crypto SEO content writer for Trading365.
+        content: `CRITICAL: Never wrap links in bold. Write [text](url) — NEVER **[text](url)**. This applies to every single link in the article without exception.
+
+You are an elite crypto SEO content writer for Trading365.
 
 Your job: generate articles that rank in the top 3 for high-intent crypto queries and convert readers into signups.
 

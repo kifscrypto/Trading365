@@ -36,7 +36,9 @@ export async function POST(request: Request) {
       max_tokens: 10000,
       messages: [{
         role: 'user',
-        content: `You are editing a crypto article for trading365.org.
+        content: `CRITICAL: Never wrap links in bold. Write [text](url) — NEVER **[text](url)**. This applies to every single link without exception.
+
+You are editing a crypto article for trading365.org.
 
 TASK: Add an "Our Experience Using [Exchange Name]" section if this is an exchange review or comparison.
 

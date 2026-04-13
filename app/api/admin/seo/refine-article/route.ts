@@ -23,7 +23,9 @@ export async function POST(request: Request) {
       max_tokens: 8000,
       messages: [{
         role: 'user',
-        content: `You are refining an existing article based on specific instructions.
+        content: `CRITICAL: Never wrap links in bold. Write [text](url) — NEVER **[text](url)**. This applies to every single link without exception.
+
+You are refining an existing article based on specific instructions.
 
 RULES:
 - Apply ONLY the changes described in the instructions
