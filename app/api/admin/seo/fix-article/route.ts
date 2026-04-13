@@ -10,6 +10,17 @@ async function checkAuth() {
 
 export const maxDuration = 120
 
+function extractJsonArray(raw: string): string {
+  // Strip markdown fences if Claude wraps output
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (fenced) return fenced[1].trim()
+  // Slice from first [ to last ] to handle any preamble/postamble
+  const start = raw.indexOf('[')
+  const end = raw.lastIndexOf(']')
+  if (start !== -1 && end !== -1 && end > start) return raw.slice(start, end + 1)
+  return raw.trim()
+}
+
 export async function POST(request: Request) {
   if (!(await checkAuth())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -53,7 +64,7 @@ export async function POST(request: Request) {
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
+      max_tokens: 4000,
       messages: [{
         role: 'user',
         content: `You are making targeted edits to an article.
@@ -70,7 +81,7 @@ RULES:
 - Avoid quoting text that appears more than once
 - Make the minimum change needed — don't rewrite whole paragraphs for a one-line fix
 - For insertions: include the line/heading just before the insert point in "find", then put that line + new content in "replace"
-- Maximum 12 patches
+- Maximum 20 patches
 - NEVER introduce fake reviewer names, bylines, credentials, or "Last updated:" / "Reviewed by:" lines
 - The current year is 2026 — do not introduce 2025 as current in any replacement text
 
@@ -80,18 +91,19 @@ ${articleContent}`,
     })
 
     const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-
-    // Extract JSON array from response (strip markdown fences if present)
-    const jsonMatch = raw.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) {
-      return NextResponse.json({ error: 'Could not parse patches from response', raw }, { status: 500 })
-    }
+    const cleaned = extractJsonArray(raw)
 
     let patches: { find: string; replace: string }[]
     try {
-      patches = JSON.parse(jsonMatch[0])
+      patches = JSON.parse(cleaned)
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON in response', raw }, { status: 500 })
+      // Salvage truncated JSON by closing the array
+      try {
+        const salvaged = cleaned.replace(/,\s*$/, '') + ']'
+        patches = JSON.parse(salvaged)
+      } catch {
+        return NextResponse.json({ error: 'Could not parse patches from response', raw: raw.slice(0, 400) }, { status: 500 })
+      }
     }
 
     // Apply patches to original article
