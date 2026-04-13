@@ -22,58 +22,64 @@ export async function POST(request: Request) {
     }
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const truncated = content.slice(0, 22000)
+    const truncated = content.slice(0, 20000)
 
     // ── SCAN MODE ──────────────────────────────────────────────────────────────
     if (mode === 'scan') {
       const message = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: `Audit this HTML article content for formatting and link errors.
+        max_tokens: 4000,
+        system: 'You are an HTML content auditor. You output only valid JSON. Never output markdown fences, explanations, or any text outside the JSON object.',
+        messages: [
+          {
+            role: 'user',
+            content: `Audit this HTML article content for errors. Find all issues across these five categories:
 
-Find issues in these categories:
+BROKEN_LINK: any <a> tag where href is empty, "#", "javascript:", missing the https:// protocol, contains spaces, or is a placeholder like "LINK_HERE", "INSERT_LINK", "your-link", "example.com"
+RAW_MARKDOWN: unprocessed markdown visible as plain text — **text**, *text*, [text](url) syntax, ## heading lines, bare "- item" bullet lines not inside ul/li tags
+PLACEHOLDER: placeholder text such as [Exchange Name], [INSERT LINK], "your link here", "click here", "TODO:", "FIXME:", or example.com domains
+EMPTY_ELEMENT: empty p, li, td, th, or heading tags containing no text
+HTML_ERROR: raw unescaped < or > not part of a tag, visibly broken tags, or markdown code fences visible in output
 
-1. BROKEN_LINK — <a> tags with: empty href, href="#", href="javascript:", missing https:// protocol, URLs with spaces, placeholder URLs like "LINK_HERE", "INSERT_LINK", "your-link", "example.com". Also bare URLs in text that are not wrapped in <a> tags.
-2. RAW_MARKDOWN — unprocessed markdown visible as plain text in the HTML: **text**, *text*, [text](url) link syntax, ## heading lines, "- item" or "* item" bullet lines that are not inside <ul>/<li> tags
-3. PLACEHOLDER — placeholder text: "[Exchange Name]", "[INSERT LINK]", "your link here", "click here", "TODO:", "FIXME:", dummy domains like example.com
-4. EMPTY_ELEMENT — empty <p>, <li>, <td>, <th>, or heading tags with no text content
-5. HTML_ERROR — raw unescaped < or > characters not part of a tag, visibly broken/unclosed HTML tags, markdown fences (\`\`\`) visible in output
+Each issue needs: type (one of the five above), description (concise), severity ("error" or "warning"), snippet (short excerpt showing the problem, max 80 chars).
 
-Return ONLY valid JSON (no markdown fences, no explanation):
-{
-  "issues": [
-    {
-      "type": "BROKEN_LINK" | "RAW_MARKDOWN" | "PLACEHOLDER" | "EMPTY_ELEMENT" | "HTML_ERROR",
-      "description": "concise description of the problem",
-      "severity": "error" | "warning",
-      "snippet": "relevant excerpt from the HTML, max 80 chars"
-    }
-  ],
-  "score": 0-100
-}
+Scoring: start at 100, subtract 15 per error, subtract 5 per warning, floor at 0.
 
-Scoring: start at 100. Deduct 15 per "error" severity issue. Deduct 5 per "warning" severity issue. Minimum 0.
-If no issues found, return: { "issues": [], "score": 100 }
-
-CONTENT TO AUDIT:
+CONTENT:
 ${truncated}`,
-        }],
+          },
+          {
+            role: 'assistant',
+            content: '{"issues":[',
+          },
+        ],
       })
 
-      const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-      const jsonMatch = raw.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) {
-        return NextResponse.json({ error: 'Could not parse scan result', raw }, { status: 500 })
+      const partial = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+      const raw = '{"issues":[' + partial
+
+      let result: { issues: any[]; score: number }
+      try {
+        result = JSON.parse(raw)
+      } catch {
+        // Try to salvage truncated JSON by closing it
+        try {
+          const salvaged = raw.replace(/,\s*$/, '') + '],"score":0}'
+          result = JSON.parse(salvaged)
+        } catch {
+          return NextResponse.json({ error: 'Could not parse scan result', raw: raw.slice(0, 500) }, { status: 500 })
+        }
       }
 
-      try {
-        const result = JSON.parse(jsonMatch[0])
-        return NextResponse.json({ issues: result.issues ?? [], score: result.score ?? 100 })
-      } catch {
-        return NextResponse.json({ error: 'Invalid JSON in scan result' }, { status: 500 })
+      // Recalculate score from actual issues if Claude returned 0 (salvage case)
+      const issues = result.issues ?? []
+      let score = result.score ?? 100
+      if (score === 0 && issues.length === 0) score = 100
+      if (score === 0 && issues.length > 0) {
+        score = Math.max(0, 100 - issues.filter((i: any) => i.severity === 'error').length * 15 - issues.filter((i: any) => i.severity === 'warning').length * 5)
       }
+
+      return NextResponse.json({ issues, score })
     }
 
     // ── FIX MODE ───────────────────────────────────────────────────────────────
@@ -83,49 +89,55 @@ ${truncated}`,
             `${i + 1}. [${iss.type}] ${iss.description}${iss.snippet ? ` — near: "${iss.snippet}"` : ''}`
           )
           .join('\n')
-      : 'Fix all broken links, raw markdown syntax, placeholder text, and empty elements found in the content'
+      : 'Fix all broken links, raw markdown syntax, placeholder text, and empty elements'
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
-      messages: [{
-        role: 'user',
-        content: `Fix formatting and link errors in this HTML article content.
+      max_tokens: 4000,
+      system: 'You are an HTML content fixer. You output only a valid JSON array of find-replace patches. Never output markdown fences, explanations, or any text outside the JSON array.',
+      messages: [
+        {
+          role: 'user',
+          content: `Fix these issues in the HTML content below.
 
 ISSUES TO FIX:
 ${issuesList}
 
-Return a JSON array of find-replace patches. Each patch:
-{ "find": "exact verbatim text from the HTML", "replace": "corrected replacement" }
+Return a JSON array of find-replace patches. Each patch has "find" (exact verbatim text from the HTML, 15–120 chars, must be unique) and "replace" (corrected replacement).
 
-RULES:
-- Return ONLY a valid JSON array — no markdown fences, no explanation
-- "find" must be verbatim text copied exactly from the HTML (15–120 chars, must be unique in the content)
-- Make the minimum change needed — never rewrite whole paragraphs
-- Broken links where you cannot determine the real URL: remove the <a> wrapper, leave the link text as plain text
-- Raw markdown: convert to proper HTML (** → <strong>, * → <em>, [text](url) → <a href="url">text</a>, ## heading → <h2>heading</h2>, - item → <li>item</li>)
-- Placeholder text: remove the placeholder or replace with empty string as appropriate
-- Empty elements: remove the element tag entirely
-- Maximum 20 patches
-- NEVER introduce fake reviewer names, bylines, credentials, or "Last updated:" / "Reviewed by:" lines
-- Current year is 2026 — never introduce 2025 as the current year
+Rules:
+- Minimum change only — never rewrite whole paragraphs
+- Broken links with unknown correct URL: remove the a tag, leave the link text as plain text
+- Raw markdown: convert to HTML (** to strong, * to em, [text](url) to anchor tag, ## heading to h2, - item to li)
+- Placeholder text: remove entirely
+- Empty elements: remove the tag
+- Max 20 patches
+- Never add fake reviewer names, bylines, or "Last updated:" lines
+- Current year is 2026
 
 HTML CONTENT:
 ${truncated}`,
-      }],
+        },
+        {
+          role: 'assistant',
+          content: '[',
+        },
+      ],
     })
 
-    const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-    const jsonMatch = raw.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) {
-      return NextResponse.json({ error: 'Could not parse fix patches', raw }, { status: 500 })
-    }
+    const partial = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+    const raw = '[' + partial
 
     let patches: { find: string; replace: string }[]
     try {
-      patches = JSON.parse(jsonMatch[0])
+      patches = JSON.parse(raw)
     } catch {
-      return NextResponse.json({ error: 'Invalid JSON in fix patches' }, { status: 500 })
+      try {
+        const salvaged = raw.replace(/,\s*$/, '') + ']'
+        patches = JSON.parse(salvaged)
+      } catch {
+        return NextResponse.json({ error: 'Could not parse fix patches', raw: raw.slice(0, 500) }, { status: 500 })
+      }
     }
 
     let patched = content
