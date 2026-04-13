@@ -40,6 +40,13 @@ export default function AdminPage() {
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([])
   const [translatedLocales, setTranslatedLocales] = useState<Record<string, string[]>>({})
 
+  const [healthScanning, setHealthScanning] = useState(false)
+  const [healthFixing, setHealthFixing] = useState(false)
+  const [healthIssues, setHealthIssues] = useState<{ type: string; description: string; severity: 'error' | 'warning'; snippet: string }[] | null>(null)
+  const [healthScore, setHealthScore] = useState<number | null>(null)
+  const [healthError, setHealthError] = useState('')
+  const [healthFixed, setHealthFixed] = useState<{ applied: number; total: number } | null>(null)
+
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
@@ -361,8 +368,61 @@ export default function AdminPage() {
     fetch('/api/translate/status', { cache: 'no-store' }).then(r => r.ok && r.json()).then(s => s && setTranslatedLocales(s))
   }
 
+  async function handleHealthScan() {
+    if (!formData.content.trim()) return
+    setHealthScanning(true)
+    setHealthIssues(null)
+    setHealthScore(null)
+    setHealthError('')
+    setHealthFixed(null)
+    try {
+      const res = await fetch('/api/admin/health-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: formData.content, mode: 'scan' }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Scan failed')
+      setHealthIssues(json.issues ?? [])
+      setHealthScore(json.score ?? 100)
+    } catch (err: any) {
+      setHealthError(err.message ?? 'Scan failed')
+    } finally {
+      setHealthScanning(false)
+    }
+  }
+
+  async function handleHealthFix() {
+    if (!formData.content.trim()) return
+    setHealthFixing(true)
+    setHealthError('')
+    setHealthFixed(null)
+    try {
+      const res = await fetch('/api/admin/health-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: formData.content, mode: 'fix', issues: healthIssues }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Fix failed')
+      setFormData(prev => ({ ...prev, content: json.content }))
+      setHealthFixed({ applied: json.applied, total: json.total })
+      // Clear issues so user knows to re-scan
+      setHealthIssues(null)
+      setHealthScore(null)
+    } catch (err: any) {
+      setHealthError(err.message ?? 'Fix failed')
+    } finally {
+      setHealthFixing(false)
+    }
+  }
+
   function handleEditArticle(article) {
     setEditingArticle(article)
+    setHealthIssues(null)
+    setHealthScore(null)
+    setHealthError('')
+    setHealthFixed(null)
     setThumbnailPreview(article.thumbnail || '')
     setFormData({
       title: article.title,
@@ -467,9 +527,19 @@ export default function AdminPage() {
             <h2 className="text-2xl font-bold text-zinc-100">
               {editingArticle ? 'Edit Article' : 'New Article'}
             </h2>
+            {editingArticle && (
+              <button
+                type="submit"
+                form="article-form"
+                disabled={imageUploading}
+                className="ml-auto px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold disabled:opacity-50"
+              >
+                Update Article
+              </button>
+            )}
           </div>
 
-          <form onSubmit={handleSaveArticle} noValidate className="space-y-4">
+          <form id="article-form" onSubmit={handleSaveArticle} noValidate className="space-y-4">
             {formError && (
               <div className="bg-red-900/30 border border-red-700 text-red-400 px-4 py-3 rounded-lg text-sm">
                 {formError}
@@ -558,6 +628,90 @@ export default function AdminPage() {
                 onChange={(html) => setFormData({ ...formData, content: html })}
               />
             </div>
+
+            {/* Content Health Check */}
+            {editingArticle && (
+              <div className="border-t border-zinc-700 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-zinc-300">Content Health Check</p>
+                  <button
+                    type="button"
+                    onClick={handleHealthScan}
+                    disabled={healthScanning || healthFixing || !formData.content.trim()}
+                    className="text-xs px-3 py-1.5 bg-zinc-700 text-zinc-200 rounded-lg hover:bg-zinc-600 disabled:opacity-50 font-medium"
+                  >
+                    {healthScanning ? 'Scanning…' : 'Scan for Issues'}
+                  </button>
+                </div>
+
+                {healthError && (
+                  <p className="text-xs text-red-400 mb-3 px-3 py-2 bg-red-900/20 border border-red-800/40 rounded-lg">{healthError}</p>
+                )}
+
+                {healthFixed && (
+                  <p className="text-xs text-green-400 mb-3 px-3 py-2 bg-green-900/20 border border-green-800/40 rounded-lg font-medium">
+                    Fixed {healthFixed.applied} of {healthFixed.total} patches applied — click &ldquo;Scan for Issues&rdquo; to verify, then Update Article to save.
+                  </p>
+                )}
+
+                {healthScore !== null && (
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`px-3 py-1 rounded-full text-sm font-bold border ${
+                      healthScore >= 80
+                        ? 'bg-green-900/40 border-green-700/50 text-green-300'
+                        : healthScore >= 60
+                        ? 'bg-yellow-900/40 border-yellow-700/50 text-yellow-300'
+                        : 'bg-red-900/40 border-red-700/50 text-red-300'
+                    }`}>
+                      Score: {healthScore}/100
+                    </div>
+                    {healthIssues && healthIssues.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleHealthFix}
+                        disabled={healthFixing || healthScanning}
+                        className="px-3 py-1.5 bg-orange-700 text-white rounded-lg hover:bg-orange-600 text-xs font-semibold disabled:opacity-50"
+                      >
+                        {healthFixing ? 'Fixing…' : `Auto-fix ${healthIssues.length} issue${healthIssues.length !== 1 ? 's' : ''}`}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {healthIssues && healthIssues.length === 0 && (
+                  <p className="text-xs text-green-400 px-3 py-2 bg-green-900/20 border border-green-800/40 rounded-lg">
+                    No issues found — content looks clean!
+                  </p>
+                )}
+
+                {healthIssues && healthIssues.length > 0 && (
+                  <div className="space-y-1.5">
+                    {healthIssues.map((issue, i) => (
+                      <div
+                        key={i}
+                        className={`px-3 py-2 rounded-lg text-xs border ${
+                          issue.severity === 'error'
+                            ? 'bg-red-900/20 border-red-800/40'
+                            : 'bg-yellow-900/20 border-yellow-800/40'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className={`shrink-0 font-bold uppercase tracking-wide text-[10px] pt-px ${
+                            issue.severity === 'error' ? 'text-red-400' : 'text-yellow-400'
+                          }`}>
+                            {issue.type.replace('_', ' ')}
+                          </span>
+                          <span className="text-zinc-300">{issue.description}</span>
+                        </div>
+                        {issue.snippet && (
+                          <p className="mt-1 font-mono text-zinc-500 truncate text-[10px]">{issue.snippet}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Pros */}
             <div className="border-t border-zinc-700 pt-4">
