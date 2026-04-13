@@ -99,37 +99,6 @@ export async function getArticleMetadata(category: string, slug: string): Promis
 }
 
 /**
- * Extract the text of the ## Verdict section from markdown or HTML content.
- * Returns null if no verdict section is found.
- */
-function extractVerdict(content: string): string | null {
-  // HTML content
-  if (/<[a-zA-Z]/.test(content)) {
-    const match = content.match(/<h2[^>]*>[^<]*verdict[^<]*<\/h2>\s*([\s\S]*?)(?=<h2|$)/i)
-    if (!match) return null
-    return match[1]
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 600) || null
-  }
-  // Markdown content
-  const sections = content.split(/^## /m)
-  const verdictSection = sections.find(s => /^verdict\b/i.test(s))
-  if (!verdictSection) return null
-  const body = verdictSection
-    .replace(/^verdict[^\n]*/i, '')        // remove heading line
-    .replace(/^---+$/gm, '')               // strip separators
-    .replace(/^#{1,6}\s.*/gm, '')          // stop at next heading
-    .replace(/\*\*/g, '')                  // strip bold
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // links → text
-    .trim()
-  // Return up to the next heading or 600 chars
-  const firstHeading = body.search(/^## /m)
-  return (firstHeading > 0 ? body.slice(0, firstHeading) : body).trim().slice(0, 600) || null
-}
-
-/**
  * Remove the "Quick Facts" section from article content when the template
  * already renders it from exchange data — prevents the section appearing twice.
  */
@@ -153,7 +122,6 @@ export default async function ArticlePageContent({ category, slug }: { category:
   const article = await getArticleBySlugFromDB(slug)
   const cat = getCategoryBySlug(category)
   if (!article || !cat) notFound()
-  const verdict = extractVerdict(article.content)
 
   // Try to get exchange data for review articles
   const exchangeSlug = slug.replace("-review", "")
@@ -272,16 +240,6 @@ export default async function ArticlePageContent({ category, slug }: { category:
           </div>
         </div>
       </section>
-
-      {/* Verdict Box */}
-      {verdict && (
-        <div className="mx-auto max-w-4xl px-4 pt-6 lg:px-6">
-          <div className="rounded-xl border border-primary/30 bg-primary/5 px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Verdict</p>
-            <p className="text-sm leading-relaxed text-foreground">{verdict}</p>
-          </div>
-        </div>
-      )}
 
       {/* Hero Image */}
       {article.thumbnail && (
