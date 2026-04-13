@@ -488,6 +488,13 @@ export default function AdminPage() {
       {/* Nav */}
       <nav className="bg-zinc-900 border-b border-zinc-700 px-6 py-3 flex items-center justify-between flex-shrink-0">
         <span className="text-lg font-bold text-zinc-100">Trading365 Admin</span>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.push('/admin/seo')}
+            className="text-sm text-purple-400 hover:text-purple-300 font-medium"
+          >
+            SEO Suite →
+          </button>
         <button
           onClick={async () => {
             await fetch('/api/admin/session', { method: 'DELETE' })
@@ -497,6 +504,7 @@ export default function AdminPage() {
         >
           Logout
         </button>
+        </div>
       </nav>
 
       <div className="flex flex-1 overflow-hidden">
