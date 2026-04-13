@@ -46,6 +46,7 @@ export default function AdminPage() {
   const [healthScore, setHealthScore] = useState<number | null>(null)
   const [healthError, setHealthError] = useState('')
   const [healthFixed, setHealthFixed] = useState<{ applied: number; total: number } | null>(null)
+  const [healthFormat, setHealthFormat] = useState<'html' | 'markdown' | null>(null)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -375,6 +376,7 @@ export default function AdminPage() {
     setHealthScore(null)
     setHealthError('')
     setHealthFixed(null)
+    setHealthFormat(null)
     try {
       const res = await fetch('/api/admin/health-check', {
         method: 'POST',
@@ -385,6 +387,7 @@ export default function AdminPage() {
       if (!res.ok) throw new Error(json.error ?? 'Scan failed')
       setHealthIssues(json.issues ?? [])
       setHealthScore(json.score ?? 100)
+      setHealthFormat(json.contentFormat ?? null)
     } catch (err: any) {
       setHealthError(err.message ?? 'Scan failed')
     } finally {
@@ -663,7 +666,12 @@ export default function AdminPage() {
                 )}
 
                 {healthScore !== null && (
-                  <div className="flex items-center gap-3 mb-3">
+                  <div className="flex items-center gap-3 mb-3 flex-wrap">
+                    {healthFormat && (
+                      <span className={`px-2 py-0.5 rounded text-xs font-mono border ${healthFormat === 'html' ? 'bg-blue-900/30 border-blue-700/50 text-blue-300' : 'bg-zinc-800 border-zinc-600 text-zinc-400'}`}>
+                        {healthFormat}
+                      </span>
+                    )}
                     <div className={`px-3 py-1 rounded-full text-sm font-bold border ${
                       healthScore >= 80
                         ? 'bg-green-900/40 border-green-700/50 text-green-300'
