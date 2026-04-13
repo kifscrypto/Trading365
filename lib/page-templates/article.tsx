@@ -188,7 +188,7 @@ export default async function ArticlePageContent({ category, slug }: { category:
       )}
       {/* Header */}
       <section className="border-b border-border">
-        <div className="mx-auto max-w-4xl px-4 pt-8 pb-8 lg:px-6">
+        <div className="mx-auto max-w-4xl lg:max-w-6xl px-4 pt-8 pb-8 lg:px-6">
           <Breadcrumbs
             items={[
               { label: cat.title, href: `/${category}` },
@@ -243,7 +243,7 @@ export default async function ArticlePageContent({ category, slug }: { category:
 
       {/* Hero Image */}
       {article.thumbnail && (
-        <div className="mx-auto max-w-4xl px-4 py-8 lg:px-6">
+        <div className="mx-auto max-w-4xl lg:max-w-6xl px-4 py-8 lg:px-6">
           <div className="relative h-64 w-full overflow-hidden rounded-xl md:h-80 lg:h-96">
             <Image
               src={article.thumbnail}
@@ -257,7 +257,7 @@ export default async function ArticlePageContent({ category, slug }: { category:
       )}
 
       {/* Content */}
-      <article className="mx-auto max-w-4xl px-4 py-8 lg:px-6">
+      <article className="mx-auto max-w-4xl lg:max-w-6xl px-4 py-8 lg:px-6">
         <div className="flex flex-col gap-12 lg:flex-row">
           {/* Main Content */}
           <div className="flex-1 min-w-0">

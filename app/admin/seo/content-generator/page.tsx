@@ -181,7 +181,15 @@ function AuditMarkdown({
 
 // ─── LinkingMarkdown ──────────────────────────────────────────────────────────
 
-function LinkingMarkdown({ text }: { text: string }) {
+function LinkingMarkdown({
+  text,
+  selected,
+  onToggle,
+}: {
+  text: string
+  selected: Set<number>
+  onToggle: (i: number) => void
+}) {
   const oppMatch = text.match(/## Internal Link Opportunities\n([\s\S]*?)(?=\n## |$)/)
   const endMatch = text.match(/## End of Article Links\n([\s\S]*?)(?=\n## |$)/)
 
@@ -206,9 +214,23 @@ function LinkingMarkdown({ text }: { text: string }) {
             const anchorMatch = block.match(/Anchor:\s*"?([^"\n]+)"?/)
             const linkMatch = block.match(/Link to:\s*([^\n]+)/)
             const reasonMatch = block.match(/Reason:\s*([^\n]+)/)
+            const isSelected = selected.has(i)
             return (
-              <div key={i} className="border border-zinc-700 rounded-lg overflow-hidden">
-                <div className="bg-zinc-800 px-4 py-2.5 flex items-center gap-2">
+              <div
+                key={i}
+                className={`border rounded-lg overflow-hidden transition-opacity ${isSelected ? 'border-zinc-700' : 'border-zinc-800 opacity-40'}`}
+              >
+                <div
+                  className="bg-zinc-800 px-4 py-2.5 flex items-center gap-2.5 cursor-pointer select-none"
+                  onClick={() => onToggle(i)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => onToggle(i)}
+                    onClick={e => e.stopPropagation()}
+                    className="w-3.5 h-3.5 rounded border-zinc-600 bg-zinc-700 accent-blue-500 cursor-pointer shrink-0"
+                  />
                   <span className="text-xs font-bold text-blue-400">{i + 1}</span>
                   <span className="text-sm font-semibold text-zinc-100">{title}</span>
                 </div>
@@ -289,6 +311,7 @@ export default function ArticleStudioPage() {
   const [linksLoading, setLinksLoading] = useState(false)
   const [applyLinksLoading, setApplyLinksLoading] = useState(false)
   const [applyLinksResult, setApplyLinksResult] = useState<{ applied: number; total: number } | null>(null)
+  const [selectedLinkIndices, setSelectedLinkIndices] = useState<Set<number>>(new Set())
 
   // Step 5: Audit
   const [auditMarkdown, setAuditMarkdown] = useState('')
@@ -504,7 +527,12 @@ export default function ArticleStudioPage() {
       let data: any
       try { data = JSON.parse(text) } catch { throw new Error(text.slice(0, 300) || 'Server error') }
       if (!res.ok) throw new Error(data.error ?? 'Links analysis failed')
-      setLinkingMarkdown(data.linkingMarkdown ?? '')
+      const md = data.linkingMarkdown ?? ''
+      setLinkingMarkdown(md)
+      // Select all link blocks by default
+      const oppMatch = md.match(/## Internal Link Opportunities\n([\s\S]*?)(?=\n## |$)/)
+      const blocks = oppMatch ? oppMatch[1].trim().split(/(?=\n\d+\.\s+\*\*)/).filter(Boolean) : []
+      setSelectedLinkIndices(new Set(blocks.map((_, i) => i)))
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -517,7 +545,15 @@ export default function ArticleStudioPage() {
     setApplyLinksLoading(true)
     setApplyLinksResult(null)
     try {
-      const fix = `Apply all of the following internal link suggestions to the article. For each suggestion, find the anchor text in the article and wrap it with the recommended link URL. Only apply a link where the exact anchor text exists in the article — do not force or invent text.\n\nReferral/affiliate links must NOT be bold — use plain [text](url) only.\n\n${linkingMarkdown}`
+      // Filter to selected blocks only
+      const oppMatch = linkingMarkdown.match(/## Internal Link Opportunities\n([\s\S]*?)(?=\n## |$)/)
+      const allBlocks = oppMatch ? oppMatch[1].trim().split(/(?=\n\d+\.\s+\*\*)/).filter(Boolean) : []
+      const selectedBlocks = allBlocks.filter((_, i) => selectedLinkIndices.has(i))
+      if (!selectedBlocks.length) {
+        setApplyLinksResult({ applied: 0, total: 0 })
+        return
+      }
+      const fix = `Apply all of the following internal link suggestions to the article. For each suggestion, find the anchor text in the article and wrap it with the recommended link URL. Only apply a link where the exact anchor text exists in the article — do not force or invent text.\n\nReferral/affiliate links must NOT be bold — use plain [text](url) only.\n\n## Internal Link Opportunities\n${selectedBlocks.join('\n')}`
       const res = await fetch('/api/admin/seo/fix-article', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -587,9 +623,6 @@ export default function ArticleStudioPage() {
       if (!res.ok) throw new Error(data.error ?? 'Fix failed')
       setArticle(data.content ?? article)
       setFixStats({ applied: data.applied, failed: data.failed })
-      // Clear audit — user should re-audit after fixes
-      setAuditDone(false)
-      setAuditMarkdown('')
     } catch (err: any) {
       setFixError(err.message)
     } finally {
@@ -940,10 +973,10 @@ export default function ArticleStudioPage() {
                     )}
                     <button
                       onClick={applyLinks}
-                      disabled={applyLinksLoading || linksLoading}
+                      disabled={applyLinksLoading || linksLoading || selectedLinkIndices.size === 0}
                       className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
                     >
-                      {applyLinksLoading ? 'Applying…' : 'Apply Links'}
+                      {applyLinksLoading ? 'Applying…' : `Apply Selected (${selectedLinkIndices.size})`}
                     </button>
                     <button onClick={generateLinks} disabled={linksLoading || applyLinksLoading} className="text-xs text-zinc-400 hover:text-zinc-200 disabled:text-zinc-600">
                       {linksLoading ? 'Regenerating…' : 'Regenerate'}
@@ -959,7 +992,15 @@ export default function ArticleStudioPage() {
 
             {linkingMarkdown && (
               <>
-                <LinkingMarkdown text={linkingMarkdown} />
+                <LinkingMarkdown
+                  text={linkingMarkdown}
+                  selected={selectedLinkIndices}
+                  onToggle={i => setSelectedLinkIndices(prev => {
+                    const next = new Set(prev)
+                    next.has(i) ? next.delete(i) : next.add(i)
+                    return next
+                  })}
+                />
                 {!isUnlocked('audit') && (
                   <div className="mt-6 pt-4 border-t border-zinc-700">
                     <button onClick={runAudit} className={primaryBtn}>
