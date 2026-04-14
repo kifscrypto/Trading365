@@ -6,6 +6,7 @@ import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
 import { GoogleAnalytics } from '@/components/google-analytics'
 import { PartnerPixels } from '@/components/partner-pixels'
+import { PageTracker } from '@/components/page-tracker'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -64,6 +65,7 @@ export default function RootLayout({
       <GoogleAnalytics />
       <body className="font-sans antialiased min-h-screen flex flex-col">
         <PartnerPixels />
+        <PageTracker />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <SiteHeader />
           <main className="flex-1">{children}</main>

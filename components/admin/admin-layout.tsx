@@ -13,6 +13,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <Link href="/admin/dashboard" className="text-slate-600 hover:text-slate-900 font-medium">
               Dashboard
             </Link>
+            <Link href="/admin/analytics" className="text-slate-600 hover:text-slate-900 font-medium">
+              Analytics
+            </Link>
             <Link href="/admin/article/new" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">
               New Article
             </Link>
