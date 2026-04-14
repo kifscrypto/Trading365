@@ -493,6 +493,12 @@ export default function AdminPage() {
         <span className="text-lg font-bold text-zinc-100">Trading365 Admin</span>
         <div className="flex items-center gap-4">
           <button
+            onClick={() => router.push('/admin/analytics')}
+            className="text-sm text-blue-400 hover:text-blue-300 font-medium"
+          >
+            Analytics →
+          </button>
+          <button
             onClick={() => router.push('/admin/seo')}
             className="text-sm text-purple-400 hover:text-purple-300 font-medium"
           >
