@@ -3,7 +3,7 @@ import { exchanges } from "@/lib/data/exchanges"
 
 export async function GET() {
   const articles = await getAllArticlesFromDB()
-  const base = "https://www.trading365.org"
+  const base = "https://trading365.org"
 
   const noKycExchanges = exchanges.filter((e) => !e.kyc)
   const copyTradingExchanges = exchanges.filter((e) => e.copyTrading)

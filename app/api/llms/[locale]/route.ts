@@ -12,7 +12,7 @@ export async function GET(
   }
 
   const loc = getLocale(locale)!
-  const base = "https://www.trading365.org"
+  const base = "https://trading365.org"
 
   let translations: { article_slug: string; title: string; excerpt: string; category_slug?: string }[] = []
   try {

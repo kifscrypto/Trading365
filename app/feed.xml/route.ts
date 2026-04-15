@@ -1,7 +1,7 @@
 import { getAllArticlesFromDB } from '@/lib/data/articles-db'
 import type { NextRequest } from 'next/server'
 
-const BASE_URL = 'https://www.trading365.org'
+const BASE_URL = 'https://trading365.org'
 
 function esc(str: string | null | undefined): string {
   return (str ?? '')

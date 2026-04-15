@@ -3,7 +3,7 @@ import { getAllArticlesFromDB } from '@/lib/data/articles-db'
 
 export const dynamic = 'force-dynamic'
 
-const BASE = 'https://www.trading365.org'
+const BASE = 'https://trading365.org'
 
 export async function GET() {
   const [articles, sortedByRating] = await Promise.all([

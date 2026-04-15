@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 
-const BASE_URL = "https://www.trading365.org"
+const BASE_URL = "https://trading365.org"
 
 export const metadata: Metadata = {
   title: "Disclaimer",

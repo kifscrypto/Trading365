@@ -44,7 +44,7 @@ import {
 } from "@/lib/schema"
 import { slugifyHeading } from "@/lib/utils/heading"
 
-const BASE_URL = 'https://www.trading365.org'
+const BASE_URL = 'https://trading365.org'
 const OG_IMAGE = `${BASE_URL}/og-image.jpg`
 
 // Titles over ~60 chars get truncated in Google — override known long titles here

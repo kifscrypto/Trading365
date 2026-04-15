@@ -7,7 +7,7 @@ import { ArticleContent } from "@/components/article-content"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
 import { ArrowLeft, Globe } from "lucide-react"
 
-const BASE_URL = "https://www.trading365.org"
+const BASE_URL = "https://trading365.org"
 
 export async function generateMetadata({
   params,

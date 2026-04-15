@@ -4,7 +4,7 @@ import { categories } from "@/lib/data/categories"
 import { LOCALES } from "@/lib/i18n/config"
 import type { MetadataRoute } from "next"
 
-const BASE_URL = "https://www.trading365.org"
+const BASE_URL = "https://trading365.org"
 
 // Parse article date strings like "Sep 15, 2025" or "Feb 2026" to ISO
 function parseArticleDate(dateStr: string): string {

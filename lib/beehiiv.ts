@@ -5,7 +5,7 @@
  * The draft appears in your Beehiiv dashboard for review before sending.
  */
 
-const BASE_URL = 'https://www.trading365.org'
+const BASE_URL = 'https://trading365.org'
 const BEEHIIV_BASE = 'https://api.beehiiv.com/v2'
 
 export interface ArticleForNewsletter {

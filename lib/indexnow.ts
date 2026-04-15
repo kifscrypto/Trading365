@@ -1,5 +1,5 @@
 const INDEXNOW_KEY = 'ede31ba024ffc531c17306ee950afca9'
-const HOST = 'www.trading365.org'
+const HOST = 'trading365.org'
 const BASE_URL = `https://${HOST}`
 
 export function pingIndexNow(urls: string[]): void {

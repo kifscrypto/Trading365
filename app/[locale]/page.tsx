@@ -80,7 +80,7 @@ export async function generateStaticParams() {
   return LOCALE_CODES.map((locale) => ({ locale }))
 }
 
-const BASE_URL = 'https://www.trading365.org'
+const BASE_URL = 'https://trading365.org'
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params

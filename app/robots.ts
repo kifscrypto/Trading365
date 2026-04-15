@@ -11,6 +11,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/"],
       },
     ],
-    sitemap: "https://www.trading365.org/sitemap.xml",
+    sitemap: "https://trading365.org/sitemap.xml",
   }
 }

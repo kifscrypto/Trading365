@@ -28,7 +28,7 @@ function InlineMarkdown({ text }: { text: string }) {
   )
 }
 
-const BASE_URL = 'https://www.trading365.org'
+const BASE_URL = 'https://trading365.org'
 const OG_IMAGE = `${BASE_URL}/og-image.jpg`
 
 // Expanded descriptions (130–155 chars) for categories with previously short descriptions

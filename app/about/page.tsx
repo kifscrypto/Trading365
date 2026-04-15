@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 
-const BASE_URL = "https://www.trading365.org"
+const BASE_URL = "https://trading365.org"
 const OG_IMAGE = `${BASE_URL}/og-image.jpg`
 
 export const metadata: Metadata = {
@@ -99,14 +99,14 @@ const aboutPageSchema = {
   "@context": "https://schema.org",
   "@type": "AboutPage",
   name: "About Trading365",
-  url: "https://www.trading365.org/about",
+  url: "https://trading365.org/about",
   description:
     "Learn about Trading365's mission, methodology, and editorial standards. We provide unbiased crypto exchange reviews to help you trade smarter.",
   publisher: {
     "@type": "Organization",
     name: "Trading365",
-    url: "https://www.trading365.org",
-    logo: "https://www.trading365.org/images/logo-wide.png",
+    url: "https://trading365.org",
+    logo: "https://trading365.org/images/logo-wide.png",
   },
 }
 

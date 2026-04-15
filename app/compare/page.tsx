@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { CompareClient } from "@/components/compare-client"
 
-const BASE_URL = "https://www.trading365.org"
+const BASE_URL = "https://trading365.org"
 const OG_IMAGE = `${BASE_URL}/og-image.jpg`
 
 const webApplicationSchema = {

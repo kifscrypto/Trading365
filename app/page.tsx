@@ -17,7 +17,7 @@ import { exchanges } from "@/lib/data/exchanges"
 import { generateWebsiteSchema, generateOrganizationStandaloneSchema } from "@/lib/schema"
 import { LOCALE_CODES } from "@/lib/i18n/config"
 
-const BASE_URL = 'https://www.trading365.org'
+const BASE_URL = 'https://trading365.org'
 
 const _hreflangAlternates: Record<string, string> = { 'x-default': BASE_URL, 'en': BASE_URL }
 for (const lc of LOCALE_CODES) _hreflangAlternates[lc] = `${BASE_URL}/${lc}`

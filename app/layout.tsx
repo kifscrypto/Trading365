@@ -12,7 +12,7 @@ import './globals.css'
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
-const BASE_URL = 'https://www.trading365.org'
+const BASE_URL = 'https://trading365.org'
 const OG_IMAGE = `${BASE_URL}/og-image.jpg`
 
 export const viewport: Viewport = {
