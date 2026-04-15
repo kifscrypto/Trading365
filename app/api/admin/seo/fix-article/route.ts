@@ -61,7 +61,9 @@ export async function POST(request: Request) {
     }
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const truncatedContent = articleContent.slice(0, 18000)
+    // Normalise before sending to Claude so "find" snippets use LF (not CRLF)
+    const normalisedContent = articleContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    const truncatedContent = normalisedContent.slice(0, 18000)
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -108,18 +110,38 @@ ${truncatedContent}`,
       }
     }
 
-    // Apply patches to original article
-    let patched = articleContent
+    // normalisedContent is already LF-only (done above before sending to Claude)
+    let patched = normalisedContent
     const results: { find: string; applied: boolean }[] = []
 
     for (const { find, replace } of patches) {
       if (typeof find !== 'string' || typeof replace !== 'string') continue
-      if (patched.includes(find)) {
-        patched = patched.replace(find, replace)
+
+      // 1. Exact match (LF-normalised)
+      const normFind = find.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      if (patched.includes(normFind)) {
+        patched = patched.replace(normFind, replace)
         results.push({ find, applied: true })
-      } else {
-        results.push({ find, applied: false })
+        continue
       }
+
+      // 2. Whitespace-flexible fallback — treat any run of spaces/tabs as \s+
+      //    so minor indentation differences don't break matches
+      try {
+        const escaped = normFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const flexible = escaped.replace(/[ \t]{2,}/g, '\\s+')
+        const re = new RegExp(flexible)
+        if (re.test(patched)) {
+          // Escape $ in replacement to avoid backreference interpretation
+          patched = patched.replace(re, replace.replace(/\$/g, '$$$$'))
+          results.push({ find, applied: true })
+          continue
+        }
+      } catch {
+        // If the regex is somehow invalid, fall through to failed
+      }
+
+      results.push({ find, applied: false })
     }
 
     const applied = results.filter(r => r.applied).length

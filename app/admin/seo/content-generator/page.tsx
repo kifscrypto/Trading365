@@ -1020,6 +1020,14 @@ export default function ArticleStudioPage() {
               <h2 className={h2}>5. Audit</h2>
               <div className="flex items-center gap-2">
                 {fixLoading && <span className="text-xs text-amber-400 animate-pulse">Applying fix…</span>}
+                {!fixLoading && fixStats && (
+                  <span className="text-xs text-green-400">
+                    {fixStats.applied > 0
+                      ? `${fixStats.applied} fix${fixStats.applied !== 1 ? 'es' : ''} applied ✓`
+                      : <span className="text-amber-400">0 fixes applied{fixStats.failed > 0 ? ` · ${fixStats.failed} couldn't match` : ''}</span>
+                    }
+                  </span>
+                )}
                 <button
                   onClick={runAudit}
                   disabled={auditLoading || fixLoading}
