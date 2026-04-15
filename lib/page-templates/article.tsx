@@ -34,6 +34,7 @@ import { getCategoryBySlug } from "@/lib/data/categories"
 import { getAllArticlesFromDB, getArticleBySlugFromDB, getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
 import { LOCALE_CODES } from "@/lib/i18n/config"
+import { ShareButton } from "@/components/share-button"
 import {
   generateArticleSchema,
   generateReviewSchema,
@@ -58,7 +59,10 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   if (!article) return { title: 'Article Not Found' }
 
   const canonicalUrl = `${BASE_URL}/${category}/${slug}`
-  const ogImage = article.thumbnail ? `${BASE_URL}${article.thumbnail}` : OG_IMAGE
+  // Thumbnails may be Vercel Blob URLs (already absolute) or relative paths
+  const ogImage = article.thumbnail
+    ? (article.thumbnail.startsWith('http') ? article.thumbnail : `${BASE_URL}${article.thumbnail}`)
+    : OG_IMAGE
   const pageTitle = TITLE_OVERRIDES[slug] ?? article.metaTitle ?? article.title
   const pageDescription = article.metaDescription ?? article.excerpt
 
@@ -236,6 +240,9 @@ export default async function ArticlePageContent({ category, slug }: { category:
                   Last Updated: {article.updatedDate}
                 </span>
               )}
+              <div className="ml-auto">
+                <ShareButton url={`${BASE_URL}/${category}/${slug}`} title={article.title} />
+              </div>
             </div>
           </div>
         </div>
