@@ -117,28 +117,31 @@ ${truncatedContent}`,
     for (const { find, replace } of patches) {
       if (typeof find !== 'string' || typeof replace !== 'string') continue
 
-      // 1. Exact match (LF-normalised)
+      // Normalise the find string too
       const normFind = find.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      // Escape $ in replacement — String.replace treats $& $' $` etc. as special
+      const safeReplace = replace.replace(/\$/g, '$$$$')
+
+      // 1. Exact match (LF-normalised)
       if (patched.includes(normFind)) {
-        patched = patched.replace(normFind, replace)
+        patched = patched.replace(normFind, safeReplace)
         results.push({ find, applied: true })
         continue
       }
 
-      // 2. Whitespace-flexible fallback — treat any run of spaces/tabs as \s+
-      //    so minor indentation differences don't break matches
+      // 2. Whitespace-flexible fallback — replace every whitespace run with \s+
+      //    so differences in blank lines, indentation, or \n vs \n\n don't matter
       try {
         const escaped = normFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const flexible = escaped.replace(/[ \t]{2,}/g, '\\s+')
+        const flexible = escaped.replace(/\s+/g, '\\s+')
         const re = new RegExp(flexible)
         if (re.test(patched)) {
-          // Escape $ in replacement to avoid backreference interpretation
-          patched = patched.replace(re, replace.replace(/\$/g, '$$$$'))
+          patched = patched.replace(re, safeReplace)
           results.push({ find, applied: true })
           continue
         }
       } catch {
-        // If the regex is somehow invalid, fall through to failed
+        // Invalid regex (rare) — fall through to failed
       }
 
       results.push({ find, applied: false })
