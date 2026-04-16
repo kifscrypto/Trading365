@@ -45,6 +45,7 @@ export async function POST(request: Request) {
       const res = await fetch(url, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
         signal: AbortSignal.timeout(8000),
+        cache: 'no-store',
       })
       const html = await res.text()
       articleContent = html

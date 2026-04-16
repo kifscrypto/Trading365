@@ -196,6 +196,13 @@ export async function getTranslatedSlugsForLocale(locale: string): Promise<strin
   return rows.map((r) => r.article_slug)
 }
 
+export async function getTranslatedLocalesForSlug(slug: string): Promise<string[]> {
+  const rows = await sql`
+    SELECT locale FROM article_translations WHERE article_slug = ${slug}
+  ` as { locale: string }[]
+  return rows.map((r) => r.locale)
+}
+
 export async function getAllTranslationsForLocale(locale: string): Promise<TranslationRow[]> {
   return await sql`
     SELECT t.*, a.category_slug, a.thumbnail, a.date, a.read_time, a.author, a.rating

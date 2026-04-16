@@ -2,10 +2,10 @@ import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import Link from "next/link"
 import Image from "next/image"
-import { isValidLocale, getLocale, LOCALE_CODES } from "@/lib/i18n/config"
+import { isValidLocale, getLocale } from "@/lib/i18n/config"
 import { ArticleContent } from "@/components/article-content"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
-import { ArrowLeft, Globe } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 
 const BASE_URL = "https://trading365.org"
 
@@ -17,8 +17,11 @@ export async function generateMetadata({
   const { locale, category, slug } = await params
   if (!isValidLocale(locale)) return {}
 
-  const { getTranslation } = await import("@/lib/db")
-  const translation = await getTranslation(slug, locale).catch(() => null)
+  const { getTranslation, getTranslatedLocalesForSlug } = await import("@/lib/db")
+  const [translation, translatedLocales] = await Promise.all([
+    getTranslation(slug, locale).catch(() => null),
+    getTranslatedLocalesForSlug(slug).catch(() => [] as string[]),
+  ])
   const loc = getLocale(locale)!
 
   const title = translation?.meta_title || translation?.title || slug
@@ -28,7 +31,7 @@ export async function generateMetadata({
     "x-default": `${BASE_URL}/${category}/${slug}`,
     "en": `${BASE_URL}/${category}/${slug}`,
   }
-  LOCALE_CODES.forEach((lc) => {
+  translatedLocales.forEach((lc) => {
     hreflangAlternates[lc] = `${BASE_URL}/${lc}/${category}/${slug}`
   })
 
@@ -52,41 +55,14 @@ export default async function LocaleArticlePage({
 
   const loc = getLocale(locale)!
 
-  const { getTranslation, getArticleBySlug } = await import("@/lib/db")
-  const [translation, originalArticle] = await Promise.all([
+  const { getTranslation, getArticleBySlug, getTranslatedLocalesForSlug } = await import("@/lib/db")
+  const [translation, originalArticle, translatedLocales] = await Promise.all([
     getTranslation(slug, locale).catch(() => null),
     getArticleBySlug(slug).catch(() => null),
+    getTranslatedLocalesForSlug(slug).catch(() => [] as string[]),
   ])
 
-  if (!translation) {
-    return (
-      <main className="min-h-screen">
-        <div className="mx-auto max-w-4xl px-4 py-20 text-center">
-          <Globe className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-foreground mb-3">
-            {loc.fullName} translation coming soon
-          </h1>
-          <p className="text-muted-foreground mb-6">
-            This article hasn&apos;t been translated into {loc.fullName} yet.
-          </p>
-          <div className="flex gap-4 justify-center">
-            <Link
-              href={`/${category}/${slug}`}
-              className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-            >
-              Read in English
-            </Link>
-            <Link
-              href={`/${locale}`}
-              className="rounded-lg border border-border px-5 py-2.5 text-sm font-medium text-foreground hover:bg-secondary"
-            >
-              {loc.name} homepage
-            </Link>
-          </div>
-        </div>
-      </main>
-    )
-  }
+  if (!translation) notFound()
 
   const exchange = getExchangeBySlug(slug.replace("-review", ""))
 
@@ -176,7 +152,7 @@ export default async function LocaleArticlePage({
             >
               🇬🇧 English
             </Link>
-            {LOCALE_CODES.filter((lc) => lc !== locale).map((lc) => {
+            {translatedLocales.filter((lc) => lc !== locale).map((lc) => {
               const l = getLocale(lc)!
               return (
                 <Link

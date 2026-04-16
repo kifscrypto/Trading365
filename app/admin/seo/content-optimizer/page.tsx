@@ -157,7 +157,11 @@ function AuditMarkdown({ text, onFix, isDone }: {
   )
 }
 
-function LinkingMarkdown({ text }: { text: string }) {
+function LinkingMarkdown({ text, onApply, isDone }: {
+  text: string
+  onApply?: (fix: string) => void
+  isDone: boolean
+}) {
   const oppMatch = text.match(/## Internal Link Opportunities\n([\s\S]*?)(?=\n## |$)/)
   const endMatch = text.match(/## End of Article Links\n([\s\S]*?)(?=\n## |$)/)
 
@@ -208,6 +212,23 @@ function LinkingMarkdown({ text }: { text: string }) {
                       <span className="text-zinc-300">{reasonMatch[1].trim()}</span>
                     </div>
                   )}
+                  {onApply && isDone && anchorMatch && linkMatch && (
+                    <div className="pt-2">
+                      <button
+                        onClick={() => onApply(
+                          `Insert this internal link into the article:\n` +
+                          `Section: "${title}"\n` +
+                          `Anchor text: "${anchorMatch[1].trim()}"\n` +
+                          `Link to: ${linkMatch[1].trim()}\n` +
+                          (reasonMatch ? `Reason: ${reasonMatch[1].trim()}\n\n` : '\n') +
+                          `Find the phrase "${anchorMatch[1].trim()}" in the article and wrap it as a markdown link: [${anchorMatch[1].trim()}](${linkMatch[1].trim()}). If the exact phrase is not present verbatim, find the closest natural match in that section. Do not rewrite surrounding text.`
+                        )}
+                        className="px-3 py-1.5 bg-green-900/40 border border-green-700/60 text-green-400 hover:bg-green-900/70 hover:border-green-600 rounded text-xs font-medium transition-colors"
+                      >
+                        Apply Link
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -220,11 +241,23 @@ function LinkingMarkdown({ text }: { text: string }) {
           <div className="bg-zinc-800 px-4 py-2.5">
             <span className="text-sm font-semibold text-zinc-100">End of Article Links</span>
           </div>
-          <ul className="px-4 py-3 space-y-1.5">
+          <ul className="px-4 py-3 space-y-2">
             {endLinks.map((l, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
-                <span className="text-blue-400 shrink-0">→</span>
-                {l}
+              <li key={i} className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2 text-sm text-zinc-300 min-w-0">
+                  <span className="text-blue-400 shrink-0">→</span>
+                  <span>{l}</span>
+                </div>
+                {onApply && isDone && (
+                  <button
+                    onClick={() => onApply(
+                      `Add this internal link at the end of the article, before the final CTA or conclusion:\n${l}\n\nAdd it as a markdown link in a natural sentence or as a standalone "Read also:" line. Do not remove any existing content.`
+                    )}
+                    className="shrink-0 px-2.5 py-1 bg-green-900/40 border border-green-700/60 text-green-400 hover:bg-green-900/70 hover:border-green-600 rounded text-xs font-medium transition-colors"
+                  >
+                    Apply
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -337,6 +370,10 @@ function ContentOptimizerInner() {
     setLoadingState('loading')
     setCompressionMarkdown('')
     setLinkingMarkdown('')
+    setFixedContent('')
+    setFixingIssue('')
+    setFixStats(null)
+    auditSourceRef.current = { content: content.trim(), url: auditUrl.trim() }
 
     try {
       const res = await fetch('/api/admin/seo/optimize', {
@@ -547,6 +584,24 @@ function ContentOptimizerInner() {
                 placeholder="Paste your article here…"
                 className={`${inputClass} font-mono text-xs`}
               />
+              <div className="mt-3">
+                <label className="block text-xs text-zinc-400 mb-1.5">Article URL <span className="text-zinc-600">(optional — needed to publish applied links directly)</span></label>
+                <input
+                  type="url"
+                  value={auditUrl}
+                  onChange={e => handleAuditUrlChange(e.target.value)}
+                  placeholder="https://trading365.org/reviews/mexc-review"
+                  className={inputClass}
+                />
+                {articleLookup && (
+                  <p className="mt-1.5 text-xs text-green-400">
+                    ✓ Article found: <span className="font-medium">{articleLookup.title}</span> — applied links can be published directly
+                  </p>
+                )}
+                {lookupError && (
+                  <p className="mt-1.5 text-xs text-amber-400">Article not found in DB — applied links won&apos;t auto-publish</p>
+                )}
+              </div>
               <p className="mt-2 text-xs text-zinc-600">Site pages are loaded automatically from the database.</p>
               <div className="mt-4">
                 <button
@@ -562,7 +617,11 @@ function ContentOptimizerInner() {
             {linkingMarkdown && (
               <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6">
                 <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">🔗 Internal Link Opportunities</h3>
-                <LinkingMarkdown text={linkingMarkdown} />
+                <LinkingMarkdown
+                  text={linkingMarkdown}
+                  onApply={handleFix}
+                  isDone={loadingState === 'done'}
+                />
               </div>
             )}
           </div>
@@ -635,9 +694,12 @@ function ContentOptimizerInner() {
               </div>
             )}
 
-            {/* Fix Now output panel */}
-            {(fixLoading || fixedContent || fixError) && (
-              <div ref={fixPanelRef} className="bg-zinc-900 border border-green-900/50 rounded-xl p-6">
+          </div>
+        )}
+
+        {/* Fix panel — shared across all tabs */}
+        {(fixLoading || fixedContent || fixError) && (
+          <div ref={fixPanelRef} className="bg-zinc-900 border border-green-900/50 rounded-xl p-6 mt-4">
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="min-w-0">
                     <h3 className="text-sm font-semibold text-green-400">Fixed Article</h3>
@@ -711,8 +773,6 @@ function ContentOptimizerInner() {
                 )}
               </div>
             )}
-          </div>
-        )}
       </div>
     </div>
   )

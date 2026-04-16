@@ -504,6 +504,12 @@ export default function AdminPage() {
           >
             SEO Suite →
           </button>
+          <button
+            onClick={() => router.push('/admin/affiliate-links')}
+            className="text-sm text-green-400 hover:text-green-300 font-medium"
+          >
+            Affiliate Links →
+          </button>
         <button
           onClick={async () => {
             await fetch('/api/admin/session', { method: 'DELETE' })

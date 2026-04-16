@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "Join Our Newsletter",
   description:
     "Get exclusive exchange deals, in-depth reviews, and market insights delivered to your inbox weekly. Join 5,000+ crypto traders.",
+  alternates: {
+    canonical: "https://trading365.org/join-our-newsletter",
+  },
 }
 
 export default function NewsletterPage() {

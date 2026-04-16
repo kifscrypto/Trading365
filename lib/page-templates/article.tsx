@@ -33,7 +33,7 @@ import { ArticleCard } from "@/components/article-card"
 import { getCategoryBySlug } from "@/lib/data/categories"
 import { getAllArticlesFromDB, getArticleBySlugFromDB, getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
-import { LOCALE_CODES } from "@/lib/i18n/config"
+import { getTranslatedLocalesForSlug } from "@/lib/db"
 import { ShareButton } from "@/components/share-button"
 import {
   generateArticleSchema,
@@ -66,11 +66,12 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   const pageTitle = TITLE_OVERRIDES[slug] ?? article.metaTitle ?? article.title
   const pageDescription = article.metaDescription ?? article.excerpt
 
+  const translatedLocales = await getTranslatedLocalesForSlug(slug)
   const hreflangAlternates: Record<string, string> = {
     'x-default': canonicalUrl,
     'en': canonicalUrl,
   }
-  for (const lc of LOCALE_CODES) {
+  for (const lc of translatedLocales) {
     hreflangAlternates[lc] = `${BASE_URL}/${lc}/${category}/${slug}`
   }
 
