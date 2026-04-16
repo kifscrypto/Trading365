@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
 import { getPublishedArticles } from '@/lib/db'
+import { getPageGSCData, formatGSCForPrompt } from '@/lib/gsc'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -39,10 +40,15 @@ export async function POST(request: Request) {
       return new Response(JSON.stringify({ error: 'No content provided' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
     }
 
-    const articles = await getPublishedArticles()
+    // Fetch GSC data and site pages in parallel
+    const [articles, gscData] = await Promise.all([
+      getPublishedArticles(),
+      url ? getPageGSCData(url).catch(() => null) : Promise.resolve(null),
+    ])
     const siteUrls = articles
       .map(a => `/${a.category_slug}/${a.slug} — ${a.title}`)
       .join('\n')
+    const gscContext = gscData ? `\n\n${formatGSCForPrompt(gscData)}\n\n` : ''
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -189,7 +195,7 @@ Every recommendation must improve ranking OR conversion.
 
 ARTICLE:
 ${articleContent}
-
+${gscContext}
 SITE PAGES (for internal link suggestions):
 ${siteUrls || 'None available'}`,
       }],

@@ -407,8 +407,9 @@ function ContentOptimizerInner() {
     // Prefer DB content (always fresh, clean markdown) over fetching rendered HTML
     const dbContent = articleLookup?.content ?? ''
     const auditContent = content.trim() || dbContent
-    const auditUrlToSend = auditContent ? '' : auditUrl.trim()
-    auditSourceRef.current = { content: auditContent, url: auditUrlToSend }
+    // Always pass URL separately — used for GSC data even when content comes from DB
+    const auditUrlToSend = auditUrl.trim()
+    auditSourceRef.current = { content: auditContent, url: auditContent ? '' : auditUrlToSend }
 
     try {
       const res = await fetch('/api/admin/seo/analyze-article', {
@@ -663,7 +664,7 @@ function ContentOptimizerInner() {
                   />
                   {articleLookup && (
                     <p className="mt-1.5 text-xs text-green-400">
-                      ✓ Article found: <span className="font-medium">{articleLookup.title}</span> — auditing live DB content{articleLookup.content ? ' (fresh from database)' : ''}
+                      ✓ Article found: <span className="font-medium">{articleLookup.title}</span> — fresh DB content + GSC ranking data included
                     </p>
                   )}
                   {lookupError && (
