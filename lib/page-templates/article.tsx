@@ -55,7 +55,10 @@ const TITLE_OVERRIDES: Record<string, string> = {
 }
 
 export async function getArticleMetadata(category: string, slug: string): Promise<Metadata> {
-  const article = await getArticleBySlugFromDB(slug)
+  const [article, translatedLocales] = await Promise.all([
+    getArticleBySlugFromDB(slug),
+    getTranslatedLocalesForSlug(slug).catch(() => [] as string[]),
+  ])
   if (!article) return { title: 'Article Not Found' }
 
   const canonicalUrl = `${BASE_URL}/${category}/${slug}`
@@ -66,7 +69,6 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   const pageTitle = TITLE_OVERRIDES[slug] ?? article.metaTitle ?? article.title
   const pageDescription = article.metaDescription ?? article.excerpt
 
-  const translatedLocales = await getTranslatedLocalesForSlug(slug)
   const hreflangAlternates: Record<string, string> = {
     'x-default': canonicalUrl,
     'en': canonicalUrl,

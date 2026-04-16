@@ -17,30 +17,18 @@ export async function generateMetadata({
   const { locale, category, slug } = await params
   if (!isValidLocale(locale)) return {}
 
-  const { getTranslation, getTranslatedLocalesForSlug } = await import("@/lib/db")
-  const [translation, translatedLocales] = await Promise.all([
-    getTranslation(slug, locale).catch(() => null),
-    getTranslatedLocalesForSlug(slug).catch(() => [] as string[]),
-  ])
+  const { getTranslation } = await import("@/lib/db")
+  const translation = await getTranslation(slug, locale).catch(() => null)
   const loc = getLocale(locale)!
 
   const title = translation?.meta_title || translation?.title || slug
   const description = translation?.meta_description || translation?.excerpt || ""
-
-  const hreflangAlternates: Record<string, string> = {
-    "x-default": `${BASE_URL}/${category}/${slug}`,
-    "en": `${BASE_URL}/${category}/${slug}`,
-  }
-  translatedLocales.forEach((lc) => {
-    hreflangAlternates[lc] = `${BASE_URL}/${lc}/${category}/${slug}`
-  })
 
   return {
     title: `${title} | Trading365 ${loc.name}`,
     description,
     alternates: {
       canonical: `${BASE_URL}/${locale}/${category}/${slug}`,
-      languages: hreflangAlternates,
     },
   }
 }
