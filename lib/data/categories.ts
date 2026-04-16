@@ -29,6 +29,13 @@ export const categories: CategoryMeta[] = [
     longDescription:
       "Maximize your starting capital with our verified collection of the best crypto exchange sign-up bonuses. Updated monthly with exclusive referral codes and promotions.",
   },
+  {
+    slug: "audits",
+    title: "Project Audits",
+    description: "In-depth security and fundamentals analysis of crypto projects",
+    longDescription:
+      "Our project audits go beyond the whitepaper. We analyse smart contract security, tokenomics, team credibility, and on-chain activity to give you an honest, independent assessment before you invest.",
+  },
 ]
 
 export function getCategoryBySlug(slug: string): CategoryMeta | undefined {

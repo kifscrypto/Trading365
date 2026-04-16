@@ -510,6 +510,12 @@ export default function AdminPage() {
           >
             Affiliate Links →
           </button>
+          <button
+            onClick={() => router.push('/admin/categories')}
+            className="text-sm text-amber-400 hover:text-amber-300 font-medium"
+          >
+            Categories →
+          </button>
         <button
           onClick={async () => {
             await fetch('/api/admin/session', { method: 'DELETE' })

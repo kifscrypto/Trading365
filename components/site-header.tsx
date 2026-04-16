@@ -22,6 +22,7 @@ const navLinks = [
   { href: "/compare", label: "Compare Tool" },
   { href: "/no-kyc", label: "No-KYC" },
   { href: "/bonuses", label: "Bonuses" },
+  { href: "/audits", label: "Project Audits" },
   { href: "/about", label: "About" },
   { href: "/join-our-newsletter", label: "Newsletter" },
 ]

@@ -71,7 +71,7 @@ export interface Comparison {
   content: string
 }
 
-export type ArticleCategory = "Reviews" | "Comparisons" | "No-KYC" | "Bonuses"
+export type ArticleCategory = "Reviews" | "Comparisons" | "No-KYC" | "Bonuses" | "Project Audits"
 
 export interface CategoryMeta {
   slug: string
