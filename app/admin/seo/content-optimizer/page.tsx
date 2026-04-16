@@ -333,7 +333,7 @@ function ContentOptimizerInner() {
   const [publishError, setPublishError] = useState('')
   const [published, setPublished] = useState(false)
   // Article lookup (for URL-based audits)
-  const [articleLookup, setArticleLookup] = useState<{ id: number; title: string; slug: string; category_slug: string } | null>(null)
+  const [articleLookup, setArticleLookup] = useState<{ id: number; title: string; slug: string; category_slug: string; content?: string } | null>(null)
   const [lookupError, setLookupError] = useState('')
   // Track what was audited so Fix Now works even when URL was used
   const auditSourceRef = useRef<{ content: string; url: string }>({ content: '', url: '' })
@@ -357,7 +357,7 @@ function ContentOptimizerInner() {
         const res = await fetch(`/api/admin/seo/article-lookup?url=${encodeURIComponent(url.trim())}`)
         const data = await res.json()
         if (!res.ok) { setLookupError(data.error ?? 'Not found'); return }
-        setArticleLookup({ id: data.id, title: data.title, slug: data.slug, category_slug: data.category_slug })
+        setArticleLookup({ id: data.id, title: data.title, slug: data.slug, category_slug: data.category_slug, content: data.content ?? undefined })
       } catch {
         setLookupError('Lookup failed')
       }
@@ -403,13 +403,18 @@ function ContentOptimizerInner() {
     setFixingIssue('')
     setPublished(false)
     setPublishError('')
-    auditSourceRef.current = { content: content.trim(), url: auditUrl.trim() }
+
+    // Prefer DB content (always fresh, clean markdown) over fetching rendered HTML
+    const dbContent = articleLookup?.content ?? ''
+    const auditContent = content.trim() || dbContent
+    const auditUrlToSend = auditContent ? '' : auditUrl.trim()
+    auditSourceRef.current = { content: auditContent, url: auditUrlToSend }
 
     try {
       const res = await fetch('/api/admin/seo/analyze-article', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: content.trim(), url: auditUrl.trim() }),
+        body: JSON.stringify({ content: auditContent, url: auditUrlToSend }),
       })
       if (!res.ok) {
         const text = await res.text()
@@ -658,7 +663,7 @@ function ContentOptimizerInner() {
                   />
                   {articleLookup && (
                     <p className="mt-1.5 text-xs text-green-400">
-                      ✓ Article found: <span className="font-medium">{articleLookup.title}</span> — fixes will update the live article
+                      ✓ Article found: <span className="font-medium">{articleLookup.title}</span> — auditing live DB content{articleLookup.content ? ' (fresh from database)' : ''}
                     </p>
                   )}
                   {lookupError && (
