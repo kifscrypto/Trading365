@@ -33,6 +33,7 @@ export default function AdminPage() {
   const [translationStatus, setTranslationStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [translationLog, setTranslationLog] = useState<string>('')
   const [translatingSlug, setTranslatingSlug] = useState<string | null>(null)
+  const [repairing, setRepairing] = useState(false)
   const [newsletterLoading, setNewsletterLoading] = useState<string | null>(null)
   const [newsletterModal, setNewsletterModal] = useState<{ slug: string; title: string; html: string } | null>(null)
   const [htmlCopied, setHtmlCopied] = useState(false)
@@ -279,6 +280,27 @@ export default function AdminPage() {
     } catch (err: any) {
       setTranslationLog('Error: ' + err.message)
       setTranslationStatus('error')
+    }
+  }
+
+  async function handleRepairLocale(locale: string) {
+    setRepairing(true)
+    setTranslationLog(`Repairing broken translations for ${locale}…`)
+    try {
+      const res = await fetch('/api/translate/repair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locale }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Repair failed')
+      setTranslationLog(`✓ Repaired ${json.fixed} of ${json.checked} ${locale} translations`)
+      setTranslationStatus('done')
+    } catch (err: any) {
+      setTranslationLog(`Error: ${err.message}`)
+      setTranslationStatus('error')
+    } finally {
+      setRepairing(false)
     }
   }
 
@@ -994,6 +1016,14 @@ export default function AdminPage() {
                 {translationStatus === 'running'
                   ? 'Translating…'
                   : `Translate ${selectedSlugs.length} article(s) × ${selectedLocales.length} lang`}
+              </button>
+              <button
+                onClick={() => handleRepairLocale('ru')}
+                disabled={repairing || translationStatus === 'running'}
+                title="Strip # markdown prefixes from Russian titles and clean up content"
+                className="px-3 py-1.5 bg-red-800 text-red-100 rounded-lg hover:bg-red-700 text-sm disabled:opacity-50"
+              >
+                {repairing ? 'Repairing…' : 'Fix Russian'}
               </button>
             </div>
 
