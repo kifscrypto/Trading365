@@ -34,8 +34,8 @@ Rules:
 - Cinematic, professional, high-end feel
 - Relevant to the article topic (trading, crypto exchanges, financial platforms)
 - Use visual language: shallow depth of field, bokeh, dramatic lighting, wide angle, etc.
-- NO text overlays, logos, UI elements, or screens showing data
-- Think: a scene that conveys trust, technology, and financial expertise
+- ALWAYS include a bold text title overlay on the image — derive a short punchy title (4-7 words max) from the keyword and include it in the prompt as: with bold white text overlay reading "[YOUR TITLE HERE]"
+- Think: a scene that conveys trust, technology, and financial expertise — with a clear text title so the image works as a standalone featured image
 - Output only the prompt — no preamble, no explanation
 
 KEYWORD: ${keyword}
