@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { LOCALES } from "@/lib/i18n/config"
+import { SiteSearch } from "@/components/site-search"
 
 const navLinks = [
   { href: "/reviews", label: "Reviews" },
@@ -84,6 +85,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden lg:flex items-center gap-2">
+          <SiteSearch />
           {/* Language switcher */}
           <div className="relative" ref={langRef}>
             <button
