@@ -18,6 +18,7 @@ const CATEGORIES = [
   { label: 'Comparisons', slug: 'comparisons' },
   { label: 'Bonuses', slug: 'bonuses' },
   { label: 'No-KYC', slug: 'no-kyc' },
+  { label: 'Guides', slug: 'guides' },
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

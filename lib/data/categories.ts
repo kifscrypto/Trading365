@@ -30,6 +30,13 @@ export const categories: CategoryMeta[] = [
       "Maximize your starting capital with our verified collection of the best crypto exchange sign-up bonuses. Updated monthly with exclusive referral codes and promotions.",
   },
   {
+    slug: "guides",
+    title: "Guides",
+    description: "Educational guides on crypto trading, exchanges, and DeFi",
+    longDescription:
+      "New to crypto trading or looking to sharpen your skills? Our guides break down everything from choosing an exchange and understanding leverage to navigating KYC requirements and managing risk — written in plain English, no fluff.",
+  },
+  {
     slug: "audits",
     title: "Project Audits",
     description: "In-depth security and fundamentals analysis of crypto projects",

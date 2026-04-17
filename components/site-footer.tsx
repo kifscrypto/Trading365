@@ -9,6 +9,7 @@ const footerLinks = {
     { href: "/comparisons", label: "Comparisons" },
     { href: "/no-kyc", label: "No-KYC Exchanges" },
     { href: "/bonuses", label: "Bonuses" },
+    { href: "/guides", label: "Guides" },
   ],
   company: [
     { href: "/about", label: "About Us" },
