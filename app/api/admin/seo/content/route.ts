@@ -99,6 +99,7 @@ STYLE:
 - Paragraphs tight — no over-explaining
 
 HARD RULES:
+- In ALL markdown tables, exchange names in the first column MUST be linked to their referral URL using [Name](url) — never plain text. This applies without exception.
 - NO fluff sections (staking, earn, etc.) unless it's a core differentiator
 - NO repeating the same idea multiple times
 - NO padding for word count
