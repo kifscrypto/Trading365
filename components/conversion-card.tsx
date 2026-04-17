@@ -7,9 +7,10 @@ interface ConversionCardProps {
   ctaLink: string
   ctaText: string
   exchangeName?: string
+  socialProof?: string
 }
 
-export function ConversionCard({ title, savingsMetric, perks, ctaLink, ctaText, exchangeName }: ConversionCardProps) {
+export function ConversionCard({ title, savingsMetric, perks, ctaLink, ctaText, exchangeName, socialProof }: ConversionCardProps) {
   return (
     <div className="my-8 rounded-lg border border-[#eab308] bg-[#1a1a1a] overflow-hidden">
       <div className="flex flex-col md:flex-row">
@@ -33,7 +34,7 @@ export function ConversionCard({ title, savingsMetric, perks, ctaLink, ctaText, 
         </div>
 
         {/* CTA — right */}
-        <div className="flex flex-col items-center justify-center gap-3 border-t border-[#eab308]/30 md:border-t-0 md:border-l p-5 md:p-6 md:min-w-[200px]">
+        <div className="flex flex-col items-center justify-center gap-2 border-t border-[#eab308]/30 md:border-t-0 md:border-l p-5 md:p-6 md:min-w-[200px]">
           {exchangeName && (
             <p className="text-xs text-zinc-400 text-center">Exclusive via Trading365</p>
           )}
@@ -46,7 +47,9 @@ export function ConversionCard({ title, savingsMetric, perks, ctaLink, ctaText, 
             {ctaText}
             <ExternalLink className="h-3.5 w-3.5 shrink-0" />
           </a>
-          <p className="text-[11px] text-zinc-500 text-center">No deposit required to sign up</p>
+          <p style={{ fontSize: 10, opacity: 0.6 }} className="text-zinc-300 text-center leading-snug">
+            {socialProof ?? "Trusted by pro traders securing VIP fee tiers via Trading365"}
+          </p>
         </div>
       </div>
     </div>

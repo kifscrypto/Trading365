@@ -5,10 +5,9 @@ import { X, ExternalLink } from "lucide-react"
 
 interface StickyMobileCTAProps {
   ctaLink: string
-  ctaText?: string
 }
 
-export function StickyMobileCTA({ ctaLink, ctaText = "Claim Fee Discounts" }: StickyMobileCTAProps) {
+export function StickyMobileCTA({ ctaLink }: StickyMobileCTAProps) {
   const [visible, setVisible] = useState(false)
   const [dismissed, setDismissed] = useState(false)
 
@@ -25,24 +24,17 @@ export function StickyMobileCTA({ ctaLink, ctaText = "Claim Fee Discounts" }: St
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden">
-      <div className="flex items-center gap-3 border-t border-[#eab308]/40 bg-[#1a1a1a] px-4 py-3">
-        <p className="flex-1 text-sm text-zinc-300">
-          Trading $100k+?{" "}
-          <a
-            href={ctaLink}
-            target="_blank"
-            rel="nofollow noopener noreferrer sponsored"
-            className="font-semibold text-[#eab308] underline underline-offset-2"
-          >
-            {ctaText}
-          </a>
+      <div className="flex items-center gap-3 border-t border-[#eab308]/30 backdrop-blur-md bg-black/75 px-4 py-3">
+        <p className="flex-1 text-sm text-zinc-300 leading-snug">
+          Trading $100k+?
         </p>
         <a
           href={ctaLink}
           target="_blank"
           rel="nofollow noopener noreferrer sponsored"
-          className="shrink-0 rounded-lg bg-[#eab308] px-4 py-2 text-xs font-bold text-black"
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-[#eab308] px-4 py-2.5 text-sm font-bold text-black whitespace-nowrap"
         >
+          Claim VIP Discounts
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
         <button

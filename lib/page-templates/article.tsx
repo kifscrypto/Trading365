@@ -46,7 +46,23 @@ import { slugifyHeading } from "@/lib/utils/heading"
 import { ConversionCard } from "@/components/conversion-card"
 import { StickyMobileCTA } from "@/components/sticky-mobile-cta"
 import { ContextualSidebarBanner } from "@/components/contextual-sidebar-banner"
+import { RegionalAlternativeCard } from "@/components/regional-alternative-card"
 import { exchanges as allExchanges } from "@/lib/data/exchanges"
+
+const RESTRICTED_RE = /restricted countries|blocked region|not available in|geo.?restrict|banned in|unavailable in/i
+
+function splitAtRestricted(content: string): { before: string; after: string } | null {
+  if (!RESTRICTED_RE.test(content)) return null
+  const lines = content.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    if (RESTRICTED_RE.test(lines[i])) {
+      let end = i + 1
+      while (end < lines.length && lines[end].trim() && !lines[end].startsWith('##')) end++
+      return { before: lines.slice(0, end).join('\n'), after: lines.slice(end).join('\n') }
+    }
+  }
+  return null
+}
 
 const BASE_URL = 'https://trading365.org'
 const OG_IMAGE = `${BASE_URL}/og-image.jpg`
@@ -355,8 +371,21 @@ export default async function ArticlePageContent({ category, slug }: { category:
               exchangeName={exchange?.name}
             />
 
-            {/* Article Body */}
-            <ArticleContent content={displayContent} />
+            {/* Article Body — with regional card injection and 400-word CTA */}
+            {(() => {
+              const isHtml = /<[a-zA-Z]/.test(displayContent)
+              const split = !isHtml ? splitAtRestricted(displayContent) : null
+              if (split) {
+                return (
+                  <>
+                    <ArticleContent content={split.before} ctaLink={primaryCtaLink} />
+                    <RegionalAlternativeCard blockedExchange={exchange?.name} />
+                    <ArticleContent content={split.after} ctaLink={primaryCtaLink} />
+                  </>
+                )
+              }
+              return <ArticleContent content={displayContent} ctaLink={primaryCtaLink} />
+            })()}
 
             {/* FAQ Section */}
             {article.faqs && article.faqs.length > 0 && (
