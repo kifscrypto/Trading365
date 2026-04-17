@@ -22,7 +22,7 @@ function InlineMarkdown({ text }: { text: string }) {
     </>
   )
 }
-import { Clock, Calendar, User, ArrowLeft, ArrowRight, ExternalLink } from "lucide-react"
+import { Clock, Calendar, User, ArrowLeft, ExternalLink } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -43,6 +43,10 @@ import {
   toISODate,
 } from "@/lib/schema"
 import { slugifyHeading } from "@/lib/utils/heading"
+import { ConversionCard } from "@/components/conversion-card"
+import { StickyMobileCTA } from "@/components/sticky-mobile-cta"
+import { ContextualSidebarBanner } from "@/components/contextual-sidebar-banner"
+import { exchanges as allExchanges } from "@/lib/data/exchanges"
 
 const BASE_URL = 'https://trading365.org'
 const OG_IMAGE = `${BASE_URL}/og-image.jpg`
@@ -158,6 +162,26 @@ export default async function ArticlePageContent({ category, slug }: { category:
         })
   // Keep legacy variable for non-TOC uses
   const sections = displayContent.split("\n\n")
+
+  // Build contextual sidebar section links: map headings → exchange CTAs
+  const sectionLinks = tocHeadings.flatMap(h => {
+    const ex = allExchanges.find(e =>
+      h.text.toLowerCase().includes(e.name.toLowerCase())
+    )
+    if (!ex) return []
+    return [{ headingId: h.id, exchangeName: ex.name, ctaLink: ex.referralLink, label: "Maker Rebate — Activate Now" }]
+  })
+
+  // Derive primary CTA for conversion card + sticky banner
+  const primaryCtaLink = exchange?.referralLink ?? "/bonuses"
+  const primaryCtaText = exchange ? `Start Trading on ${exchange.name}` : "View Top Bonuses"
+  const conversionPerks = exchange
+    ? (article.pros?.length ? article.pros : (exchange.pros ?? [])).slice(0, 4)
+    : ["0% maker fees on top exchanges", "Up to 400x leverage", "No-KYC required", "Exclusive sign-up bonuses"]
+  const conversionTitle = exchange
+    ? `${exchange.bonus} — Available via Trading365`
+    : "Claim Exclusive Trading Bonuses"
+  const savingsMetric = exchange?.bonus ?? "Exclusive Bonus"
 
   const articleSchema = generateArticleSchema(article, !!exchange)
   const breadcrumbSchema = generateBreadcrumbSchema([
@@ -300,7 +324,7 @@ export default async function ArticlePageContent({ category, slug }: { category:
                   <a
                     href={exchange.referralLink}
                     target="_blank"
-                    rel="noopener noreferrer sponsored"
+                    rel="nofollow noopener noreferrer sponsored"
                   >
                     <Button className="gap-2 font-semibold" size="sm">
                       Visit {exchange.name}
@@ -313,13 +337,23 @@ export default async function ArticlePageContent({ category, slug }: { category:
 
             {/* Pros/Cons — use DB values if present, otherwise fall back to exchange data */}
             {(article.pros?.length || article.cons?.length || exchange) && (
-              <div className="mb-8">
+              <div className="mb-4">
                 <ProsConsList
                   pros={article.pros?.length ? article.pros : (exchange?.pros ?? [])}
                   cons={article.cons?.length ? article.cons : (exchange?.cons ?? [])}
                 />
               </div>
             )}
+
+            {/* Conversion Card — injected after pros/cons */}
+            <ConversionCard
+              title={conversionTitle}
+              savingsMetric={savingsMetric}
+              perks={conversionPerks}
+              ctaLink={primaryCtaLink}
+              ctaText={primaryCtaText}
+              exchangeName={exchange?.name}
+            />
 
             {/* Article Body */}
             <ArticleContent content={displayContent} />
@@ -360,21 +394,12 @@ export default async function ArticlePageContent({ category, slug }: { category:
           {/* Sidebar */}
           <aside className="w-full shrink-0 lg:w-72">
             <div className="sticky top-20 flex flex-col gap-6">
-              {/* CTA Card */}
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
-                <p className="text-sm font-semibold text-foreground">
-                  Ready to start trading?
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Claim exclusive sign-up bonuses from our top-rated exchanges.
-                </p>
-                <Button className="mt-4 w-full gap-2 font-semibold" size="sm" asChild>
-                  <Link href="/bonuses">
-                    View Bonuses
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </Button>
-              </div>
+              {/* Contextual CTA — changes based on heading in viewport */}
+              <ContextualSidebarBanner
+                defaultCtaLink={primaryCtaLink}
+                defaultCtaText={conversionTitle}
+                sectionLinks={sectionLinks}
+              />
 
               {/* Table of Contents */}
               <div className="rounded-xl border border-border bg-card p-5">
@@ -431,6 +456,9 @@ export default async function ArticlePageContent({ category, slug }: { category:
           </div>
         )}
       </article>
+
+      {/* Sticky mobile CTA — triggers at 30% scroll depth */}
+      <StickyMobileCTA ctaLink={primaryCtaLink} />
     </>
   )
 }
