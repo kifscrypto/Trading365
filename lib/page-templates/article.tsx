@@ -208,7 +208,7 @@ export default async function ArticlePageContent({ category, slug }: { category:
               <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
                 {article.category}
               </Badge>
-              {article.rating && (
+              {article.rating > 0 && (
                 <div className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1">
                   <span className="text-sm font-bold text-primary">{article.rating}</span>
                   <span className="text-xs text-primary/70">/10</span>
@@ -228,7 +228,10 @@ export default async function ArticlePageContent({ category, slug }: { category:
               <span className="flex items-center gap-1.5">
                 <User className="h-3.5 w-3.5" />
                 <span>By{" "}
-                  <Link href="/about#editorial" className="hover:text-primary underline underline-offset-2 transition-colors">
+                  <Link
+                    href={`/authors/${article.author.toLowerCase().replace(/\s+/g, "-")}`}
+                    className="hover:text-primary underline underline-offset-2 transition-colors"
+                  >
                     {article.author}
                   </Link>
                 </span>

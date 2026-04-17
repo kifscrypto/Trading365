@@ -5,6 +5,7 @@ import { siteConfig } from "@/lib/data/site-config"
 
 const footerLinks = {
   navigate: [
+    { href: "/", label: "Home" },
     { href: "/reviews", label: "Reviews" },
     { href: "/comparisons", label: "Comparisons" },
     { href: "/no-kyc", label: "No-KYC Exchanges" },
