@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 300
 
 import type { Metadata } from "next"
 import { getCategoryMetadata, default as CategoryPageContent } from "@/lib/page-templates/category"

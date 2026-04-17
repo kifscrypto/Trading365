@@ -4,7 +4,9 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    unoptimized: true,
+    remotePatterns: [
+      { protocol: 'https', hostname: '89p58lkunvtbseuz.public.blob.vercel-storage.com' },
+    ],
   },
   async rewrites() {
     return [
