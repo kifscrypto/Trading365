@@ -10,6 +10,6 @@ export const siteConfig: SiteConfig = {
     twitter: "https://x.com/trading365x",
     youtube: "",
     telegram: "",
-    discord: "",
+    discord: "https://discord.gg/DjYUfUmMSM",
   },
 }
