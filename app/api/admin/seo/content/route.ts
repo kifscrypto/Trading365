@@ -80,10 +80,9 @@ MANDATORY STRUCTURE (follow this exact flow):
 ---
 
 INTERNAL LINKING RULES:
-- 1 link in intro (first 2 paragraphs)
-- 2–3 links in body (competitors, guides)
-- Links must be relevant and intentional
-- Do NOT overlink
+- Do NOT add any internal links during generation
+- A dedicated linking step will insert real, verified URLs after generation
+- Adding internal links now will cause 404s — leave all internal references as plain text only
 
 CONVERSION RULES:
 - CTA after fees section or key verdict
@@ -177,13 +176,8 @@ Each must tie to a specific benefit.
 ---
 
 ### 6. Internal Linking (STRUCTURAL)
-Naturally include:
-- 1 link in intro
-- 2+ in comparison sections
-- 1+ in feature sections
-- 1 near CTA
-
-Links must help decision-making.
+Do NOT add any internal links. A separate step inserts real verified URLs.
+Any internal link added here will 404 — leave all cross-references as plain text.
 
 ---
 
