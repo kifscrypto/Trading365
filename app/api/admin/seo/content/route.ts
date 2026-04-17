@@ -83,6 +83,8 @@ INTERNAL LINKING RULES:
 - Do NOT add any internal links during generation
 - A dedicated linking step will insert real, verified URLs after generation
 - Adding internal links now will cause 404s — leave all internal references as plain text only
+- NEVER use trading365.com — the site is trading365.org only. trading365.com does not exist.
+- NEVER use absolute URLs like https://trading365.org/... — all internal links must be relative paths like /reviews/slug
 
 CONVERSION RULES:
 - CTA after fees section or key verdict

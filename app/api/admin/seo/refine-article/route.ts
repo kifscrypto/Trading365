@@ -34,6 +34,7 @@ RULES:
 - Do not add commentary, preamble, or explanation
 - Output the complete revised article only
 - Do NOT add any internal links — a dedicated step handles this with real verified URLs. Any internal link you add will 404.
+- NEVER use trading365.com — the site is trading365.org only. NEVER use absolute URLs — all internal links must be relative paths.
 
 FORMATTING RULES (DO NOT BREAK):
 - Body must begin with ## Verdict — never add a title, author, date, or read time line before it
