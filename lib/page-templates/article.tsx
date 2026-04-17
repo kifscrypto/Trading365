@@ -47,6 +47,7 @@ import { ConversionCard } from "@/components/conversion-card"
 import { StickyMobileCTA } from "@/components/sticky-mobile-cta"
 import { ContextualSidebarBanner } from "@/components/contextual-sidebar-banner"
 import { RegionalAlternativeCard } from "@/components/regional-alternative-card"
+import { BottomMasterCTA } from "@/components/bottom-master-cta"
 import { exchanges as allExchanges } from "@/lib/data/exchanges"
 
 const RESTRICTED_RE = /restricted countries|blocked region|not available in|geo.?restrict|banned in|unavailable in/i
@@ -387,6 +388,16 @@ export default async function ArticlePageContent({ category, slug }: { category:
               return <ArticleContent content={displayContent} ctaLink={primaryCtaLink} />
             })()}
 
+            {/* Verdict Closer — before FAQs */}
+            <ConversionCard
+              title={exchange ? `Make Your Move on ${exchange.name}` : "Ready to Act on the Research?"}
+              savingsMetric={savingsMetric}
+              perks={conversionPerks}
+              ctaLink={primaryCtaLink}
+              ctaText={primaryCtaText}
+              exchangeName={exchange?.name}
+            />
+
             {/* FAQ Section */}
             {article.faqs && article.faqs.length > 0 && (
               <div className="mt-10">
@@ -484,6 +495,16 @@ export default async function ArticlePageContent({ category, slug }: { category:
             </div>
           </div>
         )}
+
+        {/* Bottom Master CTA */}
+        <div className="mt-12">
+          <div className="flex items-center gap-4 mb-8">
+            <Separator className="flex-1 bg-border" />
+            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground shrink-0">Next Steps</span>
+            <Separator className="flex-1 bg-border" />
+          </div>
+          <BottomMasterCTA />
+        </div>
       </article>
 
       {/* Sticky mobile CTA — triggers at 30% scroll depth */}

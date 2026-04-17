@@ -216,7 +216,8 @@ export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
   }
   if (tableBuffer.length > 0) blocks.push(tableBuffer.join("\n"))
 
-  const CTA_INTERVAL = 400
+  const CTA_INTERVAL = 600
+  const CTA_MAX = 2
   const elements: React.ReactNode[] = []
   let wordCount = 0
   let ctaCount = 0
@@ -297,8 +298,8 @@ export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
       wordCount += block.split(/\s+/).filter(Boolean).length
     }
 
-    // Inject fee-drain callout every 400 words
-    if (ctaLink && wordCount >= CTA_INTERVAL * (ctaCount + 1)) {
+    // Inject fee-drain callout every 600 words, max 2 times
+    if (ctaLink && ctaCount < CTA_MAX && wordCount >= CTA_INTERVAL * (ctaCount + 1)) {
       elements.push(<FeeWarningCallout key={`cta-drain-${ctaCount}`} ctaLink={ctaLink} />)
       ctaCount++
     }
