@@ -405,16 +405,30 @@ export default function ArticleStudioPage() {
 
   function detectAffiliate(kw: string) {
     if (!affiliateLinks.length) return
-    const lower = kw.toLowerCase()
-    const match = affiliateLinks.find(l =>
-      lower.includes(l.slug.toLowerCase()) ||
-      lower.includes(l.name.toLowerCase())
-    )
-    if (match) {
-      setAffiliateLink(match.affiliate_url)
-      setAffiliateDetected(match.name)
-    } else {
-      // Don't clear if user manually typed a link
+    const words = kw.toLowerCase().split(/[\s\-_/]+/).filter(Boolean)
+
+    // Score each link: exact word boundary match scores higher than substring
+    const scored = affiliateLinks
+      .map(l => {
+        const slug = l.slug.toLowerCase()
+        const name = l.name.toLowerCase()
+        const nameWords = name.split(/\s+/)
+        // Exact whole-word match in keyword string
+        const exactSlug = words.includes(slug)
+        const exactName = nameWords.every(w => words.includes(w))
+        // Substring fallback (lower confidence)
+        const subSlug = !exactSlug && words.some(w => w === slug)
+        const subName = !exactName && nameWords.every(w => kw.toLowerCase().includes(w))
+        const score = (exactSlug || exactName ? 10 : 0) + (subSlug || subName ? 1 : 0)
+        return { l, score, len: slug.length }
+      })
+      .filter(x => x.score > 0)
+      // Sort: highest score first, then longest slug (more specific) first
+      .sort((a, b) => b.score - a.score || b.len - a.len)
+
+    if (scored.length > 0) {
+      setAffiliateLink(scored[0].l.affiliate_url)
+      setAffiliateDetected(scored[0].l.name)
     }
   }
 
@@ -1335,6 +1349,48 @@ export default function ArticleStudioPage() {
                   </div>
                 )}
               </div>
+
+              {/* ── Link Audit ── */}
+              {(() => {
+                const re = /\[([^\]]+)\]\(([^)]+)\)/g
+                const found = new Map<string, string[]>()
+                let m: RegExpExecArray | null
+                const src = article
+                while ((m = re.exec(src)) !== null) {
+                  const [, text, url] = m
+                  if (!found.has(url)) found.set(url, [])
+                  found.get(url)!.push(text)
+                }
+                if (found.size === 0) return null
+                const expectedAffiliate = affiliateLink.trim()
+                return (
+                  <div className="border border-zinc-700 rounded-lg overflow-hidden">
+                    <div className="bg-zinc-800 px-4 py-2.5 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Link Audit — all links in article</span>
+                      <span className="text-xs text-zinc-500">{found.size} unique URLs</span>
+                    </div>
+                    <ul className="divide-y divide-zinc-800">
+                      {Array.from(found.entries()).map(([url, anchors]) => {
+                        const isAffiliate = expectedAffiliate && url === expectedAffiliate
+                        const isExternal = url.startsWith('http')
+                        const isWrongExternal = isExternal && expectedAffiliate && url !== expectedAffiliate && !url.startsWith('https://trading365.org')
+                        return (
+                          <li key={url} className={`px-4 py-2.5 flex items-start gap-3 text-xs ${isWrongExternal ? 'bg-red-900/20' : ''}`}>
+                            <span className={`shrink-0 font-bold mt-0.5 ${isAffiliate ? 'text-green-400' : isWrongExternal ? 'text-red-400' : 'text-zinc-500'}`}>
+                              {isAffiliate ? '✓' : isWrongExternal ? '⚠' : '→'}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className={`font-mono break-all ${isAffiliate ? 'text-green-300' : isWrongExternal ? 'text-red-300' : 'text-zinc-300'}`}>{url}</p>
+                              <p className="text-zinc-500 mt-0.5">Anchors: {anchors.slice(0, 4).map(a => `"${a}"`).join(', ')}{anchors.length > 4 ? ` +${anchors.length - 4} more` : ''}</p>
+                              {isWrongExternal && <p className="text-red-400 font-semibold mt-0.5">⚠ External link — is this correct?</p>}
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )
+              })()}
 
               <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
                 <input
