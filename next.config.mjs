@@ -22,10 +22,25 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // www -> non-www (must be first)
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.trading365.org' }],
+        destination: 'https://trading365.org/:path*',
+        permanent: true,
+      },
+
       // ============================================
       // OLD WORDPRESS ARTICLE URLS -> NEW PATHS
       // 301 permanent redirects to preserve SEO equity
       // ============================================
+
+      // --- Binance ---
+      {
+        source: '/binance-exchange-tutorial-how-to-register-and-use-the-binance-exchange/:path*',
+        destination: '/reviews/binance-review-2026',
+        permanent: true,
+      },
 
       // --- Exchange Reviews ---
       {
