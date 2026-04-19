@@ -152,7 +152,7 @@ export default async function ArticlePageContent({ category, slug }: { category:
   if (!article || !cat) notFound()
 
   // Try to get exchange data for review articles
-  const exchangeSlug = slug.replace("-review", "")
+  const exchangeSlug = slug.replace(/-review.*$/, "")
   const exchange = getExchangeBySlug(exchangeSlug)
 
   // Related articles (same category, excluding current)

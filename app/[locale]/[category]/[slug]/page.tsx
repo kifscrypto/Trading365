@@ -52,7 +52,7 @@ export default async function LocaleArticlePage({
 
   if (!translation) notFound()
 
-  const exchange = getExchangeBySlug(slug.replace("-review", ""))
+  const exchange = getExchangeBySlug(slug.replace(/-review.*$/, ""))
 
   return (
     <main className="min-h-screen">
