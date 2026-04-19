@@ -49,6 +49,11 @@ export default function AdminPage() {
   const [healthFixed, setHealthFixed] = useState<{ applied: number; total: number } | null>(null)
   const [healthFormat, setHealthFormat] = useState<'html' | 'markdown' | null>(null)
 
+  const [editPrompt, setEditPrompt] = useState('')
+  const [editPrompting, setEditPrompting] = useState(false)
+  const [editPromptError, setEditPromptError] = useState('')
+  const [editPromptDone, setEditPromptDone] = useState(false)
+
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
@@ -442,12 +447,38 @@ export default function AdminPage() {
     }
   }
 
+  async function handleEditWithPrompt() {
+    if (!editPrompt.trim() || !formData.content.trim()) return
+    setEditPrompting(true)
+    setEditPromptError('')
+    setEditPromptDone(false)
+    try {
+      const res = await fetch('/api/admin/edit-with-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: formData.content, prompt: editPrompt }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Edit failed')
+      setFormData(prev => ({ ...prev, content: json.content }))
+      setEditPromptDone(true)
+      setEditPrompt('')
+    } catch (err: any) {
+      setEditPromptError(err.message ?? 'Edit failed')
+    } finally {
+      setEditPrompting(false)
+    }
+  }
+
   function handleEditArticle(article) {
     setEditingArticle(article)
     setHealthIssues(null)
     setHealthScore(null)
     setHealthError('')
     setHealthFixed(null)
+    setEditPrompt('')
+    setEditPromptError('')
+    setEditPromptDone(false)
     setThumbnailPreview(article.thumbnail || '')
     setFormData({
       title: article.title,
@@ -765,6 +796,46 @@ export default function AdminPage() {
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* AI Prompt Editor */}
+            {editingArticle && (
+              <div className="border-t border-zinc-700 pt-4">
+                <p className="text-sm font-semibold text-zinc-300 mb-3">Edit with AI Prompt</p>
+                <textarea
+                  value={editPrompt}
+                  onChange={(e) => { setEditPrompt(e.target.value); setEditPromptDone(false) }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault()
+                      handleEditWithPrompt()
+                    }
+                  }}
+                  rows={3}
+                  placeholder="e.g. Rewrite the introduction to be more engaging, Fix the conclusion paragraph, Add a sentence about risk management after the second paragraph…"
+                  disabled={editPrompting}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 placeholder:text-zinc-500 text-sm disabled:opacity-50 resize-none mb-2"
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleEditWithPrompt}
+                    disabled={editPrompting || !editPrompt.trim() || !formData.content.trim()}
+                    className="px-4 py-1.5 bg-violet-700 text-white rounded-lg hover:bg-violet-600 text-sm font-semibold disabled:opacity-50"
+                  >
+                    {editPrompting ? 'Applying…' : 'Apply'}
+                  </button>
+                  <span className="text-xs text-zinc-600">Ctrl+Enter to apply</span>
+                </div>
+                {editPromptError && (
+                  <p className="mt-2 text-xs text-red-400 px-3 py-2 bg-red-900/20 border border-red-800/40 rounded-lg">{editPromptError}</p>
+                )}
+                {editPromptDone && (
+                  <p className="mt-2 text-xs text-green-400 px-3 py-2 bg-green-900/20 border border-green-800/40 rounded-lg font-medium">
+                    Done — content updated. Click &ldquo;Update Article&rdquo; to save.
+                  </p>
                 )}
               </div>
             )}
