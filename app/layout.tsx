@@ -7,6 +7,7 @@ import { SiteFooter } from '@/components/site-footer'
 import { GoogleAnalytics } from '@/components/google-analytics'
 import { PartnerPixels } from '@/components/partner-pixels'
 import { PageTracker } from '@/components/page-tracker'
+import { ExitIntentPopup } from '@/components/exit-intent-popup'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -70,6 +71,7 @@ export default function RootLayout({
           <SiteHeader />
           <main className="flex-1">{children}</main>
           <SiteFooter />
+          <ExitIntentPopup />
         </ThemeProvider>
         <Analytics />
       </body>
