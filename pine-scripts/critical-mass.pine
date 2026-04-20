@@ -1,0 +1,276 @@
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║           CRITICAL MASS — BTC Multi-TF Confluence Engine v1.0           ║
+// ║                                                                          ║
+// ║  "Four signals. One verdict. No noise."                                  ║
+// ║                                                                          ║
+// ║  I.   Timeframe Resonance Oscillator  — RSI sync across 15/30/60m       ║
+// ║  II.  Entropy Collapse Detector       — Shannon entropy regime shift     ║
+// ║  III. Behavioral Anchor Pressure Map  — Liquidity density proximity      ║
+// ║  IV.  Cross-TF Phase Angle            — Momentum wave convergence        ║
+// ║                                                                          ║
+// ║  Signal fires ONLY when all four align. Maximum conviction. No guessing. ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+
+//@version=5
+indicator("CRITICAL MASS — BTC Confluence Engine", shorttitle="CRIT.MASS", overlay=true, max_bars_back=500)
+
+// ══════════════════════════════════════════════════════════════════
+// INPUTS
+// ══════════════════════════════════════════════════════════════════
+var G_TF   = "Timeframe Settings"
+var G_RISK = "Risk Management"
+var G_VIS  = "Visibility"
+var G_ADV  = "Advanced Tuning"
+
+tf1        = input.timeframe("15",  "Timeframe 1",           group=G_TF)
+tf2        = input.timeframe("30",  "Timeframe 2",           group=G_TF)
+tf3        = input.timeframe("60",  "Timeframe 3",           group=G_TF)
+
+atr_len    = input.int(14,   "ATR Length",                   group=G_RISK, minval=1)
+tp_mult    = input.float(2.0,"TP Multiplier (ATR)",          group=G_RISK, step=0.1, minval=0.5)
+sl_mult    = input.float(1.0,"SL Multiplier (ATR)",          group=G_RISK, step=0.1, minval=0.1)
+
+show_bg    = input.bool(true, "Signal Bar Highlight",        group=G_VIS)
+show_anch  = input.bool(true, "Show Anchor Diamonds",        group=G_VIS)
+show_tpsl  = input.bool(true, "Show TP / SL Lines",          group=G_VIS)
+
+rsi_len    = input.int(14,  "RSI Length",                    group=G_ADV, minval=2)
+rsi_ob     = input.int(65,  "RSI Overbought Threshold",      group=G_ADV, minval=50, maxval=90)
+rsi_os     = input.int(35,  "RSI Oversold Threshold",        group=G_ADV, minval=10, maxval=50)
+res_min    = input.int(2,   "Min TFs in Agreement (1-3)",    group=G_ADV, minval=1, maxval=3)
+ent_len    = input.int(20,  "Entropy Lookback",              group=G_ADV, minval=10, maxval=50)
+ent_drop   = input.float(0.75, "Entropy Collapse Threshold", group=G_ADV, step=0.05, minval=0.5, maxval=0.95)
+anch_bars  = input.int(50,  "Anchor Scan Depth (bars)",      group=G_ADV, minval=10, maxval=200)
+mom_len    = input.int(14,  "Momentum Length",               group=G_ADV, minval=2)
+phase_norm = input.int(50,  "Phase Normalisation Period",    group=G_ADV, minval=10)
+phase_min  = input.float(0.3,"Phase Min Strength (60m)",     group=G_ADV, step=0.05)
+
+// ══════════════════════════════════════════════════════════════════
+// ATR — used throughout
+// ══════════════════════════════════════════════════════════════════
+atr = ta.atr(atr_len)
+
+// ══════════════════════════════════════════════════════════════════
+// I.  TIMEFRAME RESONANCE OSCILLATOR
+//     Measures how many timeframes are simultaneously at an extreme.
+//     Requires `res_min` of 3 TFs to agree — minimum 2 by default.
+// ══════════════════════════════════════════════════════════════════
+rsi_1 = request.security(syminfo.tickerid, tf1, ta.rsi(close, rsi_len), lookahead=barmerge.lookahead_off)
+rsi_2 = request.security(syminfo.tickerid, tf2, ta.rsi(close, rsi_len), lookahead=barmerge.lookahead_off)
+rsi_3 = request.security(syminfo.tickerid, tf3, ta.rsi(close, rsi_len), lookahead=barmerge.lookahead_off)
+
+res_bull_score = (rsi_1 < rsi_os ? 1 : 0) + (rsi_2 < rsi_os ? 1 : 0) + (rsi_3 < rsi_os ? 1 : 0)
+res_bear_score = (rsi_1 > rsi_ob ? 1 : 0) + (rsi_2 > rsi_ob ? 1 : 0) + (rsi_3 > rsi_ob ? 1 : 0)
+
+resonance_bull = res_bull_score >= res_min
+resonance_bear = res_bear_score >= res_min
+
+// ══════════════════════════════════════════════════════════════════
+// II. ENTROPY COLLAPSE DETECTOR
+//     Applies Shannon entropy to recent candle-by-candle price moves.
+//     A sharp drop in entropy = the market is losing randomness =
+//     energy is coiling for a directional release.
+// ══════════════════════════════════════════════════════════════════
+f_entropy(len, offset) =>
+    pos = 0.0
+    neg = 0.0
+    neu = 0.0
+    for i = 0 to len - 1
+        base  = close[i + offset + 1]
+        chg   = close[i + offset] - base
+        limit = base * 0.0005
+        if chg > limit
+            pos += 1.0
+        else if chg < -limit
+            neg += 1.0
+        else
+            neu += 1.0
+    total = float(len)
+    p1 = pos / total
+    p2 = neg / total
+    p3 = neu / total
+    h = 0.0
+    if p1 > 0
+        h -= p1 * math.log(p1) / math.log(2.0)
+    if p2 > 0
+        h -= p2 * math.log(p2) / math.log(2.0)
+    if p3 > 0
+        h -= p3 * math.log(p3) / math.log(2.0)
+    h
+
+entropy_now  = f_entropy(ent_len, 0)
+entropy_prev = f_entropy(ent_len, 5)
+entropy_collapse = entropy_now < entropy_prev * ent_drop
+
+// ══════════════════════════════════════════════════════════════════
+// III. BEHAVIORAL ANCHOR PRESSURE MAP
+//      Scans recent pivot highs/lows (liquidity anchors).
+//      When price is within 1.5× ATR of a significant anchor,
+//      trapped traders and stop clusters are likely nearby.
+// ══════════════════════════════════════════════════════════════════
+pivot_hi = ta.pivothigh(high, 5, 5)
+pivot_lo = ta.pivotlow(low,  5, 5)
+
+anch_tol    = atr * 1.5
+near_supp   = false
+near_resist = false
+
+for i = 0 to anch_bars
+    if not na(pivot_lo[i])
+        if math.abs(close - pivot_lo[i]) <= anch_tol
+            near_supp := true
+    if not na(pivot_hi[i])
+        if math.abs(close - pivot_hi[i]) <= anch_tol
+            near_resist := true
+
+// ══════════════════════════════════════════════════════════════════
+// IV. CROSS-TF MOMENTUM PHASE ANGLE
+//     Treats momentum on 15m and 60m as separate waves.
+//     When the 60m wave leads strongly and the 15m wave is
+//     accelerating in the same direction, they're going "in phase" —
+//     a convergence signal. Borrowed from signal processing theory.
+// ══════════════════════════════════════════════════════════════════
+mom_15 = request.security(syminfo.tickerid, tf1, ta.mom(close, mom_len), lookahead=barmerge.lookahead_off)
+mom_60 = request.security(syminfo.tickerid, tf3, ta.mom(close, mom_len), lookahead=barmerge.lookahead_off)
+
+std_15 = ta.stdev(mom_15, phase_norm)
+std_60 = ta.stdev(mom_60, phase_norm)
+
+norm_15 = std_15 != 0.0 ? mom_15 / std_15 : 0.0
+norm_60 = std_60 != 0.0 ? mom_60 / std_60 : 0.0
+
+phase_bull = norm_60 > phase_min  and norm_15 > 0.0 and norm_15 > norm_15[1]
+phase_bear = norm_60 < -phase_min and norm_15 < 0.0 and norm_15 < norm_15[1]
+
+// ══════════════════════════════════════════════════════════════════
+// CRITICAL MASS — CONFLUENCE ENGINE
+//     All four must fire in the same direction.
+//     This is not a "nice to have" — it is the gate.
+// ══════════════════════════════════════════════════════════════════
+cm_long  = resonance_bull and entropy_collapse and near_supp   and phase_bull
+cm_short = resonance_bear and entropy_collapse and near_resist and phase_bear
+
+// Live score (0–4) — watch it build before the signal fires
+score_l = (resonance_bull ? 1 : 0) + (entropy_collapse ? 1 : 0) + (near_supp   ? 1 : 0) + (phase_bull ? 1 : 0)
+score_s = (resonance_bear ? 1 : 0) + (entropy_collapse ? 1 : 0) + (near_resist ? 1 : 0) + (phase_bear ? 1 : 0)
+score   = math.max(score_l, score_s)
+
+// ══════════════════════════════════════════════════════════════════
+// ENTRY / TP / SL LEVELS
+//     ATR-scaled to current volatility. Locks in on signal bar.
+// ══════════════════════════════════════════════════════════════════
+var float tp_line = na
+var float sl_line = na
+
+if cm_long
+    tp_line := close + atr * tp_mult
+    sl_line := close - atr * sl_mult
+
+if cm_short
+    tp_line := close - atr * tp_mult
+    sl_line := close + atr * sl_mult
+
+// Reset lines when neither signal is active (optional — comment out to keep last)
+if not cm_long and not cm_short and not cm_long[1] and not cm_short[1]
+    tp_line := na
+    sl_line := na
+
+// ══════════════════════════════════════════════════════════════════
+// PLOTS — ENTRY ARROWS
+// ══════════════════════════════════════════════════════════════════
+plotshape(cm_long,  title="LONG Signal",
+  location=location.belowbar, style=shape.triangleup,
+  size=size.normal, color=color.new(#00ff88, 0),
+  text="LONG\nCRIT.MASS", textcolor=color.white)
+
+plotshape(cm_short, title="SHORT Signal",
+  location=location.abovebar, style=shape.triangledown,
+  size=size.normal, color=color.new(#ff3366, 0),
+  text="SHORT\nCRIT.MASS", textcolor=color.white)
+
+// ══════════════════════════════════════════════════════════════════
+// PLOTS — TP / SL LINES
+// ══════════════════════════════════════════════════════════════════
+plot(show_tpsl ? tp_line : na, title="Take Profit",
+  color=color.new(#00ff88, 30), linewidth=1, style=plot.style_linebr)
+
+plot(show_tpsl ? sl_line : na, title="Stop Loss",
+  color=color.new(#ff3366, 30), linewidth=1, style=plot.style_linebr)
+
+// ══════════════════════════════════════════════════════════════════
+// PLOTS — ANCHOR DIAMONDS
+// ══════════════════════════════════════════════════════════════════
+plotshape(show_anch and near_supp   and not near_supp[1],
+  title="Support Anchor", location=location.belowbar,
+  style=shape.diamond, size=size.tiny, color=color.new(#00ccff, 20))
+
+plotshape(show_anch and near_resist and not near_resist[1],
+  title="Resist Anchor",  location=location.abovebar,
+  style=shape.diamond, size=size.tiny, color=color.new(#ff9900, 20))
+
+// ══════════════════════════════════════════════════════════════════
+// PLOTS — BAR BACKGROUND
+// ══════════════════════════════════════════════════════════════════
+bgcolor(show_bg and cm_long  ? color.new(#00ff88, 88) : na, title="Long Signal BG")
+bgcolor(show_bg and cm_short ? color.new(#ff3366, 88) : na, title="Short Signal BG")
+
+// ══════════════════════════════════════════════════════════════════
+// LIVE SCORE TABLE — top-right corner
+//     Watch each layer activate in real time.
+//     When all 4 show green, the signal is about to fire.
+// ══════════════════════════════════════════════════════════════════
+var table hud = table.new(
+  position.top_right, 2, 7,
+  bgcolor       = color.new(#0a0a0a, 10),
+  border_color  = color.new(#333333, 0),
+  border_width  = 1,
+  frame_color   = color.new(#444444, 0),
+  frame_width   = 1)
+
+score_col = score >= 4 ? #00ff88 : score == 3 ? #ffcc00 : score == 2 ? #ff9900 : #555555
+
+if barstate.islast
+    // Header
+    table.cell(hud, 0, 0, "CRITICAL MASS", text_color=#ffffff,  text_size=size.small,  bgcolor=#111133, text_halign=text.align_left)
+    table.cell(hud, 1, 0, str.tostring(score) + " / 4",          text_color=score_col,  text_size=size.small,  bgcolor=#111133, text_halign=text.align_right)
+
+    // Row I
+    r1_on = resonance_bull or resonance_bear
+    table.cell(hud, 0, 1, "I.  Resonance",  text_color=#888888, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(hud, 1, 1, r1_on ? "ACTIVE"  : "idle", text_color=r1_on  ? #00ff88 : #444444, text_size=size.tiny, text_halign=text.align_right)
+
+    // Row II
+    table.cell(hud, 0, 2, "II. Entropy",    text_color=#888888, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(hud, 1, 2, entropy_collapse ? "COLLAPSE" : "normal", text_color=entropy_collapse ? #00ff88 : #444444, text_size=size.tiny, text_halign=text.align_right)
+
+    // Row III
+    r3_on = near_supp or near_resist
+    table.cell(hud, 0, 3, "III. Anchor",    text_color=#888888, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(hud, 1, 3, r3_on ? "LOCKED"  : "clear", text_color=r3_on  ? #00ff88 : #444444, text_size=size.tiny, text_halign=text.align_right)
+
+    // Row IV
+    r4_on = phase_bull or phase_bear
+    table.cell(hud, 0, 4, "IV. Phase",      text_color=#888888, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(hud, 1, 4, r4_on ? "ALIGNED" : "diverged", text_color=r4_on ? #00ff88 : #444444, text_size=size.tiny, text_halign=text.align_right)
+
+    // Divider row
+    table.cell(hud, 0, 5, "─────────────", text_color=#333333, text_size=size.tiny, text_halign=text.align_left)
+    table.cell(hud, 1, 5, "───────────",   text_color=#333333, text_size=size.tiny, text_halign=text.align_right)
+
+    // Signal row
+    sig_txt = cm_long ? "▲  LONG" : cm_short ? "▼  SHORT" : "—  WAITING"
+    sig_col = cm_long ? #00ff88   : cm_short ? #ff3366    : #555555
+    table.cell(hud, 0, 6, "SIGNAL",  text_color=#aaaaaa, text_size=size.small, text_halign=text.align_left)
+    table.cell(hud, 1, 6, sig_txt,   text_color=sig_col, text_size=size.small, text_halign=text.align_right)
+
+// ══════════════════════════════════════════════════════════════════
+// ALERTS
+// ══════════════════════════════════════════════════════════════════
+alertcondition(cm_long,  title="CRITICAL MASS — LONG",
+  message="CRITICAL MASS LONG fired on {{ticker}} [{{interval}}] @ {{close}} — all 4 systems aligned. TP: {{plot_1}} | SL: {{plot_2}}")
+
+alertcondition(cm_short, title="CRITICAL MASS — SHORT",
+  message="CRITICAL MASS SHORT fired on {{ticker}} [{{interval}}] @ {{close}} — all 4 systems aligned. TP: {{plot_1}} | SL: {{plot_2}}")
+
+alertcondition(score >= 3, title="CRITICAL MASS — Score 3/4 (Pre-Signal Warning)",
+  message="CRITICAL MASS pre-signal: {{ticker}} [{{interval}}] score 3/4 — one layer away from full confluence.")
