@@ -55,6 +55,7 @@ export function ExitIntentPopup() {
   if (!mounted || isBlocked) return null
 
   const dismiss = () => {
+    readyRef.current = false
     localStorage.setItem(STORAGE_KEY, Date.now().toString())
     setVisible(false)
   }
@@ -67,7 +68,12 @@ export function ExitIntentPopup() {
       const res = await fetch('/api/newsletter/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          utm_source: 'Trading365.org',
+          utm_medium: 'exit_intent',
+          utm_campaign: 'Master_List_Lead_Magnet',
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Subscription failed')

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 export async function POST(req: NextRequest) {
-  const { email } = await req.json()
+  const { email, utm_source, utm_medium, utm_campaign } = await req.json()
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: "Valid email required" }, { status: 400 })
@@ -26,8 +26,9 @@ export async function POST(req: NextRequest) {
         email,
         reactivate_existing: true,
         send_welcome_email: true,
-        utm_source: "trading365-website",
-        utm_medium: "organic",
+        utm_source: utm_source ?? "trading365-website",
+        utm_medium: utm_medium ?? "organic",
+        ...(utm_campaign ? { utm_campaign } : {}),
       }),
     }
   )
