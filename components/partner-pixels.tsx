@@ -9,10 +9,6 @@ const PARTNERS = [
     url: "https://partner.bydfi.com/register?vipCode=KifsCryptoU3&f=websit",
   },
   {
-    id: "weex",
-    url: "https://www.weex.com/en/register?vipCode=cx5n",
-  },
-  {
     id: "bitunix",
     url: "https://www.bitunix.com/register?vipCode=VP7Q",
   },
