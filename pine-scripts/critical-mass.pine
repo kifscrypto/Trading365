@@ -35,15 +35,16 @@ show_anch  = input.bool(true, "Show Anchor Diamonds",        group=G_VIS)
 show_tpsl  = input.bool(true, "Show TP / SL Lines",          group=G_VIS)
 
 rsi_len    = input.int(14,  "RSI Length",                    group=G_ADV, minval=2)
-rsi_ob     = input.int(65,  "RSI Overbought Threshold",      group=G_ADV, minval=50, maxval=90)
-rsi_os     = input.int(35,  "RSI Oversold Threshold",        group=G_ADV, minval=10, maxval=50)
+rsi_ob     = input.int(60,  "RSI Overbought Threshold",      group=G_ADV, minval=50, maxval=90)
+rsi_os     = input.int(42,  "RSI Oversold Threshold",        group=G_ADV, minval=10, maxval=50)
 res_min    = input.int(2,   "Min TFs in Agreement (1-3)",    group=G_ADV, minval=1, maxval=3)
 ent_len    = input.int(20,  "Entropy Lookback",              group=G_ADV, minval=10, maxval=50)
-ent_drop   = input.float(0.75, "Entropy Collapse Threshold", group=G_ADV, step=0.05, minval=0.5, maxval=0.95)
+ent_drop   = input.float(0.85, "Entropy Collapse Threshold", group=G_ADV, step=0.05, minval=0.5, maxval=0.95)
 anch_bars  = input.int(50,  "Anchor Scan Depth (bars)",      group=G_ADV, minval=10, maxval=200)
 mom_len    = input.int(14,  "Momentum Length",               group=G_ADV, minval=2)
 phase_norm = input.int(50,  "Phase Normalisation Period",    group=G_ADV, minval=10)
-phase_min  = input.float(0.3,"Phase Min Strength (60m)",     group=G_ADV, step=0.05)
+phase_min  = input.float(0.15,"Phase Min Strength (60m)",    group=G_ADV, step=0.05)
+min_score  = input.int(3,   "Min Confluence Score (2-4)",    group=G_ADV, minval=2, maxval=4, tooltip="3 = high conviction, 4 = maximum (rare)")
 
 // ══════════════════════════════════════════════════════════════════
 // ATR — used throughout
@@ -147,13 +148,13 @@ phase_bear = norm_60 < -phase_min and norm_15 < 0.0 and norm_15 < norm_15[1]
 //     All four must fire in the same direction.
 //     This is not a "nice to have" — it is the gate.
 // ══════════════════════════════════════════════════════════════════
-cm_long  = resonance_bull and entropy_collapse and near_supp   and phase_bull
-cm_short = resonance_bear and entropy_collapse and near_resist and phase_bear
-
 // Live score (0–4) — watch it build before the signal fires
 score_l = (resonance_bull ? 1 : 0) + (entropy_collapse ? 1 : 0) + (near_supp   ? 1 : 0) + (phase_bull ? 1 : 0)
 score_s = (resonance_bear ? 1 : 0) + (entropy_collapse ? 1 : 0) + (near_resist ? 1 : 0) + (phase_bear ? 1 : 0)
 score   = math.max(score_l, score_s)
+
+cm_long  = score_l >= min_score and phase_bull
+cm_short = score_s >= min_score and phase_bear
 
 // ══════════════════════════════════════════════════════════════════
 // ENTRY / TP / SL LEVELS
