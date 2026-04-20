@@ -1,5 +1,7 @@
 import type { Metadata } from "next"
 import { CompareClient } from "@/components/compare-client"
+import { exchanges as baseExchanges } from "@/lib/data/exchanges"
+import { sql } from "@/lib/db"
 
 const BASE_URL = "https://trading365.org"
 const OG_IMAGE = `${BASE_URL}/og-image.jpg`
@@ -49,14 +51,28 @@ export const metadata: Metadata = {
   },
 }
 
-export default function ComparePage() {
+export default async function ComparePage() {
+  // Merge DB referral link overrides on top of the hardcoded exchange data
+  let exchanges = baseExchanges
+  try {
+    const rows = await sql`SELECT slug, affiliate_url FROM affiliate_links`
+    if (rows.length > 0) {
+      const overrides = Object.fromEntries(rows.map((r) => [r.slug as string, r.affiliate_url as string]))
+      exchanges = baseExchanges.map((e) =>
+        overrides[e.slug] ? { ...e, referralLink: overrides[e.slug] } : e
+      )
+    }
+  } catch {
+    // DB unavailable — fall back to static data silently
+  }
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webApplicationSchema) }}
       />
-      <CompareClient />
+      <CompareClient exchanges={exchanges} />
     </>
   )
 }

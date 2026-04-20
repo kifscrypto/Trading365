@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { exchanges } from "@/lib/data/exchanges"
 import type { Exchange } from "@/lib/data/types"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +25,7 @@ function getSortValue(e: Exchange, key: SortKey): number {
   return 0
 }
 
-export function CompareClient() {
+export function CompareClient({ exchanges }: { exchanges: Exchange[] }) {
   // Filters
   const [filterKYC, setFilterKYC] = useState<"all" | "no-kyc" | "kyc">("all")
   const [filterCopyTrading, setFilterCopyTrading] = useState(false)
