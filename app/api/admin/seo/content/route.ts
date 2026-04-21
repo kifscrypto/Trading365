@@ -109,8 +109,10 @@ HARD RULES:
 - Referral/affiliate links must NEVER be bold — use plain [text](url) not **[text](url)**
 
 FORMATTING RULES (MANDATORY — RENDERER WILL BREAK IF VIOLATED):
-- The article body MUST begin with ## Verdict — no title, no intro line before it
-- NEVER include the article title, excerpt, author name, publish date, updated date, or read time inside the body — these are separate fields
+- Your VERY FIRST line of output must be exactly: TITLE: [write a compelling, SEO-optimized page title for this article]
+- After the TITLE line, leave one blank line, then begin the article body with ## Verdict
+- NEVER include the title inside the article body itself — it is extracted separately
+- NEVER include the article excerpt, author name, publish date, updated date, or read time inside the body — these are separate fields
 - NEVER include pros/cons lists labelled "Pros:" or "Cons:" inside the body — these are separate fields
 - Put ONE blank line before and after every heading, table, list block, and --- separator
 - NEVER write --- and ## on the same line or without a blank line between them

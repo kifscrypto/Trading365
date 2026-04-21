@@ -301,6 +301,7 @@ export default function ArticleStudioPage() {
 
   // Step 3: Article — single source of truth, mutated by audit fixes and refinements
   const [article, setArticle] = useState('')
+  const [generatedTitle, setGeneratedTitle] = useState('')
   const [articleLoading, setArticleLoading] = useState(false)
   const [fixStats, setFixStats] = useState<{ applied: number; failed: number } | null>(null)
   const [refineInstructions, setRefineInstructions] = useState('')
@@ -467,6 +468,7 @@ export default function ArticleStudioPage() {
     setError('')
     setArticleLoading(true)
     setArticle('')
+    setGeneratedTitle('')
     setFixStats(null)
     unlock('article')
     try {
@@ -483,8 +485,11 @@ export default function ArticleStudioPage() {
         const { done, value } = await reader.read()
         if (done) break
         text += decoder.decode(value, { stream: true })
-        setArticle(text)
+        setArticle(text.replace(/^TITLE:[^\n]+\n\n?/, ''))
       }
+      const titleMatch = text.match(/^TITLE:\s*(.+)/)
+      if (titleMatch) setGeneratedTitle(titleMatch[1].trim())
+      setArticle(text.replace(/^TITLE:[^\n]+\n\n?/, ''))
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -504,7 +509,7 @@ export default function ArticleStudioPage() {
       const res = await fetch('/api/admin/seo/refine-article', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: article, instructions: refineInstructions, keyword, affiliateLink: affiliateLink.trim() || null }),
+        body: JSON.stringify({ content: article, instructions: refineInstructions, keyword, affiliateLink: affiliateLink.trim() || null, affiliateLinks }),
       })
       if (!res.ok || !res.body) throw new Error('Refinement failed')
       const reader = res.body.getReader()
@@ -720,7 +725,7 @@ export default function ArticleStudioPage() {
   // ── Step 7 → 8: Publish ────────────────────────────────────────────────────
 
   function openPublish() {
-    const title = extractTitle(article)
+    const title = generatedTitle || keyword.trim() || extractTitle(article)
     const excerpt = extractExcerpt(article)
     setPubTitle(title)
     setPubSlug(slugify(title))

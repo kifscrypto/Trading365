@@ -14,45 +14,47 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { content, instructions, keyword, affiliateLink } = await request.json()
+    const { content, instructions, keyword, affiliateLink, affiliateLinks } = await request.json()
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+    const affiliateListBlock = affiliateLinks?.length
+      ? `REFERRAL LINK ALLOWLIST — use ONLY these exact URLs for any referral or affiliate links. Never invent, guess, or substitute other URLs:\n${affiliateLinks.map((a: { name: string; affiliate_url: string }) => `- ${a.name}: ${a.affiliate_url}`).join('\n')}\nIf an exchange is not in this list, do not add a referral link for it.`
+      : ''
 
     const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 8000,
+      system: `You are an article editor. Your output IS the article — nothing else.
+
+ABSOLUTE OUTPUT RULE: The very first character you output must be the first character of the article (the # in ## Verdict). Do not write "Here is the updated article", "I've made the following changes", "Done", or any other preamble or postamble. Zero commentary. Zero acknowledgment. The output is the article and only the article. If you add even one word of commentary, the output is corrupted.`,
       messages: [{
         role: 'user',
-        content: `CRITICAL: Never wrap links in bold. Write [text](url) — NEVER **[text](url)**. This applies to every single link without exception.
-
-You are refining an existing article based on specific instructions.
-
-RULES:
-- Apply ONLY the changes described in the instructions
-- Preserve everything else exactly as written
-- Do not add unrequested sections or remove content unless instructed
-- Do not add commentary, preamble, or explanation
-- Output the complete revised article only
-- Do NOT add any internal links — a dedicated step handles this with real verified URLs. Any internal link you add will 404.
-- NEVER use trading365.com — the site is trading365.org only. NEVER use absolute URLs — all internal links must be relative paths.
-
-FORMATTING RULES (DO NOT BREAK):
-- Body must begin with ## Verdict — never add a title, author, date, or read time line before it
-- Never include the article title, excerpt, author, dates, or read time inside the body
-- Never include pros/cons blocks labelled "Pros:" or "Cons:" inside the body
-- Put ONE blank line before and after every heading, table, list, and --- separator
-- Never write --- and ## without a blank line between them
-- All tables must have a header row and separator row (| --- |)
-- Never output duplicate words or phrases
-- Referral/affiliate link text must never be bold — plain [text](url) only
-
-KEYWORD: ${keyword ?? ''}
-${affiliateLink ? `CTA LINK: ${affiliateLink} — use this exact URL for all CTAs.` : ''}
-
-REFINEMENT INSTRUCTIONS:
+        content: `MAKE THIS CHANGE TO THE ARTICLE:
 ${instructions}
 
-EXISTING ARTICLE:
+EXECUTION RULES:
+- Execute the instruction completely — if asked to add a section, write the full section with proper headings and content
+- Preserve all existing content and wording exactly unless the instruction requires changing it
+- Do not skip, abbreviate, or summarise the existing article — output it in full with the change applied
+- Never bold link text — use plain [text](url) only
+
+LINK RULES:
+- Do NOT add internal links — a separate step inserts verified URLs. Any internal link you add will 404.
+- NEVER use trading365.com — the site is trading365.org only. Never use absolute URLs — relative paths only.
+${affiliateListBlock}
+
+FORMATTING (do not break):
+- Article body begins with ## Verdict — no title, no author, no date before it
+- ONE blank line before and after every heading, table, list block, and --- separator
+- Never place --- and ## on adjacent lines without a blank line between
+- All markdown tables must have a header row and a separator row (| --- | --- |)
+- Never output duplicate words or phrases
+
+KEYWORD: ${keyword ?? ''}
+${affiliateLink ? `CTA LINK: ${affiliateLink} — use this exact URL for all clickable CTAs.` : ''}
+
+ARTICLE:
 ${content}`,
       }],
     })
