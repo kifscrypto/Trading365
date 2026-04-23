@@ -29,7 +29,7 @@ function InlineMarkdown({ text }: { text: string }) {
 }
 
 const BASE_URL = 'https://trading365.org'
-const OG_IMAGE = `${BASE_URL}/trading365-crypto-exchange-reviews.png`
+const OG_IMAGE = `${BASE_URL}/trading365-crypto-exchange-reviews.jpg`
 
 // Expanded descriptions (130–155 chars) for categories with previously short descriptions
 const DESCRIPTION_OVERRIDES: Record<string, string> = {
