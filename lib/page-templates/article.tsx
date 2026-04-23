@@ -66,7 +66,7 @@ function splitAtRestricted(content: string): { before: string; after: string } |
 }
 
 const BASE_URL = 'https://trading365.org'
-const OG_IMAGE = `${BASE_URL}/og-image.png`
+const OG_IMAGE = `${BASE_URL}/trading365-crypto-exchange-reviews.png`
 
 // Titles over ~60 chars get truncated in Google — override known long titles here
 const TITLE_OVERRIDES: Record<string, string> = {

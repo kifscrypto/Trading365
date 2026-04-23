@@ -14,7 +14,7 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 const BASE_URL = 'https://trading365.org'
-const OG_IMAGE = `${BASE_URL}/og-image.png`
+const OG_IMAGE = `${BASE_URL}/trading365-crypto-exchange-reviews.png`
 
 export const viewport: Viewport = {
   themeColor: '#0a0a0a',
