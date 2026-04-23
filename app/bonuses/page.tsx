@@ -14,7 +14,7 @@ import { getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
 import { generateItemListSchema, generateFAQSchema } from "@/lib/schema"
 
 const BASE_URL = "https://trading365.org"
-const OG_IMAGE = `${BASE_URL}/og-image.jpg`
+const OG_IMAGE = `${BASE_URL}/og-image.png`
 
 export const metadata: Metadata = {
   title: "Best Crypto Exchange Sign-Up Bonuses (2026)",

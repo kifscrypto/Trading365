@@ -4,7 +4,7 @@ import { exchanges as baseExchanges } from "@/lib/data/exchanges"
 import { sql } from "@/lib/db"
 
 const BASE_URL = "https://trading365.org"
-const OG_IMAGE = `${BASE_URL}/og-image.jpg`
+const OG_IMAGE = `${BASE_URL}/og-image.png`
 
 const webApplicationSchema = {
   "@context": "https://schema.org",
