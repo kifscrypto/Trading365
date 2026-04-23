@@ -569,6 +569,12 @@ export default function AdminPage() {
           >
             Categories →
           </button>
+          <button
+            onClick={() => router.push('/admin/promotions')}
+            className="text-sm text-pink-400 hover:text-pink-300 font-medium"
+          >
+            Promotions →
+          </button>
         <button
           onClick={async () => {
             await fetch('/api/admin/session', { method: 'DELETE' })
