@@ -102,9 +102,13 @@ export function generateArticleSchema(article: Article, isReview = false) {
 }
 
 export function generateReviewSchema(article: Article, exchange: Exchange) {
+  const rawRating = article.rating || exchange.rating
+  const rating5 = Math.round((rawRating / 10) * 5 * 10) / 10
   return {
     "@context": "https://schema.org",
     "@type": "Review",
+    name: article.title,
+    description: article.excerpt,
     itemReviewed: {
       "@type": "SoftwareApplication",
       name: exchange.name,
@@ -118,19 +122,19 @@ export function generateReviewSchema(article: Article, exchange: Exchange) {
     },
     reviewRating: {
       "@type": "Rating",
-      ratingValue: article.rating || exchange.rating,
-      bestRating: 10,
+      ratingValue: rating5,
+      bestRating: 5,
       worstRating: 1,
     },
     author: {
-      "@type": "Person",
-      name: article.author,
+      "@type": "Organization",
+      name: siteConfig.name,
+      url: BASE_URL,
     },
     publisher: generateOrganizationSchema(),
     datePublished: toISODate(article.date),
     dateModified: toISODate(article.updatedDate || article.date),
     reviewBody: article.excerpt,
-    name: article.title,
     url: `${BASE_URL}/${article.categorySlug}/${article.slug}`,
   }
 }

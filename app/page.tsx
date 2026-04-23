@@ -12,6 +12,7 @@ import { ComparisonSpotlight } from "@/components/comparison-spotlight"
 import { NewsletterCta } from "@/components/newsletter-cta"
 import { TrustBar } from "@/components/trust-bar"
 import { FeaturedAdvertisers } from "@/components/featured-advertisers"
+import { PromoBanner } from "@/components/promo-banner"
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
 import { exchanges } from "@/lib/data/exchanges"
 import { generateWebsiteSchema, generateOrganizationStandaloneSchema } from "@/lib/schema"
@@ -176,6 +177,9 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* Rotating Promo Banner */}
+      <PromoBanner />
 
       {/* Featured Reviews with Thumbnails */}
       <section className="mx-auto max-w-7xl px-4 py-16 lg:px-6">

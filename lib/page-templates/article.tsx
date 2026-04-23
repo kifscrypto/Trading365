@@ -37,11 +37,11 @@ import { getTranslatedLocalesForSlug } from "@/lib/db"
 import { ShareButton } from "@/components/share-button"
 import {
   generateArticleSchema,
-  generateReviewSchema,
   generateBreadcrumbSchema,
   generateFAQSchema,
   toISODate,
 } from "@/lib/schema"
+import { ReviewSchema } from "@/components/review-schema"
 import { slugifyHeading } from "@/lib/utils/heading"
 import { ConversionCard } from "@/components/conversion-card"
 import { StickyMobileCTA } from "@/components/sticky-mobile-cta"
@@ -205,7 +205,6 @@ export default async function ArticlePageContent({ category, slug }: { category:
     { name: cat.title, url: `/${category}` },
     { name: article.title },
   ])
-  const reviewSchema = exchange ? generateReviewSchema(article, exchange) : null
   const faqSchema = article.faqs?.length ? generateFAQSchema(article.faqs) : null
 
   return (
@@ -222,10 +221,11 @@ export default async function ArticlePageContent({ category, slug }: { category:
           __html: JSON.stringify(breadcrumbSchema),
         }}
       />
-      {reviewSchema && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewSchema) }}
+      {exchange && (
+        <ReviewSchema
+          exchangeName={exchange.name}
+          ratingValue={article.rating || exchange.rating}
+          description={article.excerpt}
         />
       )}
       {faqSchema && (
