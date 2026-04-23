@@ -83,11 +83,10 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   if (!article) return { title: 'Article Not Found' }
 
   const canonicalUrl = `${BASE_URL}/${category}/${slug}`
-  // Thumbnails may be Vercel Blob URLs (already absolute) or relative paths
-  const ogImage = article.thumbnail
-    ? (article.thumbnail.startsWith('http') ? article.thumbnail : `${BASE_URL}${article.thumbnail}`)
-    : OG_IMAGE
   const pageTitle = TITLE_OVERRIDES[slug] ?? article.metaTitle ?? article.title
+  const ogParams = new URLSearchParams({ title: pageTitle, category: article.category })
+  if (article.rating > 0) ogParams.set('rating', String(article.rating))
+  const ogImage = `${BASE_URL}/api/og?${ogParams.toString()}`
   const pageDescription = article.metaDescription ?? article.excerpt
 
   const hreflangAlternates: Record<string, string> = {

@@ -44,6 +44,7 @@ export async function getCategoryMetadata(category: string): Promise<Metadata> {
 
   const canonicalUrl = `${BASE_URL}/${category}`
   const description = DESCRIPTION_OVERRIDES[category] ?? cat.description
+  const ogImage = `${BASE_URL}/api/og?${new URLSearchParams({ title: cat.title, category: 'Trading365' })}`
 
   return {
     title: cat.title,
@@ -56,7 +57,7 @@ export async function getCategoryMetadata(category: string): Promise<Metadata> {
       title: `${cat.title} | Trading365`,
       description,
       url: canonicalUrl,
-      images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: cat.title }],
+      images: [{ url: ogImage, width: 1200, height: 630, alt: cat.title }],
       siteName: 'Trading365',
     },
     twitter: {
