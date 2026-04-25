@@ -294,7 +294,7 @@ async function fetchBtcSentimentData(sql: SqlClient): Promise<SentimentCondition
   try {
     const [fngRes, domRes, klinesRes, fundingRes] = await Promise.allSettled([
       fetch('https://api.alternative.me/fng/', { cache: 'no-store', headers: HEADERS }),
-      fetch('https://api.coingecko.com/api/v3/global', { cache: 'no-store', headers: { ...HEADERS, 'x-cg-demo-api-key': process.env.COINGECKO_API_KEY ?? '' } }),
+      fetch('https://api.coingecko.com/api/v3/global', { cache: 'no-store', headers: { 'x-cg-demo-api-key': process.env.COINGECKO_API_KEY! } }),
       okxKlines('BTC-USDT-SWAP'),
       okxFunding('BTC-USDT-SWAP'),
     ])
