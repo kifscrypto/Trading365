@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 
 export const maxDuration = 60
+const ROUTE_VERSION = 'v4-okx-hyperliquid'
 
 // Kline tuple: [time, open, high, low, close, volume, ...]
 type Kline = [string, string, string, string, string, string, ...string[]]
@@ -299,7 +300,7 @@ export async function GET(request: Request) {
       `)
     )
 
-    return NextResponse.json({ results, cached: false, exchange })
+    return NextResponse.json({ results, cached: false, exchange, v: ROUTE_VERSION })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[scanner]', msg)
