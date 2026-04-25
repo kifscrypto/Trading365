@@ -87,7 +87,7 @@ function scoreKlines(
 async function bybitKlines(symbol: string): Promise<Kline[]> {
   const r = await fetch(
     `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=240&limit=200`,
-    { cache: 'no-store' }
+    { cache: 'no-store', headers: HEADERS }
   )
   if (!r.ok) return []
   const d = await r.json()
@@ -98,7 +98,7 @@ async function bybitKlines(symbol: string): Promise<Kline[]> {
 async function binanceKlines(symbol: string): Promise<Kline[]> {
   const r = await fetch(
     `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=200`,
-    { cache: 'no-store' }
+    { cache: 'no-store', headers: HEADERS }
   )
   if (!r.ok) return []
   return r.json() // Binance already oldest-first
@@ -106,12 +106,18 @@ async function binanceKlines(symbol: string): Promise<Kline[]> {
 
 // --- Scan runners ---
 
+const HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+  'Accept': 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+}
+
 async function runBybitScan(): Promise<ScanResult[]> {
   const r = await fetch(
     'https://api.bybit.com/v5/market/tickers?category=linear',
-    { cache: 'no-store' }
+    { cache: 'no-store', headers: HEADERS }
   )
-  if (!r.ok) throw new Error('Bybit tickers unavailable')
+  if (!r.ok) throw new Error(`Bybit tickers HTTP ${r.status}`)
   const d = await r.json()
 
   type BybitTicker = { symbol: string; lastPrice: string; openInterestValue: string; fundingRate: string }
@@ -153,10 +159,10 @@ async function runBybitScan(): Promise<ScanResult[]> {
 
 async function runBinanceScan(): Promise<ScanResult[]> {
   const [tickerRes, fundingRes] = await Promise.all([
-    fetch('https://fapi.binance.com/fapi/v1/ticker/24hr',  { cache: 'no-store' }),
-    fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store' }),
+    fetch('https://fapi.binance.com/fapi/v1/ticker/24hr',  { cache: 'no-store', headers: HEADERS }),
+    fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store', headers: HEADERS }),
   ])
-  if (!tickerRes.ok || !fundingRes.ok) throw new Error('Binance APIs unavailable')
+  if (!tickerRes.ok || !fundingRes.ok) throw new Error(`Binance APIs HTTP ${tickerRes.status}/${fundingRes.status}`)
 
   type BinanceTicker  = { symbol: string; lastPrice: string; quoteVolume: string }
   type BinanceFunding = { symbol: string; lastFundingRate: string }
