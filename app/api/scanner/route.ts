@@ -37,7 +37,7 @@ function calcEMA(values: number[], period: number): number[] {
 function scoreKlines(
   klines: Kline[],
   price: number,
-  fundingRate: number
+  fundingRate: number   // expects 8h-equivalent rate
 ): { score: number; signals: string[] } {
   const signals: string[] = []
   let score = 0
@@ -78,7 +78,7 @@ function scoreKlines(
   if (ratio > 1.20)   { score += 2; signals.push('heavy_bear_vol') }
   else if (ratio > 1) { score += 1; signals.push('bear_vol') }
 
-  // Signal 4 — Positive funding rate (0–3 pts)
+  // Signal 4 — Positive funding rate (0–3 pts, based on 8h-equivalent rate)
   if (fundingRate > 0.0005)      { score += 3; signals.push('high_funding') }
   else if (fundingRate > 0.0001) { score += 2; signals.push('pos_funding') }
   else if (fundingRate > 0)      { score += 1; signals.push('slight_funding') }
@@ -116,14 +116,14 @@ async function runOKXScan(): Promise<ScanResult[]> {
   ])
   if (!tickerRes.ok || !oiRes.ok) throw new Error(`OKX HTTP ${tickerRes.status}/${oiRes.status}`)
 
-  type OKXTicker  = { instId: string; last: string }
-  type OKXOIItem  = { instId: string; oiCcy: string }
+  type OKXTicker = { instId: string; last: string }
+  type OKXOIItem = { instId: string; oiCcy: string }
 
   const [tickerJson, oiJson] = await Promise.all([tickerRes.json(), oiRes.json()])
   const tickers = (tickerJson.data ?? []) as OKXTicker[]
   const oiItems = (oiJson.data   ?? []) as OKXOIItem[]
 
-  // oiCcy = OI in base currency units; USD OI = oiCcy × price
+  // oiCcy = OI in base currency; USD OI = oiCcy × price
   const oiMap = new Map(oiItems.map(i => [i.instId, parseFloat(i.oiCcy)]))
 
   const qualified = tickers
@@ -169,57 +169,72 @@ async function runOKXScan(): Promise<ScanResult[]> {
   return results.sort((a, b) => b.score - a.score).slice(0, 20)
 }
 
-// --- Binance ---
+// --- Hyperliquid ---
 
-async function binanceKlines(symbol: string): Promise<Kline[]> {
-  const r = await fetch(
-    `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=4h&limit=200`,
-    { cache: 'no-store', headers: HEADERS }
-  )
+async function hyperliquidKlines(coin: string): Promise<Kline[]> {
+  const endTime   = Date.now()
+  const startTime = endTime - 210 * 4 * 60 * 60 * 1000 // ~210 4h candles back
+
+  const r = await fetch('https://api.hyperliquid.xyz/info', {
+    method: 'POST',
+    cache:  'no-store',
+    headers: { ...HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'candleSnapshot', req: { coin, interval: '4h', startTime, endTime } }),
+  })
   if (!r.ok) return []
-  return r.json() // Binance already oldest-first
+  const candles = await r.json() as Array<{ t: number; o: string; h: string; l: string; c: string; v: string }>
+  // Hyperliquid returns oldest-first
+  return candles.map(c => [String(c.t), c.o, c.h, c.l, c.c, c.v] as Kline)
 }
 
-async function runBinanceScan(): Promise<ScanResult[]> {
-  const [tickerRes, fundingRes] = await Promise.all([
-    fetch('https://fapi.binance.com/fapi/v1/ticker/24hr',  { cache: 'no-store', headers: HEADERS }),
-    fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store', headers: HEADERS }),
-  ])
-  if (!tickerRes.ok || !fundingRes.ok) throw new Error(`Binance HTTP ${tickerRes.status}/${fundingRes.status}`)
+async function runHyperliquidScan(): Promise<ScanResult[]> {
+  // Single call returns ALL perp metadata + live context (price, OI, funding)
+  const r = await fetch('https://api.hyperliquid.xyz/info', {
+    method: 'POST',
+    cache:  'no-store',
+    headers: { ...HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
+  })
+  if (!r.ok) throw new Error(`Hyperliquid HTTP ${r.status}`)
 
-  type BinanceTicker  = { symbol: string; lastPrice: string; quoteVolume: string }
-  type BinanceFunding = { symbol: string; lastFundingRate: string }
-  const [tickers, fundings]: [BinanceTicker[], BinanceFunding[]] =
-    await Promise.all([tickerRes.json(), fundingRes.json()])
+  type HLMeta = { universe: Array<{ name: string }> }
+  type HLCtx  = { funding: string; openInterest: string; markPx: string; dayNtlVlm: string }
+  const [meta, ctxs] = await r.json() as [HLMeta, HLCtx[]]
 
-  const fundingMap = new Map(fundings.map(f => [f.symbol, parseFloat(f.lastFundingRate)]))
+  const qualified: Array<{ coin: string; price: number; oiUsd: number; funding8h: number }> = []
+  for (let i = 0; i < meta.universe.length; i++) {
+    const coin = meta.universe[i].name
+    const ctx  = ctxs[i]
+    if (!ctx?.markPx) continue
+    const price   = parseFloat(ctx.markPx)
+    const oiUsd   = parseFloat(ctx.openInterest) * price
+    if (oiUsd < 15_000_000) continue
+    // HL funding is hourly — multiply by 8 for 8h-equivalent so scoring matches OKX
+    const funding8h = parseFloat(ctx.funding) * 8
+    qualified.push({ coin, price, oiUsd, funding8h })
+  }
 
-  // Filter USDT perps, 24h USD volume > $50M (proxy for liquidity — no batch OI on Binance)
-  const qualified = tickers
-    .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 50_000_000)
-    .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
-    .slice(0, 60)
+  qualified.sort((a, b) => b.oiUsd - a.oiUsd)
+  const top = qualified.slice(0, 60)
 
   const results: ScanResult[] = []
-  for (let i = 0; i < qualified.length; i += 10) {
-    const batch   = qualified.slice(i, i + 10)
-    const settled = await Promise.allSettled(batch.map(t => binanceKlines(t.symbol)))
+  for (let i = 0; i < top.length; i += 10) {
+    const batch   = top.slice(i, i + 10)
+    const settled = await Promise.allSettled(batch.map(t => hyperliquidKlines(t.coin)))
     for (let j = 0; j < batch.length; j++) {
       const t = batch[j]
       if (settled[j].status !== 'fulfilled') continue
       const kl = (settled[j] as PromiseFulfilledResult<Kline[]>).value
       if (kl.length < 50) continue
-      const price   = parseFloat(t.lastPrice)
-      const funding = fundingMap.get(t.symbol) ?? 0
-      const { score, signals } = scoreKlines(kl, price, funding)
+      const { score, signals } = scoreKlines(kl, t.price, t.funding8h)
       results.push({
-        symbol:      t.symbol,
-        price,
-        oi_usd:      0, // Binance has no batch OI endpoint on public API
-        funding_pct: funding * 100,
+        symbol:      t.coin + 'USDT',
+        price:       t.price,
+        oi_usd:      t.oiUsd,
+        funding_pct: t.funding8h * 100,
         score,
         signals,
-        exchange:    'binance',
+        exchange:    'hyperliquid',
         scanned_at:  new Date().toISOString(),
       })
     }
@@ -267,8 +282,8 @@ export async function GET(request: Request) {
       }
     }
 
-    const results = exchange === 'binance'
-      ? await runBinanceScan()
+    const results = exchange === 'hyperliquid'
+      ? await runHyperliquidScan()
       : await runOKXScan()
 
     await sql`DELETE FROM scanner_results WHERE exchange = ${exchange}`
