@@ -70,7 +70,8 @@ const SENTIMENT_FLAG_LABELS: Record<string, { label: string; type: 'fav' | 'hos'
   dom_falling:     { label: 'BTC dominance falling — alts gaining vs BTC',              type: 'hos' },
 }
 
-function fmtPrice(p: number): string {
+function fmtPrice(p: number | null | undefined): string {
+  if (p == null || isNaN(p)) return '—'
   if (p >= 1000) return p.toLocaleString('en-US', { maximumFractionDigits: 2 })
   if (p >= 1)    return p.toFixed(4)
   return p.toFixed(6)
@@ -145,13 +146,13 @@ function SentimentBar({ s }: { s: SentimentSummary }) {
         <span className="text-zinc-700">·</span>
         <span>
           <span className="text-zinc-600">Dom </span>
-          <span className={domColor}>{s.btcDominance.toFixed(1)}% {domArrow}</span>
+          <span className={domColor}>{(s.btcDominance ?? 0).toFixed(1)}% {domArrow}</span>
         </span>
         <span className="text-zinc-700">·</span>
         <span>
           <span className="text-zinc-600">BTC Fund </span>
           <span className={s.btcFunding > 0 ? 'text-red-400' : s.btcFunding < 0 ? 'text-green-400' : 'text-zinc-500'}>
-            {s.btcFunding > 0 ? '+' : ''}{(s.btcFunding * 100).toFixed(4)}%
+            {(s.btcFunding ?? 0) > 0 ? '+' : ''}{((s.btcFunding ?? 0) * 100).toFixed(4)}%
           </span>
         </span>
         <span className="text-zinc-700">·</span>
@@ -366,8 +367,8 @@ export default function ScannerPage() {
                       </td>
                       <td className="px-4 py-3 text-zinc-300 text-sm">${fmtPrice(r.price)}</td>
                       <td className="px-4 py-3 text-zinc-400 text-sm">{fmtOI(r.oi_usd)}</td>
-                      <td className={`px-4 py-3 text-sm font-mono ${r.funding_pct > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                        {r.funding_pct > 0 ? '+' : ''}{r.funding_pct.toFixed(4)}%
+                      <td className={`px-4 py-3 text-sm font-mono ${(r.funding_pct ?? 0) > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {(r.funding_pct ?? 0) > 0 ? '+' : ''}{(r.funding_pct ?? 0).toFixed(4)}%
                       </td>
                       <td className="px-4 py-3 text-center">
                         <ScoreBadge score={displayScore} raw={r.score} />
