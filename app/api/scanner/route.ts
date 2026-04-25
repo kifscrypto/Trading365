@@ -181,7 +181,7 @@ async function runOKXScan(): Promise<RawResult[]> {
       price:  parseFloat(t.last),
       oiUsd:  (oiMap.get(t.instId) ?? 0) * parseFloat(t.last),
     }))
-    .filter(t => t.oiUsd > 15_000_000)
+    .filter(t => t.oiUsd > 50_000_000)
     .sort((a, b) => b.oiUsd - a.oiUsd)
     .slice(0, 60)
 
@@ -254,7 +254,7 @@ async function runHyperliquidScan(): Promise<RawResult[]> {
     if (!ctx?.markPx) continue
     const price     = parseFloat(ctx.markPx)
     const oiUsd     = parseFloat(ctx.openInterest) * price
-    if (oiUsd < 15_000_000) continue
+    if (oiUsd < 50_000_000) continue
     const funding8h = parseFloat(ctx.funding) * 8
     qualified.push({ coin, price, oiUsd, funding8h })
   }
@@ -430,6 +430,7 @@ export async function GET(request: Request) {
             domTrend:        first.btc_dom_trend ?? 'flat',
             btcFunding:      first.btc_funding,
             marketCondition: first.market_condition ?? 'neutral',
+            sentimentFlags:  (first.sentiment_flags as string[] | null) ?? [],
           },
           cached: true,
           exchange,
@@ -480,6 +481,7 @@ export async function GET(request: Request) {
         domTrend:        sentiment.domTrend,
         btcFunding:      sentiment.btcFunding,
         marketCondition: results[0]?.market_condition ?? 'neutral',
+        sentimentFlags:  results[0]?.sentiment_flags ?? [],
       },
       cached: false,
       exchange,

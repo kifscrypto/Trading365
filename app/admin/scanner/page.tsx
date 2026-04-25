@@ -27,6 +27,7 @@ interface SentimentSummary {
   domTrend: 'up' | 'down' | 'flat'
   btcFunding: number
   marketCondition: 'favourable' | 'neutral' | 'hostile'
+  sentimentFlags: string[]
 }
 
 const SIGNAL_LABELS: Record<string, string> = {
@@ -42,6 +43,20 @@ const SIGNAL_LABELS: Record<string, string> = {
   slight_funding:   'Fund ↑',
 }
 
+const SENTIMENT_FLAG_LABELS: Record<string, { label: string; type: 'fav' | 'hos' }> = {
+  extreme_greed:   { label: 'F&G extreme greed (≥75) — longs over-leveraged',         type: 'fav' },
+  greed:           { label: 'F&G greed (≥60) — elevated long positioning',              type: 'fav' },
+  extreme_fear:    { label: 'F&G extreme fear (≤20) — panic selling, late to short',   type: 'hos' },
+  fear:            { label: 'F&G fear (≤35) — crowd defensive, low conviction',         type: 'hos' },
+  btc_high_longs:  { label: 'BTC funding >0.03%/8h — longs dangerously over-extended', type: 'fav' },
+  btc_pos_funding: { label: 'BTC funding positive — longs paying shorts',               type: 'fav' },
+  btc_crowd_short: { label: 'BTC funding negative — crowd already short, squeeze risk', type: 'hos' },
+  btc_bearish:     { label: 'BTC structure bearish — below 50EMA + lower highs',        type: 'fav' },
+  btc_bullish:     { label: 'BTC structure bullish — above 50EMA, alts may recover',    type: 'hos' },
+  dom_rising:      { label: 'BTC dominance rising — capital rotating from alts to BTC', type: 'fav' },
+  dom_falling:     { label: 'BTC dominance falling — alts gaining vs BTC',              type: 'hos' },
+}
+
 function fmtPrice(p: number): string {
   if (p >= 1000) return p.toLocaleString('en-US', { maximumFractionDigits: 2 })
   if (p >= 1)    return p.toFixed(4)
@@ -52,6 +67,14 @@ function fmtOI(v: number): string {
   if (!v) return '—'
   if (v >= 1e9) return `$${(v / 1e9).toFixed(2)}B`
   return `$${(v / 1e6).toFixed(1)}M`
+}
+
+function timeAgoStr(isoDate: string): string {
+  const diff = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000)
+  if (diff < 10)   return 'just now'
+  if (diff < 60)   return `${diff}s ago`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  return `${Math.floor(diff / 3600)}h ago`
 }
 
 function ScoreBadge({ score, raw }: { score: number; raw: number }) {
@@ -73,6 +96,8 @@ function ScoreBadge({ score, raw }: { score: number; raw: number }) {
 }
 
 function SentimentBar({ s }: { s: SentimentSummary }) {
+  const [showFlags, setShowFlags] = useState(false)
+
   const fngColor = s.fng >= 75 ? 'text-red-400'
                  : s.fng >= 60 ? 'text-amber-400'
                  : s.fng <= 25 ? 'text-green-400'
@@ -89,36 +114,66 @@ function SentimentBar({ s }: { s: SentimentSummary }) {
   const domColor = s.domTrend === 'up' ? 'text-amber-400' : s.domTrend === 'down' ? 'text-zinc-500' : 'text-zinc-600'
 
   const mcColor = s.marketCondition === 'hostile'
-    ? 'bg-red-950 border-red-800 text-red-300'
+    ? 'bg-red-950 border-red-800 text-red-300 hover:bg-red-900'
     : s.marketCondition === 'favourable'
-    ? 'bg-green-950 border-green-800 text-green-300'
-    : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+    ? 'bg-green-950 border-green-800 text-green-300 hover:bg-green-900'
+    : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
 
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-4 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono">
-      <span className="text-zinc-500 font-medium">BTC Sentiment</span>
-      <span className="text-zinc-700">·</span>
-      <span>
-        <span className="text-zinc-600">F&G </span>
-        <span className={fngColor}>{s.fng}</span>
-        <span className="text-zinc-600 ml-1">({fngLabel})</span>
-      </span>
-      <span className="text-zinc-700">·</span>
-      <span>
-        <span className="text-zinc-600">Dom </span>
-        <span className={domColor}>{s.btcDominance.toFixed(1)}% {domArrow}</span>
-      </span>
-      <span className="text-zinc-700">·</span>
-      <span>
-        <span className="text-zinc-600">BTC Fund </span>
-        <span className={s.btcFunding > 0 ? 'text-red-400' : s.btcFunding < 0 ? 'text-green-400' : 'text-zinc-500'}>
-          {s.btcFunding > 0 ? '+' : ''}{(s.btcFunding * 100).toFixed(4)}%
+    <div className="mb-4">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono">
+        <span className="text-zinc-500 font-medium">BTC Sentiment</span>
+        <span className="text-zinc-700">·</span>
+        <span>
+          <span className="text-zinc-600">F&G </span>
+          <span className={fngColor}>{s.fng}</span>
+          <span className="text-zinc-600 ml-1">({fngLabel})</span>
         </span>
-      </span>
-      <span className="text-zinc-700">·</span>
-      <span className={`px-2 py-0.5 rounded border text-xs uppercase tracking-wider font-bold ${mcColor}`}>
-        {s.marketCondition}
-      </span>
+        <span className="text-zinc-700">·</span>
+        <span>
+          <span className="text-zinc-600">Dom </span>
+          <span className={domColor}>{s.btcDominance.toFixed(1)}% {domArrow}</span>
+        </span>
+        <span className="text-zinc-700">·</span>
+        <span>
+          <span className="text-zinc-600">BTC Fund </span>
+          <span className={s.btcFunding > 0 ? 'text-red-400' : s.btcFunding < 0 ? 'text-green-400' : 'text-zinc-500'}>
+            {s.btcFunding > 0 ? '+' : ''}{(s.btcFunding * 100).toFixed(4)}%
+          </span>
+        </span>
+        <span className="text-zinc-700">·</span>
+        <button
+          onClick={() => setShowFlags(v => !v)}
+          title="Click to see why"
+          className={`px-2 py-0.5 rounded border text-xs uppercase tracking-wider font-bold transition-colors cursor-pointer ${mcColor}`}
+        >
+          {s.marketCondition} {showFlags ? '▴' : '▾'}
+        </button>
+      </div>
+
+      {showFlags && (
+        <div className="mt-1 px-4 py-3 bg-zinc-900/80 border border-zinc-800 border-t-0 rounded-b-xl text-xs font-mono space-y-2">
+          <p className="text-zinc-600 uppercase tracking-widest text-[10px] mb-1">Why {s.marketCondition}</p>
+          {s.sentimentFlags.length === 0 ? (
+            <p className="text-zinc-600">No signals fired — neutral by default.</p>
+          ) : (
+            s.sentimentFlags.map(flag => {
+              const meta = SENTIMENT_FLAG_LABELS[flag]
+              const isFav = meta?.type === 'fav'
+              return (
+                <div key={flag} className="flex items-start gap-2">
+                  <span className={isFav ? 'text-green-500' : 'text-red-500'}>
+                    {isFav ? '↑' : '↓'}
+                  </span>
+                  <span className={isFav ? 'text-zinc-300' : 'text-zinc-400'}>
+                    {meta?.label ?? flag}
+                  </span>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -133,6 +188,7 @@ export default function ScannerPage() {
   const [error,     setError]     = useState('')
   const [cached,    setCached]    = useState(false)
   const [scanTime,  setScanTime]  = useState<string | null>(null)
+  const [timeAgo,   setTimeAgo]   = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/check-session').then(r => {
@@ -140,6 +196,15 @@ export default function ScannerPage() {
       else        setLoading(false)
     }).catch(() => router.push('/admin'))
   }, [router])
+
+  // Live "X ago" counter
+  useEffect(() => {
+    if (!scanTime) { setTimeAgo(null); return }
+    const tick = () => setTimeAgo(timeAgoStr(scanTime))
+    tick()
+    const id = setInterval(tick, 15_000)
+    return () => clearInterval(id)
+  }, [scanTime])
 
   const fetchResults = useCallback(async (refresh = false) => {
     setScanning(true)
@@ -174,8 +239,8 @@ export default function ScannerPage() {
         <div>
           <h1 className="text-zinc-100 text-lg font-bold tracking-tight">Altcoin Short Scanner</h1>
           <p className="text-zinc-600 text-xs mt-1">
-            {scanTime
-              ? `${cached ? '⚡ cached' : '🔄 live'} · ${new Date(scanTime).toLocaleTimeString()}`
+            {timeAgo
+              ? <>{cached ? '⚡ cached' : '🔄 live'} · scanned <span className="text-zinc-500">{timeAgo}</span></>
               : 'EMA200 (3pt) · lower highs (2pt) · bear vol (2pt) · funding (3pt) · BTC sentiment adj'}
           </p>
         </div>
@@ -309,7 +374,7 @@ export default function ScannerPage() {
       </div>
 
       <p className="mt-3 text-right text-zinc-700 text-xs">
-        Cached 5 min · OI filter &gt;$15M · {exchange === 'hyperliquid' ? 'funding normalised to 8h' : 'OKX USDT perps'} · BTC sentiment adjusted
+        Cached 5 min · OI filter &gt;$50M · {exchange === 'hyperliquid' ? 'funding normalised to 8h' : 'OKX USDT perps'} · BTC sentiment adjusted
       </p>
     </div>
   )
