@@ -17,7 +17,12 @@ interface ScanResult {
   scanned_at: string
 }
 
-// --- Maths ---
+const HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+  'Accept': 'application/json',
+}
+
+// --- Scoring ---
 
 function calcEMA(values: number[], period: number): number[] {
   const k = 2 / (period + 1)
@@ -52,7 +57,6 @@ function scoreKlines(
   }
 
   // Signal 2 — Lower highs structure (0–2 pts)
-  // Compare average high of last 10 candles vs prior 10 candles
   if (highs.length >= 20) {
     const slice  = highs.slice(-20)
     const recent = slice.slice(10).reduce((a, b) => a + b, 0) / 10
@@ -82,18 +86,90 @@ function scoreKlines(
   return { score, signals }
 }
 
-// --- Exchange fetchers ---
+// --- OKX ---
 
-async function bybitKlines(symbol: string): Promise<Kline[]> {
+async function okxKlines(instId: string): Promise<Kline[]> {
   const r = await fetch(
-    `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=240&limit=200`,
+    `https://www.okx.com/api/v5/market/candles?instId=${instId}&bar=4H&limit=200`,
     { cache: 'no-store', headers: HEADERS }
   )
   if (!r.ok) return []
   const d = await r.json()
-  // Bybit returns newest-first → reverse to oldest-first
-  return ((d.result?.list ?? []) as Kline[]).reverse()
+  // OKX: [ts, open, high, low, close, vol, volCcy, volCcyQuote, confirm] — newest first
+  return ((d.data ?? []) as Kline[]).reverse()
 }
+
+async function okxFunding(instId: string): Promise<number> {
+  const r = await fetch(
+    `https://www.okx.com/api/v5/public/funding-rate?instId=${instId}`,
+    { cache: 'no-store', headers: HEADERS }
+  )
+  if (!r.ok) return 0
+  const d = await r.json()
+  return parseFloat(d.data?.[0]?.fundingRate ?? '0')
+}
+
+async function runOKXScan(): Promise<ScanResult[]> {
+  const [tickerRes, oiRes] = await Promise.all([
+    fetch('https://www.okx.com/api/v5/market/tickers?instType=SWAP', { cache: 'no-store', headers: HEADERS }),
+    fetch('https://www.okx.com/api/v5/public/open-interest?instType=SWAP', { cache: 'no-store', headers: HEADERS }),
+  ])
+  if (!tickerRes.ok || !oiRes.ok) throw new Error(`OKX HTTP ${tickerRes.status}/${oiRes.status}`)
+
+  type OKXTicker  = { instId: string; last: string }
+  type OKXOIItem  = { instId: string; oiCcy: string }
+
+  const [tickerJson, oiJson] = await Promise.all([tickerRes.json(), oiRes.json()])
+  const tickers = (tickerJson.data ?? []) as OKXTicker[]
+  const oiItems = (oiJson.data   ?? []) as OKXOIItem[]
+
+  // oiCcy = OI in base currency units; USD OI = oiCcy × price
+  const oiMap = new Map(oiItems.map(i => [i.instId, parseFloat(i.oiCcy)]))
+
+  const qualified = tickers
+    .filter(t => t.instId.endsWith('-USDT-SWAP'))
+    .map(t => ({
+      instId: t.instId,
+      price:  parseFloat(t.last),
+      oiUsd:  (oiMap.get(t.instId) ?? 0) * parseFloat(t.last),
+    }))
+    .filter(t => t.oiUsd > 15_000_000)
+    .sort((a, b) => b.oiUsd - a.oiUsd)
+    .slice(0, 60)
+
+  const results: ScanResult[] = []
+  for (let i = 0; i < qualified.length; i += 10) {
+    const batch = qualified.slice(i, i + 10)
+    const [klineRes, fundingRes] = await Promise.all([
+      Promise.allSettled(batch.map(t => okxKlines(t.instId))),
+      Promise.allSettled(batch.map(t => okxFunding(t.instId))),
+    ])
+    for (let j = 0; j < batch.length; j++) {
+      const t = batch[j]
+      if (klineRes[j].status !== 'fulfilled') continue
+      const kl = (klineRes[j] as PromiseFulfilledResult<Kline[]>).value
+      if (kl.length < 50) continue
+      const funding = fundingRes[j].status === 'fulfilled'
+        ? (fundingRes[j] as PromiseFulfilledResult<number>).value
+        : 0
+      const { score, signals } = scoreKlines(kl, t.price, funding)
+      results.push({
+        symbol:      t.instId.replace('-USDT-SWAP', 'USDT'),
+        price:       t.price,
+        oi_usd:      t.oiUsd,
+        funding_pct: funding * 100,
+        score,
+        signals,
+        exchange:    'okx',
+        scanned_at:  new Date().toISOString(),
+      })
+    }
+  }
+
+  return results.sort((a, b) => b.score - a.score).slice(0, 20)
+}
+
+// --- Binance ---
 
 async function binanceKlines(symbol: string): Promise<Kline[]> {
   const r = await fetch(
@@ -104,65 +180,12 @@ async function binanceKlines(symbol: string): Promise<Kline[]> {
   return r.json() // Binance already oldest-first
 }
 
-// --- Scan runners ---
-
-const HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-  'Accept': 'application/json',
-  'Accept-Language': 'en-US,en;q=0.9',
-}
-
-async function runBybitScan(): Promise<ScanResult[]> {
-  const r = await fetch(
-    'https://api.bybit.com/v5/market/tickers?category=linear',
-    { cache: 'no-store', headers: HEADERS }
-  )
-  if (!r.ok) throw new Error(`Bybit tickers HTTP ${r.status}`)
-  const d = await r.json()
-
-  type BybitTicker = { symbol: string; lastPrice: string; openInterestValue: string; fundingRate: string }
-  const tickers = (d.result?.list ?? []) as BybitTicker[]
-
-  // Filter USDT perps with OI > $15M, take top 60 by OI
-  const qualified = tickers
-    .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.openInterestValue) > 15_000_000)
-    .sort((a, b) => parseFloat(b.openInterestValue) - parseFloat(a.openInterestValue))
-    .slice(0, 60)
-
-  const results: ScanResult[] = []
-  for (let i = 0; i < qualified.length; i += 10) {
-    const batch   = qualified.slice(i, i + 10)
-    const settled = await Promise.allSettled(batch.map(t => bybitKlines(t.symbol)))
-    for (let j = 0; j < batch.length; j++) {
-      const t = batch[j]
-      if (settled[j].status !== 'fulfilled') continue
-      const kl = (settled[j] as PromiseFulfilledResult<Kline[]>).value
-      if (kl.length < 50) continue
-      const price   = parseFloat(t.lastPrice)
-      const funding = parseFloat(t.fundingRate)
-      const { score, signals } = scoreKlines(kl, price, funding)
-      results.push({
-        symbol:      t.symbol,
-        price,
-        oi_usd:      parseFloat(t.openInterestValue),
-        funding_pct: funding * 100,
-        score,
-        signals,
-        exchange:    'bybit',
-        scanned_at:  new Date().toISOString(),
-      })
-    }
-  }
-
-  return results.sort((a, b) => b.score - a.score).slice(0, 20)
-}
-
 async function runBinanceScan(): Promise<ScanResult[]> {
   const [tickerRes, fundingRes] = await Promise.all([
     fetch('https://fapi.binance.com/fapi/v1/ticker/24hr',  { cache: 'no-store', headers: HEADERS }),
     fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store', headers: HEADERS }),
   ])
-  if (!tickerRes.ok || !fundingRes.ok) throw new Error(`Binance APIs HTTP ${tickerRes.status}/${fundingRes.status}`)
+  if (!tickerRes.ok || !fundingRes.ok) throw new Error(`Binance HTTP ${tickerRes.status}/${fundingRes.status}`)
 
   type BinanceTicker  = { symbol: string; lastPrice: string; quoteVolume: string }
   type BinanceFunding = { symbol: string; lastFundingRate: string }
@@ -171,7 +194,7 @@ async function runBinanceScan(): Promise<ScanResult[]> {
 
   const fundingMap = new Map(fundings.map(f => [f.symbol, parseFloat(f.lastFundingRate)]))
 
-  // Filter USDT perps with 24h USD volume > $50M (proxy for liquidity)
+  // Filter USDT perps, 24h USD volume > $50M (proxy for liquidity — no batch OI on Binance)
   const qualified = tickers
     .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.quoteVolume) > 50_000_000)
     .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
@@ -192,7 +215,7 @@ async function runBinanceScan(): Promise<ScanResult[]> {
       results.push({
         symbol:      t.symbol,
         price,
-        oi_usd:      0, // not batch-available on Binance public API
+        oi_usd:      0, // Binance has no batch OI endpoint on public API
         funding_pct: funding * 100,
         score,
         signals,
@@ -209,13 +232,12 @@ async function runBinanceScan(): Promise<ScanResult[]> {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const exchange     = (searchParams.get('exchange') ?? 'bybit').toLowerCase()
+  const exchange     = (searchParams.get('exchange') ?? 'okx').toLowerCase()
   const forceRefresh = searchParams.get('refresh') === '1'
 
   const sql = neon(process.env.DATABASE_URL!)
 
   try {
-    // Auto-create table on first use
     await sql`
       CREATE TABLE IF NOT EXISTS scanner_results (
         id          SERIAL PRIMARY KEY,
@@ -225,22 +247,15 @@ export async function GET(request: Request) {
         funding_pct NUMERIC,
         score       INTEGER,
         signals     JSONB        DEFAULT '[]',
-        exchange    TEXT         DEFAULT 'bybit',
+        exchange    TEXT         DEFAULT 'okx',
         scanned_at  TIMESTAMPTZ  DEFAULT NOW()
       )
     `
 
-    // Return cached results if < 5 min old
     if (!forceRefresh) {
       const cached = await sql`
-        SELECT symbol,
-               price::float,
-               oi_usd::float,
-               funding_pct::float,
-               score,
-               signals,
-               exchange,
-               scanned_at
+        SELECT symbol, price::float, oi_usd::float, funding_pct::float,
+               score, signals, exchange, scanned_at
         FROM   scanner_results
         WHERE  exchange   = ${exchange}
           AND  scanned_at > NOW() - INTERVAL '5 minutes'
@@ -252,26 +267,19 @@ export async function GET(request: Request) {
       }
     }
 
-    // Fresh scan
     const results = exchange === 'binance'
       ? await runBinanceScan()
-      : await runBybitScan()
+      : await runOKXScan()
 
-    // Replace cached rows for this exchange
     await sql`DELETE FROM scanner_results WHERE exchange = ${exchange}`
     await Promise.all(
       results.map(r => sql`
         INSERT INTO scanner_results
           (symbol, price, oi_usd, funding_pct, score, signals, exchange, scanned_at)
         VALUES (
-          ${r.symbol},
-          ${r.price},
-          ${r.oi_usd},
-          ${r.funding_pct},
-          ${r.score},
-          ${JSON.stringify(r.signals)}::jsonb,
-          ${r.exchange},
-          ${r.scanned_at}::timestamptz
+          ${r.symbol}, ${r.price}, ${r.oi_usd}, ${r.funding_pct},
+          ${r.score}, ${JSON.stringify(r.signals)}::jsonb,
+          ${r.exchange}, ${r.scanned_at}::timestamptz
         )
       `)
     )
