@@ -468,14 +468,20 @@ export async function fetchBtcSentimentData(sql: SqlClient): Promise<SentimentCo
 // --- Signal history tables ---
 
 export async function setupSignalTables(sql: SqlClient): Promise<void> {
-  // If old entries-route scanner_signals exists (wrong schema), rename it
+  // If old entries-route scanner_signals exists (wrong schema), migrate it
   await sql`
     DO $$ BEGIN
       IF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'scanner_signals' AND column_name = 'entry_price'
       ) THEN
-        EXECUTE 'ALTER TABLE scanner_signals RENAME TO telegram_alerts';
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.tables WHERE table_name = 'telegram_alerts'
+        ) THEN
+          EXECUTE 'ALTER TABLE scanner_signals RENAME TO telegram_alerts';
+        ELSE
+          EXECUTE 'DROP TABLE scanner_signals';
+        END IF;
       END IF;
     END $$
   `
