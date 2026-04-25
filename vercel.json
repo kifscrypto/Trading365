@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/scanner/watchlist",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/scanner/entries",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}
