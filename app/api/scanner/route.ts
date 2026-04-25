@@ -1,7 +1,7 @@
 import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 import {
-  runOKXScan, runHyperliquidScan,
+  runOKXScan, runHyperliquidScan, runMEXCScan,
   fetchBtcSentimentData, applyBtcSentiment,
   setupSignalTables, logSignals,
   type RawResult,
@@ -98,7 +98,9 @@ export async function GET(request: Request) {
     }
 
     const [rawResults, sentiment] = await Promise.all([
-      exchange === 'hyperliquid' ? runHyperliquidScan() : runOKXScan(),
+      exchange === 'hyperliquid' ? runHyperliquidScan()
+      : exchange === 'mexc'      ? runMEXCScan()
+      : runOKXScan(),
       fetchBtcSentimentData(sql),
     ])
 

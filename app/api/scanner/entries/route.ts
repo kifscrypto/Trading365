@@ -1,7 +1,7 @@
 import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 import {
-  okx1hKlines, hyperliquid1hKlines,
+  okx1hKlines, hyperliquid1hKlines, mexcKlines,
   calcRSI, calcMACD,
   type Kline,
 } from '@/app/api/scanner/_core'
@@ -137,7 +137,12 @@ export async function GET(request: Request) {
             const coin = (item.symbol as string).replace('USDT', '')
             return hyperliquid1hKlines(coin)
           }
-          // OKX: BTCUSDT -> BTC-USDT-SWAP
+          if (item.exchange === 'mexc') {
+            // BTCUSDT → BTC_USDT
+            const mexcSym = (item.symbol as string).replace('USDT', '_USDT')
+            return mexcKlines(mexcSym, 'Min60', 105)
+          }
+          // OKX: BTCUSDT → BTC-USDT-SWAP
           const instId = (item.symbol as string).replace('USDT', '-USDT-SWAP')
           return okx1hKlines(instId)
         })
@@ -188,7 +193,9 @@ export async function GET(request: Request) {
         `
 
         const displaySymbol  = (item.symbol as string).replace('USDT', '')
-        const exchangeLabel  = item.exchange === 'hyperliquid' ? 'Hyperliquid' : 'OKX'
+        const exchangeLabel  = item.exchange === 'hyperliquid' ? 'Hyperliquid'
+                             : item.exchange === 'mexc'        ? 'MEXC'
+                             : 'OKX'
         const allSignalKeys  = [...(item.signals as string[]), ...entrySignals]
         const signalStr      = allSignalKeys.map(s => SIGNAL_DISPLAY[s] ?? s).join(', ')
 

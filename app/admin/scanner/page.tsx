@@ -260,7 +260,7 @@ export default function ScannerPage() {
 
         <div className="flex items-center gap-3">
           <div className="flex gap-0.5 bg-zinc-900 rounded-lg p-1">
-            {(['okx', 'hyperliquid'] as const).map(ex => (
+            {(['okx', 'hyperliquid', 'mexc'] as const).map(ex => (
               <button
                 key={ex}
                 onClick={() => setExchange(ex)}
@@ -394,7 +394,11 @@ export default function ScannerPage() {
       </div>
 
       <p className="mt-3 text-right text-zinc-700 text-xs">
-        Cached 5 min · OI filter &gt;$50M · {exchange === 'hyperliquid' ? 'funding normalised to 8h' : 'OKX USDT perps'} · BTC sentiment adjusted
+        Cached 5 min · OI filter &gt;$50M · {
+          exchange === 'hyperliquid' ? 'funding normalised to 8h' :
+          exchange === 'mexc'        ? 'MEXC USDT perps' :
+          'OKX USDT perps'
+        } · BTC sentiment adjusted
       </p>
     </div>
   )

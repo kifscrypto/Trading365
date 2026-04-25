@@ -271,6 +271,98 @@ export async function runOKXScan(): Promise<RawResult[]> {
   return results.sort((a, b) => b.score - a.score).slice(0, 20)
 }
 
+// --- MEXC ---
+
+const MEXC_BASE = 'https://api.mexc.com/api/v1/contract'
+
+type MEXCKlineData = {
+  time: number[]
+  open: string[]
+  high: string[]
+  low: string[]
+  close: string[]
+  vol: string[]
+}
+
+export async function mexcKlines(symbol: string, interval: string, lookback: number): Promise<Kline[]> {
+  const end   = Math.floor(Date.now() / 1000)
+  const intervalSec = interval === 'Hour4' ? 4 * 3600 : interval === 'Min60' ? 3600 : 86400
+  const start = end - lookback * intervalSec
+  const r = await fetch(
+    `${MEXC_BASE}/kline/${symbol}?interval=${interval}&start=${start}&end=${end}`,
+    { cache: 'no-store', headers: HEADERS }
+  )
+  if (!r.ok) return []
+  const d = await r.json()
+  if (!d.success || !d.data?.time?.length) return []
+  const { time, open, high, low, close, vol } = d.data as MEXCKlineData
+  // MEXC returns seconds; oldest-first (already ascending)
+  return time.map((t, i) => [String(t * 1000), open[i], high[i], low[i], close[i], vol[i]] as Kline)
+}
+
+export async function runMEXCScan(): Promise<RawResult[]> {
+  const [detailRes, tickerRes] = await Promise.all([
+    fetch(`${MEXC_BASE}/detail`,  { cache: 'no-store', headers: HEADERS }),
+    fetch(`${MEXC_BASE}/ticker`,  { cache: 'no-store', headers: HEADERS }),
+  ])
+  if (!detailRes.ok) throw new Error(`MEXC detail HTTP ${detailRes.status}`)
+  if (!tickerRes.ok) throw new Error(`MEXC ticker HTTP ${tickerRes.status}`)
+
+  type MEXCDetail = { symbol: string; quoteCoin: string; state: number; contractSize: number; fundingRate: string | number }
+  type MEXCTicker = { symbol: string; lastPrice: string | number; holdVol: string | number }
+
+  const [detailJson, tickerJson] = await Promise.all([detailRes.json(), tickerRes.json()])
+  if (!detailJson.success || !tickerJson.success) throw new Error('MEXC API returned error')
+
+  const details   = (detailJson.data ?? []) as MEXCDetail[]
+  const tickers   = (tickerJson.data  ?? []) as MEXCTicker[]
+  const tickerMap = new Map(tickers.map(t => [t.symbol, t]))
+
+  const qualified: Array<{ symbol: string; price: number; oiUsd: number; funding: number }> = []
+  for (const d of details) {
+    if (d.quoteCoin !== 'USDT' || d.state !== 0) continue
+    const ticker = tickerMap.get(d.symbol)
+    if (!ticker) continue
+    const price = parseFloat(String(ticker.lastPrice))
+    if (!price) continue
+    const oiUsd = parseFloat(String(ticker.holdVol)) * d.contractSize * price
+    if (oiUsd < 50_000_000) continue
+    qualified.push({ symbol: d.symbol, price, oiUsd, funding: parseFloat(String(d.fundingRate)) })
+  }
+  qualified.sort((a, b) => b.oiUsd - a.oiUsd)
+  const top = qualified.slice(0, 40)
+
+  const results: RawResult[] = []
+  for (let i = 0; i < top.length; i += 10) {
+    const batch = top.slice(i, i + 10)
+    const [klineRes, dailyRes] = await Promise.all([
+      Promise.allSettled(batch.map(t => mexcKlines(t.symbol, 'Hour4', 210))),
+      Promise.allSettled(batch.map(t => mexcKlines(t.symbol, 'Day1',  215))),
+    ])
+    for (let j = 0; j < batch.length; j++) {
+      const t = batch[j]
+      if (klineRes[j].status !== 'fulfilled') continue
+      const kl = (klineRes[j] as PromiseFulfilledResult<Kline[]>).value
+      if (kl.length < 50) continue
+      const dailyKl = dailyRes[j].status === 'fulfilled'
+        ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
+      const { score, signals, skip } = scoreKlines(kl, dailyKl, t.price, t.funding)
+      if (skip) continue
+      results.push({
+        symbol:      t.symbol.replace('_', ''),   // BTC_USDT → BTCUSDT
+        price:       t.price,
+        oi_usd:      t.oiUsd,
+        funding_pct: t.funding * 100,
+        score,
+        signals,
+        exchange:    'mexc',
+        scanned_at:  new Date().toISOString(),
+      })
+    }
+  }
+  return results.sort((a, b) => b.score - a.score).slice(0, 20)
+}
+
 // --- Hyperliquid ---
 
 export async function hyperliquidKlines(coin: string): Promise<Kline[]> {

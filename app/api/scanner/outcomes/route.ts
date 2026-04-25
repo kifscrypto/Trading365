@@ -30,6 +30,20 @@ async function fetchHLPrices(): Promise<Map<string, number>> {
   )
 }
 
+async function fetchMEXCPrices(): Promise<Map<string, number>> {
+  const r = await fetch('https://api.mexc.com/api/v1/contract/ticker', {
+    cache: 'no-store', headers: HEADERS,
+  })
+  if (!r.ok) return new Map()
+  const d = await r.json()
+  if (!d.success) return new Map()
+  return new Map(
+    ((d.data ?? []) as Array<{ symbol: string; lastPrice: string | number }>)
+      .filter(t => t.symbol.endsWith('_USDT'))
+      .map(t => [t.symbol.replace('_', ''), parseFloat(String(t.lastPrice))])
+  )
+}
+
 export async function GET(request: Request) {
   const url     = new URL(request.url)
   const isCron  = url.searchParams.get('cron') === 'true'
@@ -75,20 +89,24 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, processed: 0, note: 'no pending outcomes' })
     }
 
-    const hasOKX = signals.some(s => s.exchange === 'okx')
-    const hasHL  = signals.some(s => s.exchange === 'hyperliquid')
+    const hasOKX  = signals.some(s => s.exchange === 'okx')
+    const hasHL   = signals.some(s => s.exchange === 'hyperliquid')
+    const hasMEXC = signals.some(s => s.exchange === 'mexc')
 
     // Single batch price fetch per exchange
-    const [okxPrices, hlPrices] = await Promise.all([
-      hasOKX ? fetchOKXPrices() : Promise.resolve(new Map<string, number>()),
-      hasHL  ? fetchHLPrices()  : Promise.resolve(new Map<string, number>()),
+    const [okxPrices, hlPrices, mexcPrices] = await Promise.all([
+      hasOKX  ? fetchOKXPrices()  : Promise.resolve(new Map<string, number>()),
+      hasHL   ? fetchHLPrices()   : Promise.resolve(new Map<string, number>()),
+      hasMEXC ? fetchMEXCPrices() : Promise.resolve(new Map<string, number>()),
     ])
 
     let processed = 0
     const rows: Array<{ symbol: string; hours: number; pct: number }> = []
 
     for (const sig of signals) {
-      const priceMap   = sig.exchange === 'hyperliquid' ? hlPrices : okxPrices
+      const priceMap = sig.exchange === 'hyperliquid' ? hlPrices
+                     : sig.exchange === 'mexc'        ? mexcPrices
+                     : okxPrices
       const currentPrice = priceMap.get(sig.symbol as string)
       if (!currentPrice) continue
 

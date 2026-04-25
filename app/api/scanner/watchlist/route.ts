@@ -1,7 +1,7 @@
 import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 import {
-  runOKXScan, runHyperliquidScan,
+  runOKXScan, runHyperliquidScan, runMEXCScan,
   fetchBtcSentimentData, applyBtcSentiment,
   logSignals,
 } from '@/app/api/scanner/_core'
@@ -36,14 +36,15 @@ export async function GET(request: Request) {
       )
     `
 
-    // Both exchanges + BTC sentiment in parallel
-    const [okxResults, hlResults, sentiment] = await Promise.all([
+    // All three exchanges + BTC sentiment in parallel
+    const [okxResults, hlResults, mexcResults, sentiment] = await Promise.all([
       runOKXScan(),
       runHyperliquidScan(),
+      runMEXCScan(),
       fetchBtcSentimentData(sql),
     ])
 
-    const allResults = [...okxResults, ...hlResults].map(r => {
+    const allResults = [...okxResults, ...hlResults, ...mexcResults].map(r => {
       const { adjustedScore, marketCondition, sentimentFlags } = applyBtcSentiment(r.score, sentiment)
       return { ...r, adjusted_score: adjustedScore, market_condition: marketCondition, sentiment_flags: sentimentFlags }
     })
@@ -69,6 +70,7 @@ export async function GET(request: Request) {
       count:     allResults.length,
       okx:       okxResults.length,
       hl:        hlResults.length,
+      mexc:      mexcResults.length,
       sentiment: { fng: sentiment.fng, marketCondition: allResults[0]?.market_condition ?? 'neutral' },
     })
   } catch (err) {
