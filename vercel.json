@@ -1,15 +1,15 @@
 {
   "crons": [
     {
-      "path": "/api/scanner/watchlist",
+      "path": "/api/scanner/watchlist?cron=true",
       "schedule": "0 */4 * * *"
     },
     {
-      "path": "/api/scanner/entries",
+      "path": "/api/scanner/entries?cron=true",
       "schedule": "*/15 * * * *"
     },
     {
-      "path": "/api/scanner/outcomes",
+      "path": "/api/scanner/outcomes?cron=true",
       "schedule": "0 * * * *"
     }
   ]

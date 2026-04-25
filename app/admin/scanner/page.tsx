@@ -225,7 +225,7 @@ export default function ScannerPage() {
     try {
       const r = await fetch(`/api/scanner?exchange=${exchange}${refresh ? '&refresh=1' : ''}`)
       const d = await r.json()
-      if (!r.ok) throw new Error(d.error ?? 'Scan failed')
+      if (!r.ok) throw new Error(d.detail ? `${d.error ?? 'Scan failed'}: ${d.detail}` : (d.error ?? 'Scan failed'))
       setResults(d.results ?? [])
       setSentiment(d.sentiment ?? null)
       setCached(!!d.cached)
@@ -282,6 +282,13 @@ export default function ScannerPage() {
           >
             {scanning ? '⏳ Scanning (20–30s)…' : '↻ Refresh'}
           </button>
+
+          <a
+            href="/admin/scanner/performance"
+            className="px-4 py-1.5 rounded-lg border border-zinc-700 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+          >
+            Performance →
+          </a>
 
           <a href="/admin" className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors">
             ← Admin

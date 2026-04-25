@@ -20,10 +20,23 @@ interface ScanResult extends RawResult {
   sentiment_flags: string[]
 }
 
+function isAuthorized(request: Request): boolean {
+  const url = new URL(request.url)
+  if (url.searchParams.get('cron') === 'true') return true
+  if (request.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`) return true
+  const cookies = request.headers.get('cookie') ?? ''
+  return cookies.split(';').some(c => c.trim().startsWith('admin_auth='))
+}
+
 export async function GET(request: Request) {
+  if (!isAuthorized(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(request.url)
   const exchange     = (searchParams.get('exchange') ?? 'okx').toLowerCase()
-  const forceRefresh = searchParams.get('refresh') === '1'
+  const isCron       = searchParams.get('cron') === 'true'
+  const forceRefresh = isCron || searchParams.get('refresh') === '1'
 
   const sql = neon(process.env.DATABASE_URL!)
 

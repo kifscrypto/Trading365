@@ -558,6 +558,12 @@ export default function AdminPage() {
             Scanner →
           </button>
           <button
+            onClick={() => router.push('/admin/scanner/performance')}
+            className="text-sm text-green-400 hover:text-green-300 font-medium"
+          >
+            Performance →
+          </button>
+          <button
             onClick={() => router.push('/admin/seo')}
             className="text-sm text-purple-400 hover:text-purple-300 font-medium"
           >

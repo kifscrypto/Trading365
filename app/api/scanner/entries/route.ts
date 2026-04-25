@@ -82,7 +82,16 @@ async function sendTelegram(text: string): Promise<void> {
 
 // --- Route ---
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url     = new URL(request.url)
+  const isCron  = url.searchParams.get('cron') === 'true'
+  const auth    = request.headers.get('authorization')
+  const cookies = request.headers.get('cookie') ?? ''
+  const hasSession = cookies.split(';').some(c => c.trim().startsWith('admin_auth='))
+  if (!isCron && auth !== `Bearer ${process.env.CRON_SECRET}` && !hasSession) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const sql = neon(process.env.DATABASE_URL!)
 
   try {
