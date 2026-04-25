@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import {
   runOKXScan, runHyperliquidScan,
   fetchBtcSentimentData, applyBtcSentiment,
+  logSignals,
 } from '@/app/api/scanner/_core'
 
 export const maxDuration = 60
@@ -37,6 +38,8 @@ export async function GET() {
       const { adjustedScore, marketCondition, sentimentFlags } = applyBtcSentiment(r.score, sentiment)
       return { ...r, adjusted_score: adjustedScore, market_condition: marketCondition, sentiment_flags: sentimentFlags }
     })
+
+    await logSignals(sql, allResults)
 
     // Insert first, then clean up old rows — no gap window for entries cron
     await Promise.all(

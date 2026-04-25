@@ -87,7 +87,7 @@ export async function GET() {
 
   try {
     await sql`
-      CREATE TABLE IF NOT EXISTS scanner_signals (
+      CREATE TABLE IF NOT EXISTS telegram_alerts (
         id               SERIAL PRIMARY KEY,
         symbol           TEXT        NOT NULL,
         exchange         TEXT        NOT NULL,
@@ -149,7 +149,7 @@ export async function GET() {
 
         // Deduplicate: skip if already triggered this symbol in the last 4h
         const recent = await sql`
-          SELECT id FROM scanner_signals
+          SELECT id FROM telegram_alerts
           WHERE  symbol    = ${item.symbol as string}
             AND  exchange  = ${item.exchange as string}
             AND  triggered_at > NOW() - INTERVAL '4 hours'
@@ -166,7 +166,7 @@ export async function GET() {
         const stopPrice  = swingHigh(klines)
 
         await sql`
-          INSERT INTO scanner_signals
+          INSERT INTO telegram_alerts
             (symbol, exchange, entry_price, stop_price, score, adjusted_score, signals, entry_signals, market_condition)
           VALUES (
             ${item.symbol as string}, ${item.exchange as string},

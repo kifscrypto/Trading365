@@ -464,3 +464,93 @@ export async function fetchBtcSentimentData(sql: SqlClient): Promise<SentimentCo
     return { fng: 50, btcDominance: 0, btcFunding: 0, btcStructure: 'neutral', domTrend: 'flat' }
   }
 }
+
+// --- Signal history tables ---
+
+export async function setupSignalTables(sql: SqlClient): Promise<void> {
+  // If old entries-route scanner_signals exists (wrong schema), rename it
+  await sql`
+    DO $$ BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scanner_signals' AND column_name = 'entry_price'
+      ) THEN
+        EXECUTE 'ALTER TABLE scanner_signals RENAME TO telegram_alerts';
+      END IF;
+    END $$
+  `
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS scanner_signals (
+      id               SERIAL PRIMARY KEY,
+      symbol           VARCHAR(20)   NOT NULL,
+      exchange         VARCHAR(20)   NOT NULL,
+      price_at_signal  DECIMAL(20,8) NOT NULL,
+      score            INTEGER       NOT NULL,
+      raw_score        INTEGER       NOT NULL,
+      signals          TEXT[]        NOT NULL,
+      market_condition VARCHAR(20)   NOT NULL,
+      fng              INTEGER,
+      oi_usd           DECIMAL(20,2),
+      funding_rate     DECIMAL(10,6),
+      scanned_at       TIMESTAMP     DEFAULT NOW()
+    )
+  `
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS scanner_outcomes (
+      id          SERIAL PRIMARY KEY,
+      signal_id   INTEGER REFERENCES scanner_signals(id),
+      hours_after INTEGER       NOT NULL,
+      price       DECIMAL(20,8) NOT NULL,
+      pct_change  DECIMAL(8,4)  NOT NULL,
+      recorded_at TIMESTAMP     DEFAULT NOW()
+    )
+  `
+}
+
+export interface LoggableResult {
+  symbol: string
+  exchange: string
+  price: number
+  score: number          // raw score
+  adjusted_score: number // BTC-sentiment adjusted
+  signals: string[]
+  market_condition: string
+  fng: number
+  oi_usd: number
+  funding_pct: number    // already ×100, e.g. 0.01 means 0.01%
+}
+
+export async function logSignals(sql: SqlClient, results: LoggableResult[]): Promise<number> {
+  let logged = 0
+  for (const r of results) {
+    if (r.adjusted_score < 5) continue
+
+    const recent = await sql`
+      SELECT id FROM scanner_signals
+      WHERE  symbol   = ${r.symbol}
+        AND  exchange = ${r.exchange}
+        AND  scanned_at > NOW() - INTERVAL '4 hours'
+      LIMIT 1
+    `
+    if (recent.length > 0) continue
+
+    // Build Postgres TEXT[] literal — signal names are safe snake_case + symbols
+    const signalsLiteral = `{${r.signals.map(s => `"${s}"`).join(',')}}`
+
+    await sql`
+      INSERT INTO scanner_signals
+        (symbol, exchange, price_at_signal, score, raw_score, signals, market_condition, fng, oi_usd, funding_rate)
+      VALUES (
+        ${r.symbol}, ${r.exchange}, ${r.price},
+        ${r.adjusted_score}, ${r.score},
+        ${signalsLiteral}::text[],
+        ${r.market_condition},
+        ${r.fng}, ${r.oi_usd}, ${r.funding_pct / 100}
+      )
+    `
+    logged++
+  }
+  return logged
+}

@@ -7,6 +7,10 @@
     {
       "path": "/api/scanner/entries",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/scanner/outcomes",
+      "schedule": "0 * * * *"
     }
   ]
 }

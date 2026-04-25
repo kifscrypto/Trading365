@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import {
   runOKXScan, runHyperliquidScan,
   fetchBtcSentimentData, applyBtcSentiment,
+  setupSignalTables, logSignals,
   type RawResult,
 } from '@/app/api/scanner/_core'
 
@@ -40,6 +41,8 @@ export async function GET(request: Request) {
         scanned_at  TIMESTAMPTZ  DEFAULT NOW()
       )
     `
+    await setupSignalTables(sql)
+
     await Promise.all([
       sql`ALTER TABLE scanner_results ADD COLUMN IF NOT EXISTS fng             INTEGER`,
       sql`ALTER TABLE scanner_results ADD COLUMN IF NOT EXISTS btc_dominance   NUMERIC`,
@@ -99,6 +102,8 @@ export async function GET(request: Request) {
         sentiment_flags:  sentimentFlags,
       }
     }).sort((a, b) => b.adjusted_score - a.adjusted_score)
+
+    await logSignals(sql, results)
 
     await sql`DELETE FROM scanner_results WHERE exchange = ${exchange}`
     await Promise.all(
