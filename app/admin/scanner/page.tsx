@@ -12,6 +12,21 @@ interface ScanResult {
   signals: string[] | null
   exchange: string
   scanned_at: string
+  adjusted_score: number | null
+  fng: number | null
+  btc_dominance: number | null
+  btc_funding: number | null
+  btc_dom_trend: string | null
+  market_condition: 'favourable' | 'neutral' | 'hostile' | null
+  sentiment_flags: string[] | null
+}
+
+interface SentimentSummary {
+  fng: number
+  btcDominance: number
+  domTrend: 'up' | 'down' | 'flat'
+  btcFunding: number
+  marketCondition: 'favourable' | 'neutral' | 'hostile'
 }
 
 const SIGNAL_LABELS: Record<string, string> = {
@@ -39,28 +54,85 @@ function fmtOI(v: number): string {
   return `$${(v / 1e6).toFixed(1)}M`
 }
 
-function ScoreBadge({ score }: { score: number }) {
+function ScoreBadge({ score, raw }: { score: number; raw: number }) {
   let cls = 'bg-zinc-800 border-zinc-700 text-zinc-400'
   if (score >= 7)      cls = 'bg-red-950 border-red-800 text-red-300'
   else if (score >= 5) cls = 'bg-amber-950 border-amber-800 text-amber-300'
   else if (score >= 3) cls = 'bg-yellow-950 border-yellow-800 text-yellow-300'
 
   return (
-    <span className={`inline-block px-2.5 py-0.5 rounded border text-xs font-bold font-mono min-w-[28px] text-center ${cls}`}>
-      {score}
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`inline-block px-2.5 py-0.5 rounded border text-xs font-bold font-mono min-w-[28px] text-center ${cls}`}>
+        {score}
+      </span>
+      {score !== raw && (
+        <span className="text-zinc-700 text-xs font-mono">({raw})</span>
+      )}
     </span>
+  )
+}
+
+function SentimentBar({ s }: { s: SentimentSummary }) {
+  const fngColor = s.fng >= 75 ? 'text-red-400'
+                 : s.fng >= 60 ? 'text-amber-400'
+                 : s.fng <= 25 ? 'text-green-400'
+                 : s.fng <= 40 ? 'text-emerald-400'
+                 : 'text-zinc-400'
+
+  const fngLabel = s.fng >= 75 ? 'Extreme Greed'
+                 : s.fng >= 60 ? 'Greed'
+                 : s.fng >= 40 ? 'Neutral'
+                 : s.fng >= 25 ? 'Fear'
+                 : 'Extreme Fear'
+
+  const domArrow = s.domTrend === 'up' ? '↑' : s.domTrend === 'down' ? '↓' : '→'
+  const domColor = s.domTrend === 'up' ? 'text-amber-400' : s.domTrend === 'down' ? 'text-zinc-500' : 'text-zinc-600'
+
+  const mcColor = s.marketCondition === 'hostile'
+    ? 'bg-red-950 border-red-800 text-red-300'
+    : s.marketCondition === 'favourable'
+    ? 'bg-green-950 border-green-800 text-green-300'
+    : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 mb-4 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono">
+      <span className="text-zinc-500 font-medium">BTC Sentiment</span>
+      <span className="text-zinc-700">·</span>
+      <span>
+        <span className="text-zinc-600">F&G </span>
+        <span className={fngColor}>{s.fng}</span>
+        <span className="text-zinc-600 ml-1">({fngLabel})</span>
+      </span>
+      <span className="text-zinc-700">·</span>
+      <span>
+        <span className="text-zinc-600">Dom </span>
+        <span className={domColor}>{s.btcDominance.toFixed(1)}% {domArrow}</span>
+      </span>
+      <span className="text-zinc-700">·</span>
+      <span>
+        <span className="text-zinc-600">BTC Fund </span>
+        <span className={s.btcFunding > 0 ? 'text-red-400' : s.btcFunding < 0 ? 'text-green-400' : 'text-zinc-500'}>
+          {s.btcFunding > 0 ? '+' : ''}{(s.btcFunding * 100).toFixed(4)}%
+        </span>
+      </span>
+      <span className="text-zinc-700">·</span>
+      <span className={`px-2 py-0.5 rounded border text-xs uppercase tracking-wider font-bold ${mcColor}`}>
+        {s.marketCondition}
+      </span>
+    </div>
   )
 }
 
 export default function ScannerPage() {
   const router = useRouter()
-  const [exchange, setExchange] = useState('okx')
-  const [results,  setResults]  = useState<ScanResult[]>([])
-  const [loading,  setLoading]  = useState(true)
-  const [scanning, setScanning] = useState(false)
-  const [error,    setError]    = useState('')
-  const [cached,   setCached]   = useState(false)
-  const [scanTime, setScanTime] = useState<string | null>(null)
+  const [exchange,  setExchange]  = useState('okx')
+  const [results,   setResults]   = useState<ScanResult[]>([])
+  const [sentiment, setSentiment] = useState<SentimentSummary | null>(null)
+  const [loading,   setLoading]   = useState(true)
+  const [scanning,  setScanning]  = useState(false)
+  const [error,     setError]     = useState('')
+  const [cached,    setCached]    = useState(false)
+  const [scanTime,  setScanTime]  = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/check-session').then(r => {
@@ -77,6 +149,7 @@ export default function ScannerPage() {
       const d = await r.json()
       if (!r.ok) throw new Error(d.error ?? 'Scan failed')
       setResults(d.results ?? [])
+      setSentiment(d.sentiment ?? null)
       setCached(!!d.cached)
       if (d.results?.length) setScanTime(d.results[0].scanned_at)
     } catch (e) {
@@ -103,12 +176,11 @@ export default function ScannerPage() {
           <p className="text-zinc-600 text-xs mt-1">
             {scanTime
               ? `${cached ? '⚡ cached' : '🔄 live'} · ${new Date(scanTime).toLocaleTimeString()}`
-              : 'EMA200 (3pt) · lower highs (2pt) · bear vol (2pt) · funding (3pt)'}
+              : 'EMA200 (3pt) · lower highs (2pt) · bear vol (2pt) · funding (3pt) · BTC sentiment adj'}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Exchange tabs */}
           <div className="flex gap-0.5 bg-zinc-900 rounded-lg p-1">
             {(['okx', 'hyperliquid'] as const).map(ex => (
               <button
@@ -125,7 +197,6 @@ export default function ScannerPage() {
             ))}
           </div>
 
-          {/* Refresh */}
           <button
             disabled={scanning}
             onClick={() => !scanning && fetchResults(true)}
@@ -140,6 +211,16 @@ export default function ScannerPage() {
         </div>
       </div>
 
+      {/* Hostile banner */}
+      {sentiment?.marketCondition === 'hostile' && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-red-950/60 border border-red-800 text-red-300 text-xs font-mono">
+          ⚠ BTC sentiment hostile — short conviction reduced. Scores adjusted.
+        </div>
+      )}
+
+      {/* Sentiment bar */}
+      {sentiment && <SentimentBar s={sentiment} />}
+
       {/* Legend */}
       <div className="flex flex-wrap gap-4 mb-5">
         {[
@@ -152,6 +233,7 @@ export default function ScannerPage() {
             <span className="text-zinc-500 text-xs">{label}</span>
           </div>
         ))}
+        <span className="text-zinc-700 text-xs self-center">· score = adj · (raw)</span>
       </div>
 
       {/* Error */}
@@ -183,40 +265,43 @@ export default function ScannerPage() {
                 </tr>
               </thead>
               <tbody>
-                {results.map((r, i) => (
-                  <tr
-                    key={r.symbol}
-                    className={`border-b border-zinc-800 hover:bg-zinc-800/40 transition-colors ${
-                      i % 2 === 0 ? 'bg-zinc-900' : 'bg-zinc-900/50'
-                    }`}
-                  >
-                    <td className="px-4 py-3 text-zinc-600 text-xs">{i + 1}</td>
-                    <td className="px-4 py-3 font-bold text-sm tracking-wide">
-                      <span className="text-zinc-100">{r.symbol.replace('USDT', '')}</span>
-                      <span className="text-zinc-700 font-normal">USDT</span>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-300 text-sm">${fmtPrice(r.price)}</td>
-                    <td className="px-4 py-3 text-zinc-400 text-sm">{fmtOI(r.oi_usd)}</td>
-                    <td className={`px-4 py-3 text-sm font-mono ${r.funding_pct > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                      {r.funding_pct > 0 ? '+' : ''}{r.funding_pct.toFixed(4)}%
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <ScoreBadge score={r.score} />
-                    </td>
-                    <td className="px-4 py-3 max-w-xs">
-                      <div className="flex flex-wrap gap-1">
-                        {(Array.isArray(r.signals) ? r.signals : []).map(s => (
-                          <span
-                            key={s}
-                            className="inline-block px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 text-xs whitespace-nowrap"
-                          >
-                            {SIGNAL_LABELS[s] ?? s}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {results.map((r, i) => {
+                  const displayScore = r.adjusted_score ?? r.score
+                  return (
+                    <tr
+                      key={r.symbol}
+                      className={`border-b border-zinc-800 hover:bg-zinc-800/40 transition-colors ${
+                        i % 2 === 0 ? 'bg-zinc-900' : 'bg-zinc-900/50'
+                      }`}
+                    >
+                      <td className="px-4 py-3 text-zinc-600 text-xs">{i + 1}</td>
+                      <td className="px-4 py-3 font-bold text-sm tracking-wide">
+                        <span className="text-zinc-100">{r.symbol.replace('USDT', '')}</span>
+                        <span className="text-zinc-700 font-normal">USDT</span>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-300 text-sm">${fmtPrice(r.price)}</td>
+                      <td className="px-4 py-3 text-zinc-400 text-sm">{fmtOI(r.oi_usd)}</td>
+                      <td className={`px-4 py-3 text-sm font-mono ${r.funding_pct > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {r.funding_pct > 0 ? '+' : ''}{r.funding_pct.toFixed(4)}%
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <ScoreBadge score={displayScore} raw={r.score} />
+                      </td>
+                      <td className="px-4 py-3 max-w-xs">
+                        <div className="flex flex-wrap gap-1">
+                          {(Array.isArray(r.signals) ? r.signals : []).map(s => (
+                            <span
+                              key={s}
+                              className="inline-block px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 text-xs whitespace-nowrap"
+                            >
+                              {SIGNAL_LABELS[s] ?? s}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -224,7 +309,7 @@ export default function ScannerPage() {
       </div>
 
       <p className="mt-3 text-right text-zinc-700 text-xs">
-        Cached 5 min · OI filter >$15M · {exchange === 'hyperliquid' ? 'funding normalised to 8h' : 'OKX USDT perps'}
+        Cached 5 min · OI filter &gt;$15M · {exchange === 'hyperliquid' ? 'funding normalised to 8h' : 'OKX USDT perps'} · BTC sentiment adjusted
       </p>
     </div>
   )
