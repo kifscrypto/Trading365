@@ -31,16 +31,29 @@ interface SentimentSummary {
 }
 
 const SIGNAL_LABELS: Record<string, string> = {
+  // EMA (ema_-X% signals fall through and display as-is)
   far_below_200ema: '↓↓ EMA200',
   below_200ema:     '↓ EMA200',
   near_200ema:      '≈ EMA200',
+  // Structure
   lower_highs:      'LH ✓✓',
   weak_lower_highs: 'LH ✓',
+  // Volume
   heavy_bear_vol:   'Vol Bear ✓✓',
   bear_vol:         'Vol Bear ✓',
+  // Funding
   high_funding:     'Fund ↑↑↑',
   pos_funding:      'Fund ↑↑',
   slight_funding:   'Fund ↑',
+  // RSI
+  rsi_ob:           'RSI OB',
+  rsi_div:          'RSI Div',
+  // MACD
+  macd_bear:        'MACD Bear',
+  macd_zero:        'MACD <0',
+  // Daily
+  d_200ema:         'D 200EMA',
+  d_lh:             'D LH',
 }
 
 const SENTIMENT_FLAG_LABELS: Record<string, { label: string; type: 'fav' | 'hos' }> = {

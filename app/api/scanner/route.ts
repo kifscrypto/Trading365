@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 
 export const maxDuration = 60
-const ROUTE_VERSION = 'v5-btc-sentiment'
+const ROUTE_VERSION = 'v6-multitf-rsi-macd'
 
 type Kline = [string, string, string, string, string, string, ...string[]]
 type SqlClient = ReturnType<typeof neon>
@@ -41,7 +41,7 @@ const HEADERS = {
   'Accept': 'application/json',
 }
 
-// --- Scoring ---
+// --- Indicators ---
 
 function calcEMA(values: number[], period: number): number[] {
   const k = 2 / (period + 1)
@@ -53,27 +53,65 @@ function calcEMA(values: number[], period: number): number[] {
   return out
 }
 
+function calcRSI(closes: number[], period = 14): number {
+  let gains = 0, losses = 0
+  for (let i = 1; i <= period; i++) {
+    const diff = closes[i] - closes[i - 1]
+    if (diff >= 0) gains += diff; else losses -= diff
+  }
+  let avgGain = gains / period
+  let avgLoss = losses / period
+  for (let i = period + 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1]
+    avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period
+    avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period
+  }
+  return avgLoss === 0 ? 100 : 100 - (100 / (1 + avgGain / avgLoss))
+}
+
+function calcMACD(closes: number[]): { macd: number; signal: number } {
+  const ema12 = calcEMA(closes, 12)
+  const ema26 = calcEMA(closes, 26)
+  const macdLine = ema12.map((v, i) => v - ema26[i])
+  const signalLine = calcEMA(macdLine, 9)
+  return {
+    macd:   macdLine[macdLine.length - 1],
+    signal: signalLine[signalLine.length - 1],
+  }
+}
+
+// --- Scoring (max raw ~15) ---
+
 function scoreKlines(
   klines: Kline[],
+  dailyKlines: Kline[],
   price: number,
-  fundingRate: number
-): { score: number; signals: string[] } {
+  fundingRate: number   // 8h-equivalent rate
+): { score: number; signals: string[]; skip: boolean } {
   const signals: string[] = []
   let score = 0
-  if (klines.length < 50) return { score, signals }
+
+  if (klines.length < 50) return { score, signals, skip: false }
 
   const closes = klines.map(k => parseFloat(k[4]))
   const highs  = klines.map(k => parseFloat(k[2]))
+  const lows   = klines.map(k => parseFloat(k[3]))
 
+  // Signal 1 — EMA200 distance banding (0–2 pts)
   if (closes.length >= 200) {
     const ema200 = calcEMA(closes, 200)
     const e = ema200[ema200.length - 1]
     const pctBelow = (e - price) / e
-    if (pctBelow > 0.10)      { score += 3; signals.push('far_below_200ema') }
-    else if (pctBelow > 0.02) { score += 2; signals.push('below_200ema') }
-    else if (pctBelow > 0)    { score += 1; signals.push('near_200ema') }
+    if (pctBelow >= 0.25) {
+      score += 2
+      signals.push(`ema_-${Math.round(pctBelow * 100)}%`)
+    } else if (pctBelow >= 0.10) {
+      score += 1
+      signals.push(`ema_-${Math.round(pctBelow * 100)}%`)
+    }
   }
 
+  // Signal 2 — 4H lower highs structure (0–2 pts)
   if (highs.length >= 20) {
     const slice  = highs.slice(-20)
     const recent = slice.slice(10).reduce((a, b) => a + b, 0) / 10
@@ -83,6 +121,7 @@ function scoreKlines(
     else if (drop > 0) { score += 1; signals.push('weak_lower_highs') }
   }
 
+  // Signal 3 — Bear candles carry more volume (0–2 pts)
   const last50 = klines.slice(-50)
   let bearV = 0, bearN = 0, bullV = 0, bullN = 0
   for (const k of last50) {
@@ -94,46 +133,53 @@ function scoreKlines(
   if (ratio > 1.20)   { score += 2; signals.push('heavy_bear_vol') }
   else if (ratio > 1) { score += 1; signals.push('bear_vol') }
 
+  // Signal 4 — Positive funding rate (0–3 pts)
   if (fundingRate > 0.0005)      { score += 3; signals.push('high_funding') }
   else if (fundingRate > 0.0001) { score += 2; signals.push('pos_funding') }
   else if (fundingRate > 0)      { score += 1; signals.push('slight_funding') }
 
-  return { score, signals }
-}
+  // Signal 5 — RSI (skip if <30; +1 if >70)
+  if (closes.length >= 15) {
+    const rsi = calcRSI(closes)
+    if (rsi < 30) return { score: 0, signals: [], skip: true }
+    if (rsi > 70) { score += 1; signals.push('rsi_ob') }
 
-function applyBtcSentiment(rawScore: number, s: SentimentCondition): {
-  adjustedScore: number
-  marketCondition: 'favourable' | 'neutral' | 'hostile'
-  sentimentFlags: string[]
-} {
-  const sentimentFlags: string[] = []
-  let fav = 0
-  let hos = 0
+    // Signal 6 — Bearish RSI divergence (0–2 pts)
+    // Price making higher lows but RSI making lower lows
+    if (closes.length >= 15 && lows.length >= 10) {
+      const recentLow = Math.min(...lows.slice(-5))
+      const priorLow  = Math.min(...lows.slice(-10, -5))
+      const rsiPrev   = calcRSI(closes.slice(0, -5))
+      if (recentLow > priorLow && rsi < rsiPrev) {
+        score += 2; signals.push('rsi_div')
+      }
+    }
+  }
 
-  if (s.fng >= 75)      { sentimentFlags.push('extreme_greed'); fav += 2 }
-  else if (s.fng >= 60) { sentimentFlags.push('greed');         fav += 1 }
-  else if (s.fng <= 20) { sentimentFlags.push('extreme_fear');  hos += 2 }
-  else if (s.fng <= 35) { sentimentFlags.push('fear');          hos += 1 }
+  // Signal 7 — MACD (0–2 pts)
+  if (closes.length >= 35) {
+    const { macd, signal: macdSig } = calcMACD(closes)
+    if (macd < macdSig) { score += 1; signals.push('macd_bear') }
+    if (macd < 0 && macdSig < 0) { score += 1; signals.push('macd_zero') }
+  }
 
-  if (s.btcFunding > 0.0003)       { sentimentFlags.push('btc_high_longs');  fav += 1 }
-  else if (s.btcFunding > 0)       { sentimentFlags.push('btc_pos_funding'); fav += 1 }
-  else if (s.btcFunding < -0.0001) { sentimentFlags.push('btc_crowd_short'); hos += 1 }
+  // Signal 8 — Daily 200 EMA + lower highs (0–2 pts)
+  if (dailyKlines.length >= 200) {
+    const dCloses = dailyKlines.map(k => parseFloat(k[4]))
+    const dHighs  = dailyKlines.map(k => parseFloat(k[2]))
+    const dPrice  = dCloses[dCloses.length - 1]
+    const dEma200 = calcEMA(dCloses, 200)
+    if (dPrice < dEma200[dEma200.length - 1]) { score += 1; signals.push('d_200ema') }
 
-  if (s.btcStructure === 'bearish')  { sentimentFlags.push('btc_bearish'); fav += 1 }
-  else if (s.btcStructure === 'bullish') { sentimentFlags.push('btc_bullish'); hos += 1 }
+    if (dHighs.length >= 20) {
+      const dSlice  = dHighs.slice(-20)
+      const dRecent = dSlice.slice(10).reduce((a, b) => a + b, 0) / 10
+      const dPrev   = dSlice.slice(0, 10).reduce((a, b) => a + b, 0) / 10
+      if ((dPrev - dRecent) / dPrev > 0.03) { score += 1; signals.push('d_lh') }
+    }
+  }
 
-  if (s.domTrend === 'up')        { sentimentFlags.push('dom_rising');  fav += 1 }
-  else if (s.domTrend === 'down') { sentimentFlags.push('dom_falling'); hos += 1 }
-
-  const marketCondition: 'favourable' | 'neutral' | 'hostile' =
-    hos >= 2 && hos >= fav ? 'hostile' :
-    fav >= 2               ? 'favourable' :
-                             'neutral'
-
-  const delta = marketCondition === 'hostile' ? -2 : marketCondition === 'favourable' ? 1 : 0
-  const adjustedScore = Math.max(0, Math.min(10, rawScore + delta))
-
-  return { adjustedScore, marketCondition, sentimentFlags }
+  return { score, signals, skip: false }
 }
 
 // --- OKX ---
@@ -141,6 +187,16 @@ function applyBtcSentiment(rawScore: number, s: SentimentCondition): {
 async function okxKlines(instId: string): Promise<Kline[]> {
   const r = await fetch(
     `https://www.okx.com/api/v5/market/candles?instId=${instId}&bar=4H&limit=200`,
+    { cache: 'no-store', headers: HEADERS }
+  )
+  if (!r.ok) return []
+  const d = await r.json()
+  return ((d.data ?? []) as Kline[]).reverse()
+}
+
+async function okxDailyKlines(instId: string): Promise<Kline[]> {
+  const r = await fetch(
+    `https://www.okx.com/api/v5/market/candles?instId=${instId}&bar=1D&limit=210`,
     { cache: 'no-store', headers: HEADERS }
   )
   if (!r.ok) return []
@@ -183,14 +239,15 @@ async function runOKXScan(): Promise<RawResult[]> {
     }))
     .filter(t => t.oiUsd > 50_000_000)
     .sort((a, b) => b.oiUsd - a.oiUsd)
-    .slice(0, 60)
+    .slice(0, 40)
 
   const results: RawResult[] = []
   for (let i = 0; i < qualified.length; i += 10) {
     const batch = qualified.slice(i, i + 10)
-    const [klineRes, fundingRes] = await Promise.all([
+    const [klineRes, fundingRes, dailyRes] = await Promise.all([
       Promise.allSettled(batch.map(t => okxKlines(t.instId))),
       Promise.allSettled(batch.map(t => okxFunding(t.instId))),
+      Promise.allSettled(batch.map(t => okxDailyKlines(t.instId))),
     ])
     for (let j = 0; j < batch.length; j++) {
       const t = batch[j]
@@ -200,7 +257,11 @@ async function runOKXScan(): Promise<RawResult[]> {
       const funding = fundingRes[j].status === 'fulfilled'
         ? (fundingRes[j] as PromiseFulfilledResult<number>).value
         : 0
-      const { score, signals } = scoreKlines(kl, t.price, funding)
+      const dailyKl = dailyRes[j].status === 'fulfilled'
+        ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value
+        : []
+      const { score, signals, skip } = scoreKlines(kl, dailyKl, t.price, funding)
+      if (skip) continue
       results.push({
         symbol:      t.instId.replace('-USDT-SWAP', 'USDT'),
         price:       t.price,
@@ -234,6 +295,21 @@ async function hyperliquidKlines(coin: string): Promise<Kline[]> {
   return candles.map(c => [String(c.t), c.o, c.h, c.l, c.c, c.v] as Kline)
 }
 
+async function hyperliquidDailyKlines(coin: string): Promise<Kline[]> {
+  const endTime   = Date.now()
+  const startTime = endTime - 215 * 24 * 60 * 60 * 1000
+
+  const r = await fetch('https://api.hyperliquid.xyz/info', {
+    method: 'POST',
+    cache:  'no-store',
+    headers: { ...HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'candleSnapshot', req: { coin, interval: '1d', startTime, endTime } }),
+  })
+  if (!r.ok) return []
+  const candles = await r.json() as Array<{ t: number; o: string; h: string; l: string; c: string; v: string }>
+  return candles.map(c => [String(c.t), c.o, c.h, c.l, c.c, c.v] as Kline)
+}
+
 async function runHyperliquidScan(): Promise<RawResult[]> {
   const r = await fetch('https://api.hyperliquid.xyz/info', {
     method: 'POST',
@@ -260,18 +336,25 @@ async function runHyperliquidScan(): Promise<RawResult[]> {
   }
 
   qualified.sort((a, b) => b.oiUsd - a.oiUsd)
-  const top = qualified.slice(0, 60)
+  const top = qualified.slice(0, 40)
 
   const results: RawResult[] = []
   for (let i = 0; i < top.length; i += 10) {
     const batch   = top.slice(i, i + 10)
-    const settled = await Promise.allSettled(batch.map(t => hyperliquidKlines(t.coin)))
+    const [klineRes, dailyRes] = await Promise.all([
+      Promise.allSettled(batch.map(t => hyperliquidKlines(t.coin))),
+      Promise.allSettled(batch.map(t => hyperliquidDailyKlines(t.coin))),
+    ])
     for (let j = 0; j < batch.length; j++) {
       const t = batch[j]
-      if (settled[j].status !== 'fulfilled') continue
-      const kl = (settled[j] as PromiseFulfilledResult<Kline[]>).value
+      if (klineRes[j].status !== 'fulfilled') continue
+      const kl = (klineRes[j] as PromiseFulfilledResult<Kline[]>).value
       if (kl.length < 50) continue
-      const { score, signals } = scoreKlines(kl, t.price, t.funding8h)
+      const dailyKl = dailyRes[j].status === 'fulfilled'
+        ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value
+        : []
+      const { score, signals, skip } = scoreKlines(kl, dailyKl, t.price, t.funding8h)
+      if (skip) continue
       results.push({
         symbol:      t.coin + 'USDT',
         price:       t.price,
@@ -289,6 +372,41 @@ async function runHyperliquidScan(): Promise<RawResult[]> {
 }
 
 // --- BTC Sentiment ---
+
+function applyBtcSentiment(rawScore: number, s: SentimentCondition): {
+  adjustedScore: number
+  marketCondition: 'favourable' | 'neutral' | 'hostile'
+  sentimentFlags: string[]
+} {
+  const sentimentFlags: string[] = []
+  let fav = 0
+  let hos = 0
+
+  if (s.fng >= 75)      { sentimentFlags.push('extreme_greed'); fav += 2 }
+  else if (s.fng >= 60) { sentimentFlags.push('greed');         fav += 1 }
+  else if (s.fng <= 20) { sentimentFlags.push('extreme_fear');  hos += 2 }
+  else if (s.fng <= 35) { sentimentFlags.push('fear');          hos += 1 }
+
+  if (s.btcFunding > 0.0003)       { sentimentFlags.push('btc_high_longs');  fav += 1 }
+  else if (s.btcFunding > 0)       { sentimentFlags.push('btc_pos_funding'); fav += 1 }
+  else if (s.btcFunding < -0.0001) { sentimentFlags.push('btc_crowd_short'); hos += 1 }
+
+  if (s.btcStructure === 'bearish')  { sentimentFlags.push('btc_bearish'); fav += 1 }
+  else if (s.btcStructure === 'bullish') { sentimentFlags.push('btc_bullish'); hos += 1 }
+
+  if (s.domTrend === 'up')        { sentimentFlags.push('dom_rising');  fav += 1 }
+  else if (s.domTrend === 'down') { sentimentFlags.push('dom_falling'); hos += 1 }
+
+  const marketCondition: 'favourable' | 'neutral' | 'hostile' =
+    hos >= 2 && hos >= fav ? 'hostile' :
+    fav >= 2               ? 'favourable' :
+                             'neutral'
+
+  const delta = marketCondition === 'hostile' ? -2 : marketCondition === 'favourable' ? 1 : 0
+  const adjustedScore = Math.max(0, Math.min(15, rawScore + delta))
+
+  return { adjustedScore, marketCondition, sentimentFlags }
+}
 
 async function fetchBtcSentimentData(sql: SqlClient): Promise<SentimentCondition> {
   try {
