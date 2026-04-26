@@ -31,6 +31,13 @@ export const HEADERS = {
   'Accept': 'application/json',
 }
 
+const MIN_OI: Record<string, number> = {
+  bybit:        20_000_000,
+  okx:          20_000_000,
+  hyperliquid:  10_000_000,
+  mexc:          8_000_000,
+}
+
 // --- Indicators ---
 
 export function calcEMA(values: number[], period: number): number[] {
@@ -239,9 +246,9 @@ export async function runOKXScan(): Promise<RawResult[]> {
       price:  parseFloat(t.last),
       oiUsd:  (oiMap.get(t.instId) ?? 0) * parseFloat(t.last),
     }))
-    .filter(t => t.oiUsd > 50_000_000)
+    .filter(t => t.oiUsd >= MIN_OI.okx)
     .sort((a, b) => b.oiUsd - a.oiUsd)
-    .slice(0, 40)
+    .slice(0, 100)
 
   const results: RawResult[] = []
   for (let i = 0; i < qualified.length; i += 10) {
@@ -332,11 +339,11 @@ export async function runMEXCScan(): Promise<RawResult[]> {
     const price = parseFloat(String(ticker.lastPrice))
     if (!price) continue
     const oiUsd = parseFloat(String(ticker.holdVol)) * d.contractSize * price
-    if (oiUsd < 50_000_000) continue
+    if (oiUsd < MIN_OI.mexc) continue
     qualified.push({ symbol: d.symbol, price, oiUsd, funding: parseFloat(String(d.fundingRate)) })
   }
   qualified.sort((a, b) => b.oiUsd - a.oiUsd)
-  const top = qualified.slice(0, 40)
+  const top = qualified.slice(0, 100)
 
   const results: RawResult[] = []
   for (let i = 0; i < top.length; i += 10) {
@@ -429,12 +436,12 @@ export async function runHyperliquidScan(): Promise<RawResult[]> {
     if (!ctx?.markPx) continue
     const price     = parseFloat(ctx.markPx)
     const oiUsd     = parseFloat(ctx.openInterest) * price
-    if (oiUsd < 50_000_000) continue
+    if (oiUsd < MIN_OI.hyperliquid) continue
     qualified.push({ coin, price, oiUsd, funding8h: parseFloat(ctx.funding) * 8 })
   }
 
   qualified.sort((a, b) => b.oiUsd - a.oiUsd)
-  const top = qualified.slice(0, 40)
+  const top = qualified.slice(0, 100)
 
   const results: RawResult[] = []
   for (let i = 0; i < top.length; i += 10) {
