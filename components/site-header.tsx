@@ -23,7 +23,7 @@ const navLinks = [
   { href: "/no-kyc", label: "No-KYC" },
   { href: "/bonuses", label: "Bonuses" },
   { href: "/guides", label: "Guides" },
-  { href: "/scanner", label: "Signals" },
+  { href: "/scanner", label: "Scanner" },
   { href: "/join-our-newsletter", label: "Newsletter" },
 ]
 
