@@ -24,7 +24,6 @@ const navLinks = [
   { href: "/bonuses", label: "Bonuses" },
   { href: "/guides", label: "Guides" },
   { href: "/scanner", label: "Scanner" },
-  { href: "/join-our-newsletter", label: "Newsletter" },
 ]
 
 export function SiteHeader() {
