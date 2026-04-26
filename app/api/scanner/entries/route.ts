@@ -131,6 +131,12 @@ export async function GET(request: Request) {
       ORDER BY symbol, exchange, created_at DESC
     `
 
+    // Stage 1 — watchlist read
+    console.log(`[entries] watchlist: ${watchlist.length} symbols found`)
+    for (const w of watchlist) {
+      console.log(`[entries]   ${w.symbol} (${w.exchange}) score=${w.score} adjusted=${w.adjusted_score}`)
+    }
+
     if (watchlist.length === 0) {
       return NextResponse.json({ ok: true, checked: 0, triggered: 0, note: 'watchlist empty' })
     }
@@ -160,14 +166,24 @@ export async function GET(request: Request) {
 
       for (let j = 0; j < batch.length; j++) {
         const item = batch[j]
-        if (klineResults[j].status !== 'fulfilled') continue
+        const sym  = item.symbol as string
+
+        // Stage 2 — kline fetch result
+        if (klineResults[j].status !== 'fulfilled') {
+          console.log(`[entries] ${sym} kline fetch FAILED:`, (klineResults[j] as PromiseRejectedResult).reason)
+          continue
+        }
         const klines = (klineResults[j] as PromiseFulfilledResult<Kline[]>).value
-        if (klines.length < 36) continue
+        if (klines.length < 36) {
+          console.log(`[entries] ${sym} skipped — only ${klines.length} klines (need 36)`)
+          continue
+        }
 
         const macdCross   = checkMACDCross(klines)
         const rsiFalling  = checkRSIFalling(klines)
         const engulfing   = checkBearishEngulfing(klines)
         const firedCount  = [macdCross, rsiFalling, engulfing].filter(Boolean).length
+        console.log(`[entries] ${sym} 1H triggers — MACD cross:${macdCross} RSI falling:${rsiFalling} Engulfing:${engulfing} → firedCount:${firedCount}`)
 
         if (firedCount < 2) continue
 
@@ -179,25 +195,30 @@ export async function GET(request: Request) {
         const entryPrice    = parseFloat(klines[klines.length - 1][4])
         const stopPrice     = swingHigh(klines)
         const adjustedScore = (item.adjusted_score ?? item.score ?? 0) as number
-        const displaySymbol = (item.symbol as string).replace('USDT', '')
-        console.log(`[entries] ${displaySymbol} firedCount=${firedCount} adjustedScore=${adjustedScore} raw=${item.score}`)
+        const displaySymbol = sym.replace('USDT', '')
+
+        // Stage 3 — pre-Telegram score check
+        console.log(`[entries] ${sym} PASSED firedCount threshold — adjustedScore=${adjustedScore} threshold=6 → will alert: ${adjustedScore >= 6}`)
 
         if (adjustedScore >= 6) {
           // Deduplicate: skip if already alerted this symbol in the last 4h
           const recent = await sql`
             SELECT id FROM telegram_alerts
-            WHERE  symbol    = ${item.symbol as string}
+            WHERE  symbol    = ${sym}
               AND  exchange  = ${item.exchange as string}
               AND  triggered_at > NOW() - INTERVAL '4 hours'
             LIMIT 1
           `
-          if (recent.length > 0) continue
+          if (recent.length > 0) {
+            console.log(`[entries] ${sym} skipped — already alerted within 4h`)
+            continue
+          }
 
           await sql`
             INSERT INTO telegram_alerts
               (symbol, exchange, entry_price, stop_price, score, adjusted_score, signals, entry_signals, market_condition)
             VALUES (
-              ${item.symbol as string}, ${item.exchange as string},
+              ${sym}, ${item.exchange as string},
               ${entryPrice}, ${stopPrice},
               ${item.score as number}, ${adjustedScore},
               ${JSON.stringify(item.signals)}::jsonb,
