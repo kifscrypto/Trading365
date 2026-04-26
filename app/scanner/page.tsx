@@ -9,23 +9,49 @@ import { Radar, ShieldCheck, Bell, Lock, ArrowRight, TrendingDown, Zap } from "l
 const BASE_URL = "https://trading365.org"
 
 export const metadata: Metadata = {
-  title: "Crypto Short Signals | Trading365",
+  title: "Altcoin Short Scanner — Real-Time Crypto Short Signals | Trading365",
   description:
-    "Institutional-grade altcoin short signals across OKX, Hyperliquid and Bybit. Entry alerts with price, stop level and signal breakdown delivered to Telegram in real time.",
+    "Automated altcoin short signal scanner covering 100+ coins across OKX, Hyperliquid and Bybit. Multi-factor scoring, BTC sentiment filter, and instant Telegram alerts with entry price and stop level.",
   alternates: { canonical: `${BASE_URL}/scanner` },
   openGraph: {
     type: "website",
-    title: "Crypto Short Signals | Trading365",
+    title: "Altcoin Short Scanner — Real-Time Crypto Short Signals | Trading365",
     description:
-      "Institutional-grade altcoin short signals across OKX, Hyperliquid and Bybit. Entry alerts delivered to Telegram in real time.",
+      "Automated altcoin short signal scanner covering 100+ coins across OKX, Hyperliquid and Bybit. Multi-factor scoring with instant Telegram alerts.",
     url: `${BASE_URL}/scanner`,
     siteName: "Trading365",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Crypto Short Signals | Trading365",
+    title: "Altcoin Short Scanner — Real-Time Crypto Short Signals | Trading365",
     description:
-      "Institutional-grade altcoin short signals across OKX, Hyperliquid and Bybit. Entry alerts delivered to Telegram in real time.",
+      "Automated altcoin short signal scanner covering 100+ coins across OKX, Hyperliquid and Bybit. Multi-factor scoring with instant Telegram alerts.",
+  },
+}
+
+const schemaData = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Trading365 Altcoin Short Scanner",
+  url: `${BASE_URL}/scanner`,
+  applicationCategory: "FinanceApplication",
+  operatingSystem: "Web, Telegram",
+  description:
+    "Automated crypto altcoin short signal scanner. Scans 100+ liquid altcoin perpetual futures across OKX, Hyperliquid and Bybit every 15 minutes using an 8-factor scoring model. Signals delivered to Telegram with entry price, stop level, and full signal breakdown.",
+  offers: {
+    "@type": "Offer",
+    availability: "https://schema.org/InStock",
+    priceCurrency: "USD",
+    seller: {
+      "@type": "Organization",
+      name: "Trading365",
+      url: BASE_URL,
+    },
+  },
+  provider: {
+    "@type": "Organization",
+    name: "Trading365",
+    url: BASE_URL,
   },
 }
 
@@ -111,6 +137,10 @@ export default async function ScannerPage() {
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
+      />
       {/* Hero */}
       <section className="relative border-b border-border bg-zinc-950 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
@@ -123,11 +153,11 @@ export default async function ScannerPage() {
             Live Scanning
           </Badge>
           <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl text-balance">
-            Crypto Short Signals.{" "}
-            <span className="text-primary">Delivered in Real Time.</span>
+            Altcoin Short Scanner.{" "}
+            <span className="text-primary">Signals in Real Time.</span>
           </h1>
           <p className="mt-6 max-w-2xl mx-auto text-lg leading-relaxed text-muted-foreground text-balance">
-            Institutional-grade altcoin scanning across Bybit, OKX and Hyperliquid. Entry alerts straight to Telegram.
+            Automated crypto altcoin scanner covering 100+ perpetual futures across OKX, Hyperliquid and Bybit. Short signals with entry price and stop level, straight to Telegram.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Button size="lg" className="font-semibold gap-2 text-base" asChild>
