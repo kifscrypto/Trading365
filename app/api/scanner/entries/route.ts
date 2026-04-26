@@ -2,8 +2,8 @@ import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 import {
   okx1hKlines, hyperliquid1hKlines, mexcKlines,
-  calcRSI, calcMACD,
-  type Kline,
+  calcRSI, calcMACD, setupSignalTables,
+  type Kline, type SqlClient,
 } from '@/app/api/scanner/_core'
 
 // Human-readable labels for Telegram alert
@@ -110,6 +110,7 @@ export async function GET(request: Request) {
         triggered_at     TIMESTAMPTZ DEFAULT NOW()
       )
     `
+    await setupSignalTables(sql as SqlClient)
 
     // Fetch most recent watchlist (within the last 5h to cover timing gaps)
     const watchlist = await sql`
@@ -161,56 +162,84 @@ export async function GET(request: Request) {
 
         if (firedCount < 2) continue
 
-        // Deduplicate: skip if already triggered this symbol in the last 4h
-        const recent = await sql`
-          SELECT id FROM telegram_alerts
-          WHERE  symbol    = ${item.symbol as string}
-            AND  exchange  = ${item.exchange as string}
-            AND  triggered_at > NOW() - INTERVAL '4 hours'
-          LIMIT 1
-        `
-        if (recent.length > 0) continue
-
         const entrySignals: string[] = []
         if (macdCross)  entrySignals.push('macd_1h_cross')
         if (rsiFalling) entrySignals.push('rsi_1h_falling')
         if (engulfing)  entrySignals.push('bearish_engulf')
 
-        const entryPrice = parseFloat(klines[klines.length - 1][4])
-        const stopPrice  = swingHigh(klines)
+        const entryPrice    = parseFloat(klines[klines.length - 1][4])
+        const stopPrice     = swingHigh(klines)
+        const adjustedScore = item.adjusted_score as number
+        const displaySymbol = (item.symbol as string).replace('USDT', '')
 
-        await sql`
-          INSERT INTO telegram_alerts
-            (symbol, exchange, entry_price, stop_price, score, adjusted_score, signals, entry_signals, market_condition)
-          VALUES (
-            ${item.symbol as string}, ${item.exchange as string},
-            ${entryPrice}, ${stopPrice},
-            ${item.score as number}, ${item.adjusted_score as number},
-            ${JSON.stringify(item.signals)}::jsonb,
-            ${JSON.stringify(entrySignals)}::jsonb,
-            ${item.market_condition as string}
-          )
-        `
+        if (adjustedScore >= 6) {
+          // Deduplicate: skip if already alerted this symbol in the last 4h
+          const recent = await sql`
+            SELECT id FROM telegram_alerts
+            WHERE  symbol    = ${item.symbol as string}
+              AND  exchange  = ${item.exchange as string}
+              AND  triggered_at > NOW() - INTERVAL '4 hours'
+            LIMIT 1
+          `
+          if (recent.length > 0) continue
 
-        const displaySymbol  = (item.symbol as string).replace('USDT', '')
-        const exchangeLabel  = item.exchange === 'hyperliquid' ? 'Hyperliquid'
-                             : item.exchange === 'mexc'        ? 'MEXC'
-                             : 'OKX'
-        const allSignalKeys  = [...(item.signals as string[]), ...entrySignals]
-        const signalStr      = allSignalKeys.map(s => SIGNAL_DISPLAY[s] ?? s).join(', ')
+          await sql`
+            INSERT INTO telegram_alerts
+              (symbol, exchange, entry_price, stop_price, score, adjusted_score, signals, entry_signals, market_condition)
+            VALUES (
+              ${item.symbol as string}, ${item.exchange as string},
+              ${entryPrice}, ${stopPrice},
+              ${item.score as number}, ${adjustedScore},
+              ${JSON.stringify(item.signals)}::jsonb,
+              ${JSON.stringify(entrySignals)}::jsonb,
+              ${item.market_condition as string}
+            )
+          `
 
-        const text = [
-          `🔴 SHORT SIGNAL — $${displaySymbol}`,
-          `Exchange: ${exchangeLabel}`,
-          `Score: ${item.adjusted_score}/15`,
-          `Entry: $${fmtPrice(entryPrice)}`,
-          `Stop: above $${fmtPrice(stopPrice)} (last swing high)`,
-          `Signals: ${signalStr}`,
-          `Market: ${(item.market_condition as string).toUpperCase()}`,
-        ].join('\n')
+          const exchangeLabel = item.exchange === 'hyperliquid' ? 'Hyperliquid'
+                              : item.exchange === 'mexc'        ? 'MEXC'
+                              : 'OKX'
+          const allSignalKeys = [...(item.signals as string[]), ...entrySignals]
+          const signalStr     = allSignalKeys.map(s => SIGNAL_DISPLAY[s] ?? s).join(', ')
 
-        await sendTelegram(text)
-        triggered.push(displaySymbol)
+          const text = [
+            `🔴 SHORT SIGNAL — $${displaySymbol}`,
+            `Exchange: ${exchangeLabel}`,
+            `Score: ${adjustedScore}/15`,
+            `Entry: $${fmtPrice(entryPrice)}`,
+            `Stop: above $${fmtPrice(stopPrice)} (last swing high)`,
+            `Signals: ${signalStr}`,
+            `Market: ${(item.market_condition as string).toUpperCase()}`,
+          ].join('\n')
+
+          await sendTelegram(text)
+          triggered.push(displaySymbol)
+        } else {
+          // Below threshold — log to scanner_signals without alerting
+          const recentSignal = await sql`
+            SELECT id FROM scanner_signals
+            WHERE  symbol    = ${item.symbol as string}
+              AND  exchange  = ${item.exchange as string}
+              AND  scanned_at > NOW() - INTERVAL '4 hours'
+            LIMIT 1
+          `
+          if (recentSignal.length > 0) continue
+
+          const allSignals     = [...(item.signals as string[]), ...entrySignals]
+          const signalsLiteral = `{${allSignals.map(s => `"${s}"`).join(',')}}`
+
+          await sql`
+            INSERT INTO scanner_signals
+              (symbol, exchange, price_at_signal, score, raw_score, signals, market_condition)
+            VALUES (
+              ${item.symbol as string}, ${item.exchange as string},
+              ${entryPrice},
+              ${adjustedScore}, ${item.score as number},
+              ${signalsLiteral}::text[],
+              ${item.market_condition as string}
+            )
+          `
+        }
       }
     }
 
