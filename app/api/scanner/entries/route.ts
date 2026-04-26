@@ -178,8 +178,9 @@ export async function GET(request: Request) {
 
         const entryPrice    = parseFloat(klines[klines.length - 1][4])
         const stopPrice     = swingHigh(klines)
-        const adjustedScore = item.adjusted_score as number
+        const adjustedScore = (item.adjusted_score ?? item.score ?? 0) as number
         const displaySymbol = (item.symbol as string).replace('USDT', '')
+        console.log(`[entries] ${displaySymbol} firedCount=${firedCount} adjustedScore=${adjustedScore} raw=${item.score}`)
 
         if (adjustedScore >= 6) {
           // Deduplicate: skip if already alerted this symbol in the last 4h
