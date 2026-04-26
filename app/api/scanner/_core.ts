@@ -72,12 +72,18 @@ export function calcMACD(closes: number[]): { macd: number; signal: number } {
 
 // --- Scoring (max raw ~15) ---
 
+const HARD_EXCLUDE = ['BTC', 'ETH', 'XAUT', 'XBT', 'DOGE', 'SHIB', 'PEPE', 'FLOKI', 'BONK', 'WIF', 'MEME', 'BOME', 'NEIRO', 'POPCAT', 'TURBO', 'GOAT', 'PNUT', 'LUNC', 'DEGEN']
+
 export function scoreKlines(
+  symbol: string,
   klines: Kline[],
   dailyKlines: Kline[],
   price: number,
   fundingRate: number
 ): { score: number; signals: string[]; skip: boolean } {
+  const base = symbol.replace(/USDT$|USDC$|BUSD$|-USDT|-USDC|_USDT/i, '').toUpperCase()
+  if (HARD_EXCLUDE.includes(base)) return { score: 0, signals: [], skip: true }
+
   const signals: string[] = []
   let score = 0
 
@@ -254,7 +260,7 @@ export async function runOKXScan(): Promise<RawResult[]> {
         ? (fundingRes[j] as PromiseFulfilledResult<number>).value : 0
       const dailyKl = dailyRes[j].status === 'fulfilled'
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      const { score, signals, skip } = scoreKlines(kl, dailyKl, t.price, funding)
+      const { score, signals, skip } = scoreKlines(t.instId.replace('-USDT-SWAP', 'USDT'), kl, dailyKl, t.price, funding)
       if (skip) continue
       results.push({
         symbol:      t.instId.replace('-USDT-SWAP', 'USDT'),
@@ -346,7 +352,7 @@ export async function runMEXCScan(): Promise<RawResult[]> {
       if (kl.length < 50) continue
       const dailyKl = dailyRes[j].status === 'fulfilled'
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      const { score, signals, skip } = scoreKlines(kl, dailyKl, t.price, t.funding)
+      const { score, signals, skip } = scoreKlines(t.symbol, kl, dailyKl, t.price, t.funding)
       if (skip) continue
       results.push({
         symbol:      t.symbol.replace('_', ''),   // BTC_USDT → BTCUSDT
@@ -444,7 +450,7 @@ export async function runHyperliquidScan(): Promise<RawResult[]> {
       if (kl.length < 50) continue
       const dailyKl = dailyRes[j].status === 'fulfilled'
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      const { score, signals, skip } = scoreKlines(kl, dailyKl, t.price, t.funding8h)
+      const { score, signals, skip } = scoreKlines(t.coin, kl, dailyKl, t.price, t.funding8h)
       if (skip) continue
       results.push({
         symbol:      t.coin + 'USDT',
