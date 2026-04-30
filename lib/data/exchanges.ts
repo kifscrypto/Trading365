@@ -779,7 +779,7 @@ export const exchanges: Exchange[] = [
     bonus: "Up to $10,000 USDT",
     bonusAmount: 10000,
     bonusDetails: "Register via Trading365's exclusive link for up to $10,000 USDT in new user trading bonuses.",
-    referralLink: "https://www.novava.com/register?inviteCode=EAEWQA",
+    referralLink: "https://www.novava.com/en_US/partner/front/KIFS",
     founded: "2024",
     headquarters: "N/A",
     tradingPairs: 100,
