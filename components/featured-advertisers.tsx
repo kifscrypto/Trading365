@@ -8,8 +8,8 @@ interface Advertiser {
 }
 
 const advertisers: Advertiser[] = [
-  { name: "WEEX", tagline: "400x leverage, no KYC", href: "https://www.weex.com/events/promo/0fee?vipCode=cx5n&qrType=activity" },
-  { name: "BYDFi", tagline: "Lowest maker fees", href: "https://partner.bydfi.com/register?vipCode=KifsCrypto" },
+  { name: "Novava", tagline: "$10,000 trading comp", href: "https://www.novava.com/register?inviteCode=EAEWQA" },
+  { name: "Ourbit", tagline: "Up to $750 bonus", href: "https://www.ourbit.com/activity/kol?id=3e867811b31e4eddb2280e34fb1e05cb" },
   { name: "Bitunix", tagline: "No-KYC futures", href: "https://www.bitunix.com/register?vipCode=VP7Q" },
   { name: "Your Ad Here", tagline: "Advertise with us", href: "/about#contact" },
 ]

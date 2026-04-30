@@ -788,7 +788,10 @@ export const exchanges: Exchange[] = [
     withdrawalSpeed: "< 24 hours",
     securityFeatures: ["2FA", "Cold storage"],
     pros: [
-      "Perpetual futures trading with no expiration limits",
+      "$10,000 trading competition — deposit & trade to enter",
+      "Just deposit & trade — no complex tasks required",
+      "Limited to the first 100 sign-ups",
+      "No KYC required — 125× leverage available",
       "AI-powered copy trading lowers barrier for less experienced traders",
       "TradeWire signal and alert service for timely market intelligence",
       "Built for speed and execution stability during high-volatility conditions",

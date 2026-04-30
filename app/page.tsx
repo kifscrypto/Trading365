@@ -35,7 +35,7 @@ const topExchanges = DEAL_ORDER.map((slug) => exchanges.find((e) => e.slug === s
 const bonusDeals = topExchanges.map((ex, i) => ({
   name: ex.name,
   bonus: ex.bonus,
-  features: ex.pros.slice(0, 3),
+  features: ex.pros.slice(0, 4),
   tag: i === 0 ? "Best Deal" : undefined,
   referralLink: ex.referralLink,
 }))
