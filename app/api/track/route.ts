@@ -6,8 +6,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { path, referrer, utm_source, utm_medium, utm_campaign } = body
 
-    // Skip admin pages and empty paths
-    if (!path || path.startsWith('/admin')) {
+    // Skip admin pages, empty paths, and admin sessions
+    if (!path || path.startsWith('/admin') || req.cookies.get('admin_auth')) {
       return NextResponse.json({ ok: true })
     }
 
