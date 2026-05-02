@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { isValidLocale, getLocale } from "@/lib/i18n/config"
 import { ArticleContent } from "@/components/article-content"
+import { ShareButton } from "@/components/share-button"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
 import { ArrowLeft } from "lucide-react"
 
@@ -24,11 +25,25 @@ export async function generateMetadata({
   const title = translation?.meta_title || translation?.title || slug
   const description = translation?.meta_description || translation?.excerpt || ""
 
+  const canonicalUrl = `${BASE_URL}/${locale}/${category}/${slug}`
+
   return {
     title: `${title} | Trading365 ${loc.name}`,
     description,
     alternates: {
-      canonical: `${BASE_URL}/${locale}/${category}/${slug}`,
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      type: "article",
+      title: `${title} | Trading365 ${loc.name}`,
+      description,
+      url: canonicalUrl,
+      siteName: "Trading365",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} | Trading365 ${loc.name}`,
+      description,
     },
   }
 }
@@ -95,6 +110,9 @@ export default async function LocaleArticlePage({
                   <span className="text-primary font-semibold">{exchange.rating}/10</span>
                 </>
               )}
+              <div className="ml-auto">
+                <ShareButton url={`${BASE_URL}/${locale}/${category}/${slug}`} title={translation.title} />
+              </div>
             </div>
           )}
         </header>
