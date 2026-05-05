@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { keyword, outline, intent, affiliateLink } = await request.json()
+    const { keyword, outline, intent, affiliateLink, affiliateLinks } = await request.json()
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -99,7 +99,7 @@ STYLE:
 - Paragraphs tight — no over-explaining
 
 HARD RULES:
-- In ALL markdown tables, exchange names in the first column MUST be linked to their referral URL using [Name](url) — never plain text. This applies without exception.
+- In ALL markdown tables, exchange names in the first column MUST be linked using [Name](url) — but ONLY if that exchange appears in the REFERRAL LINK ALLOWLIST below. If it is not in the list, leave the name as plain text. Never invent or guess a URL.
 - NO fluff sections (staking, earn, etc.) unless it's a core differentiator
 - NO repeating the same idea multiple times
 - NO padding for word count
@@ -210,6 +210,8 @@ If it does not achieve this, refine BEFORE outputting.
 Output a complete, publish-ready article. No commentary. No explanation. Only the article.
 
 ---
+
+${affiliateLinks?.length ? `REFERRAL LINK ALLOWLIST — use ONLY these exact URLs for any referral or affiliate links in tables or CTAs. Never invent, guess, or substitute other URLs. If an exchange is not listed here, do not add a referral link for it:\n${affiliateLinks.map((a: { name: string; affiliate_url: string }) => `- ${a.name}: ${a.affiliate_url}`).join('\n')}` : ''}
 
 KEYWORD: ${keyword}
 SEARCH INTENT: ${intent || 'Not specified'}

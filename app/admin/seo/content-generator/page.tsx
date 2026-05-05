@@ -475,7 +475,7 @@ export default function ArticleStudioPage() {
       const res = await fetch('/api/admin/seo/content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword, outline, intent, affiliateLink: affiliateLink.trim() || null }),
+        body: JSON.stringify({ keyword, outline, intent, affiliateLink: affiliateLink.trim() || null, affiliateLinks }),
       })
       if (!res.ok || !res.body) throw new Error('Content generation failed')
       const reader = res.body.getReader()
