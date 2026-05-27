@@ -16,7 +16,7 @@ interface ExchangeRow {
 }
 
 const exchanges: ExchangeRow[] = [
-  { name: "WEEX", rating: 8.8, fees: "0.02% / 0.06%", kyc: false, leverage: "400x", bonus: "$500 USDT", referralLink: "https://www.weex.com/events/promo/0fee?vipCode=cx5n&qrType=activity", copyTrading: true, rank: 1 },
+  { name: "WEEX", rating: 8.8, fees: "0.02% / 0.06%", kyc: false, leverage: "400x", bonus: "$10,000 USDT", referralLink: "https://www.weex.com/events/promo/0fee?vipCode=cx5n&qrType=activity", copyTrading: true, rank: 1 },
   { name: "BYDFi", rating: 8.5, fees: "0.01% / 0.06%", kyc: false, leverage: "200x", bonus: "$1,500 USDT", referralLink: "https://partner.bydfi.com/register?vipCode=KifsCrypto", copyTrading: true, rank: 2 },
   { name: "Bitunix", rating: 8.3, fees: "0.02% / 0.06%", kyc: false, leverage: "125x", bonus: "$400", referralLink: "https://www.bitunix.com/register?vipCode=VP7Q", copyTrading: true, rank: 3 },
   { name: "BloFin", rating: 8.2, fees: "0.02% / 0.06%", kyc: false, leverage: "150x", bonus: "$5,000 USDT", referralLink: "https://partner.blofin.com/d/KIFSCrypto", copyTrading: false, rank: 4 },
