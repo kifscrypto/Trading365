@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation"
+import { notFound, permanentRedirect } from "next/navigation"
 import type { Metadata } from "next"
 import Link from "next/link"
 import Image from "next/image"
@@ -18,14 +18,20 @@ export async function generateMetadata({
   const { locale, category, slug } = await params
   if (!isValidLocale(locale)) return {}
 
-  const { getTranslation } = await import("@/lib/db")
-  const translation = await getTranslation(slug, locale).catch(() => null)
+  const { getTranslation, getArticleBySlug } = await import("@/lib/db")
+  const [translation, originalArticle] = await Promise.all([
+    getTranslation(slug, locale).catch(() => null),
+    getArticleBySlug(slug).catch(() => null),
+  ])
   const loc = getLocale(locale)!
 
   const title = translation?.meta_title || translation?.title || slug
   const description = translation?.meta_description || translation?.excerpt || ""
 
-  const canonicalUrl = `${BASE_URL}/${locale}/${category}/${slug}`
+  // Canonical always uses the article's true category from the DB, never the URL.
+  // The page component below will 301 wrong-category URLs to the canonical.
+  const canonicalCategory = originalArticle?.category_slug || category
+  const canonicalUrl = `${BASE_URL}/${locale}/${canonicalCategory}/${slug}`
 
   return {
     title: `${title} | Trading365 ${loc.name}`,
@@ -66,6 +72,12 @@ export default async function LocaleArticlePage({
   ])
 
   if (!translation) notFound()
+
+  // Guard against duplicate-content URLs: if the URL category doesn't match the
+  // article's canonical category in the DB, 301 to the canonical localized URL.
+  if (originalArticle?.category_slug && originalArticle.category_slug !== category) {
+    permanentRedirect(`/${locale}/${originalArticle.category_slug}/${slug}`)
+  }
 
   const exchange = getExchangeBySlug(slug.replace(/-review.*$/, ""))
 

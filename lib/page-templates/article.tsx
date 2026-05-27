@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation"
+import { notFound, permanentRedirect } from "next/navigation"
 import type { Metadata } from "next"
 import Image from "next/image"
 import Link from "next/link"
@@ -82,7 +82,11 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   ])
   if (!article) return { title: 'Article Not Found' }
 
-  const canonicalUrl = `${BASE_URL}/${category}/${slug}`
+  // Always build canonical from the article's true categorySlug, never the URL category.
+  // This keeps the canonical correct even when the request URL uses a stale/wrong
+  // category prefix — the page component will 301 the user to the canonical URL.
+  const canonicalCategory = article.categorySlug || category
+  const canonicalUrl = `${BASE_URL}/${canonicalCategory}/${slug}`
   const pageTitle = TITLE_OVERRIDES[slug] ?? article.metaTitle ?? article.title
   const ogParams = new URLSearchParams({ title: pageTitle, category: article.category })
   if (article.rating > 0) ogParams.set('rating', String(article.rating))
@@ -94,7 +98,7 @@ export async function getArticleMetadata(category: string, slug: string): Promis
     'en': canonicalUrl,
   }
   for (const lc of translatedLocales) {
-    hreflangAlternates[lc] = `${BASE_URL}/${lc}/${category}/${slug}`
+    hreflangAlternates[lc] = `${BASE_URL}/${lc}/${canonicalCategory}/${slug}`
   }
 
   return {
@@ -149,6 +153,14 @@ export default async function ArticlePageContent({ category, slug }: { category:
   const article = await getArticleBySlugFromDB(slug)
   const cat = getCategoryBySlug(category)
   if (!article || !cat) notFound()
+
+  // Guard against duplicate-content URLs: if the URL category doesn't match the
+  // article's canonical category in the DB, 301 to the canonical URL. The metadata
+  // function already emits the correct canonical, so search engines have the right
+  // signal even before this redirect resolves.
+  if (article.categorySlug && article.categorySlug !== category) {
+    permanentRedirect(`/${article.categorySlug}/${slug}`)
+  }
 
   // Try to get exchange data for review articles
   const exchangeSlug = slug.replace(/-review.*$/, "")
