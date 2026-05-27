@@ -53,12 +53,13 @@ export const metadata: Metadata = {
 
 export default async function ComparePage() {
   // Merge DB referral link overrides on top of the hardcoded exchange data
-  let exchanges = baseExchanges
+  const activeExchanges = baseExchanges.filter((e) => !e.defunct)
+  let exchanges = activeExchanges
   try {
     const rows = await sql`SELECT slug, affiliate_url FROM affiliate_links`
     if (rows.length > 0) {
       const overrides = Object.fromEntries(rows.map((r) => [r.slug as string, r.affiliate_url as string]))
-      exchanges = baseExchanges.map((e) =>
+      exchanges = activeExchanges.map((e) =>
         overrides[e.slug] ? { ...e, referralLink: overrides[e.slug] } : e
       )
     }

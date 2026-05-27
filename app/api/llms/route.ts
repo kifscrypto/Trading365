@@ -1,10 +1,11 @@
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
-import { exchanges } from "@/lib/data/exchanges"
+import { exchanges as allExchanges } from "@/lib/data/exchanges"
 
 export async function GET() {
   const articles = await getAllArticlesFromDB()
   const base = "https://trading365.org"
 
+  const exchanges = allExchanges.filter((e) => !e.defunct)
   const noKycExchanges = exchanges.filter((e) => !e.kyc)
   const copyTradingExchanges = exchanges.filter((e) => e.copyTrading)
   const sortedByRating = [...exchanges].sort((a, b) => b.rating - a.rating)

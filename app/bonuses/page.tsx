@@ -43,7 +43,7 @@ export const metadata: Metadata = {
 
 export default async function BonusesPage() {
   const bonusArticles = await getArticlesByCategoryFromDB("bonuses")
-  const pinnedSlugs = ["novava-crypto-exchange", "bydfi", "bitunix"]
+  const pinnedSlugs = ["weex", "bydfi", "bitunix"]
   const topExchanges = exchanges
     .filter((e) => e.bonus && e.bonus !== "N/A")
     .sort((a, b) => {

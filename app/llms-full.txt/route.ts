@@ -1,4 +1,4 @@
-import { exchanges } from '@/lib/data/exchanges'
+import { exchanges as allExchanges } from '@/lib/data/exchanges'
 import { getAllArticlesFromDB } from '@/lib/data/articles-db'
 
 export const dynamic = 'force-dynamic'
@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
 const BASE = 'https://trading365.org'
 
 export async function GET() {
+  const exchanges = allExchanges.filter((e) => !e.defunct)
   const [articles, sortedByRating] = await Promise.all([
     getAllArticlesFromDB(),
     Promise.resolve([...exchanges].sort((a, b) => b.rating - a.rating)),

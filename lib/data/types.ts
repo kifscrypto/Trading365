@@ -35,6 +35,7 @@ export interface Exchange {
     EU: boolean
     ASIA: boolean
   }
+  defunct?: boolean
 }
 
 export interface Article {

@@ -812,6 +812,7 @@ export const exchanges: Exchange[] = [
     fiatDeposit: false,
     depositMethods: ["Crypto"],
     countries: { US: false, UK: false, AU: true, CA: false, EU: true, ASIA: true },
+    defunct: true,
   },
   {
     slug: "ourbit",
