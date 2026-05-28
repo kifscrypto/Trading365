@@ -128,6 +128,12 @@ export default async function HomePage() {
             <Button size="lg" variant="outline" className="font-semibold px-8 border-primary/30 text-foreground hover:bg-primary/10" asChild>
               <Link href="/compare">Compare Exchanges</Link>
             </Button>
+            <Button size="lg" variant="outline" className="gap-2 font-semibold px-8 border-primary/30 text-foreground hover:bg-primary/10" asChild>
+              <Link href="/scanner">
+                <Zap className="h-4 w-4" />
+                Short Scanner
+              </Link>
+            </Button>
           </div>
 
           {/* Stats */}

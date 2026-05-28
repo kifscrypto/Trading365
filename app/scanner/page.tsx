@@ -226,10 +226,10 @@ export default async function ScannerPage() {
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Button size="lg" className="font-semibold gap-2 text-base" asChild>
-              <Link href="#pricing">
+              <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer">
                 Get Access
                 <ArrowRight className="h-4 w-4" />
-              </Link>
+              </a>
             </Button>
             <Button size="lg" variant="outline" className="font-semibold border-border text-foreground hover:bg-zinc-800" asChild>
               <Link href="#performance">See Performance</Link>
@@ -393,10 +393,10 @@ export default async function ScannerPage() {
                 </p>
               </div>
               <Button className="font-semibold gap-2" asChild>
-                <Link href="#pricing">
+                <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer">
                   Get Access
                   <ArrowRight className="h-4 w-4" />
-                </Link>
+                </a>
               </Button>
             </div>
           </div>
@@ -498,10 +498,10 @@ export default async function ScannerPage() {
           </p>
           <div className="mt-8">
             <Button size="lg" className="font-semibold gap-2 text-base" asChild>
-              <Link href="#pricing">
+              <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer">
                 Get Access
                 <ArrowRight className="h-4 w-4" />
-              </Link>
+              </a>
             </Button>
           </div>
         </div>
