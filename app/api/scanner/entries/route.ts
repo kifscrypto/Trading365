@@ -69,9 +69,9 @@ function swingHigh(klines: Kline[], lookback = 10): number {
 
 // --- Telegram ---
 
-async function sendTelegram(text: string): Promise<void> {
+async function sendTelegram(text: string, chatIdOverride?: string): Promise<void> {
   const token  = process.env.TELEGRAM_BOT_TOKEN
-  const chatId = process.env.TELEGRAM_CHAT_ID
+  const chatId = chatIdOverride ?? process.env.TELEGRAM_CHAT_ID
   if (!token || !chatId) {
     console.error('[sendTelegram] missing token or chatId — token present:', !!token, 'chatId:', chatId)
     return
@@ -265,6 +265,9 @@ export async function GET(request: Request) {
           ].join('\n')
 
           await sendTelegram(text)
+          if (process.env.TELEGRAM_PREMIUM_CHAT_ID) {
+            await sendTelegram(text, process.env.TELEGRAM_PREMIUM_CHAT_ID)
+          }
           triggered.push(displaySymbol)
         } else {
           // Below threshold — log to scanner_signals without alerting
