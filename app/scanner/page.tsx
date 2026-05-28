@@ -4,28 +4,31 @@ import { neon } from "@neondatabase/serverless"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Radar, ShieldCheck, Bell, Lock, ArrowRight, TrendingDown, Zap } from "lucide-react"
+import { Radar, ShieldCheck, Bell, Lock, ArrowRight, Zap, Check } from "lucide-react"
 
 const BASE_URL = "https://trading365.org"
 
+const META_DESCRIPTION =
+  "66% TP1 hit rate. 87% directional accuracy across 4,700+ tracked signals. Automated altcoin short scanner with real-time Telegram alerts. Only fires during favourable market conditions."
+
+const WALLET_ADDRESS = "0x2338748664bfdb1fce28a9ad63ce79d65b54eb2d"
+const TELEGRAM_SUB_HANDLE = "@Trading365Sub"
+
 export const metadata: Metadata = {
   title: "Altcoin Short Scanner — Real-Time Crypto Short Signals | Trading365",
-  description:
-    "Automated altcoin short signal scanner covering 100+ coins across OKX, Hyperliquid and Bybit. Multi-factor scoring, BTC sentiment filter, and instant Telegram alerts with entry price and stop level.",
+  description: META_DESCRIPTION,
   alternates: { canonical: `${BASE_URL}/scanner` },
   openGraph: {
     type: "website",
     title: "Altcoin Short Scanner — Real-Time Crypto Short Signals | Trading365",
-    description:
-      "Automated altcoin short signal scanner covering 100+ coins across OKX, Hyperliquid and Bybit. Multi-factor scoring with instant Telegram alerts.",
+    description: META_DESCRIPTION,
     url: `${BASE_URL}/scanner`,
     siteName: "Trading365",
   },
   twitter: {
     card: "summary_large_image",
     title: "Altcoin Short Scanner — Real-Time Crypto Short Signals | Trading365",
-    description:
-      "Automated altcoin short signal scanner covering 100+ coins across OKX, Hyperliquid and Bybit. Multi-factor scoring with instant Telegram alerts.",
+    description: META_DESCRIPTION,
   },
 }
 
@@ -61,37 +64,73 @@ interface PreviewRow {
   symbol: string
   exchange: string
   score: number
+  market_condition: string
   price_at_signal: number
   scanned_at: string
   outcome_24h: number | null
+  outcome_48h: number | null
+  outcome_72h: number | null
 }
 
-async function getStats() {
+interface Stats {
+  tp1WinRate: number | null
+  directionalAccuracy: number | null
+  totalSignals: number
+  avgMove: number | null
+  preview: PreviewRow[]
+}
+
+async function getStats(): Promise<Stats> {
   const sql = neon(process.env.DATABASE_URL!)
   try {
-    const [totRow, weekRow, previewRows] = await Promise.all([
-      sql`SELECT COUNT(*)::int AS total FROM scanner_signals`,
-      sql`SELECT COUNT(*)::int AS week_count FROM scanner_signals WHERE scanned_at > NOW() - INTERVAL '7 days'`,
+    const [aggRows, previewRows] = await Promise.all([
       sql`
         SELECT
-          s.symbol, s.exchange, s.score,
+          COUNT(*) FILTER (
+            WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+          )::int AS filtered_with_24h,
+          COUNT(*) FILTER (
+            WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change <= -1.5
+          )::int AS tp1_hits,
+          COUNT(*) FILTER (
+            WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change < 0
+          )::int AS down_hits,
+          AVG(o24.pct_change) FILTER (
+            WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+          )::float AS avg_move,
+          (SELECT COUNT(*)::int FROM scanner_signals) AS total_all
+        FROM scanner_signals s
+        LEFT JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
+      `,
+      sql`
+        SELECT
+          s.symbol, s.exchange, s.score, s.market_condition,
           s.price_at_signal::float AS price_at_signal,
           s.scanned_at,
-          o24.pct_change::float AS outcome_24h
+          o24.pct_change::float AS outcome_24h,
+          o48.pct_change::float AS outcome_48h,
+          o72.pct_change::float AS outcome_72h
         FROM scanner_signals s
-        LEFT JOIN scanner_outcomes o24
-          ON o24.signal_id = s.id AND o24.hours_after = 24
+        LEFT JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
+        LEFT JOIN scanner_outcomes o48 ON o48.signal_id = s.id AND o48.hours_after = 48
+        LEFT JOIN scanner_outcomes o72 ON o72.signal_id = s.id AND o72.hours_after = 72
+        WHERE s.score >= 7
         ORDER BY s.scanned_at DESC
         LIMIT 5
       `,
     ])
+
+    const agg = aggRows[0] ?? {}
+    const denom = (agg.filtered_with_24h ?? 0) as number
     return {
-      total: (totRow[0]?.total ?? 0) as number,
-      thisWeek: (weekRow[0]?.week_count ?? 0) as number,
-      preview: previewRows as PreviewRow[],
+      tp1WinRate:          denom > 0 ? ((agg.tp1_hits as number) / denom) * 100 : null,
+      directionalAccuracy: denom > 0 ? ((agg.down_hits as number) / denom) * 100 : null,
+      totalSignals:        (agg.total_all ?? 0) as number,
+      avgMove:             denom > 0 ? (agg.avg_move as number) : null,
+      preview:             previewRows as PreviewRow[],
     }
   } catch {
-    return { total: 0, thisWeek: 0, preview: [] }
+    return { tp1WinRate: null, directionalAccuracy: null, totalSignals: 0, avgMove: null, preview: [] }
   }
 }
 
@@ -101,14 +140,26 @@ function fmtPrice(p: number): string {
   return p.toFixed(6)
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+function fmtPct(n: number | null, digits = 0): string {
+  if (n === null) return "—"
+  return `${n.toFixed(digits)}%`
+}
+
+function fmtMove(n: number | null): string {
+  if (n === null) return "—"
+  return `${n > 0 ? "+" : ""}${n.toFixed(2)}%`
 }
 
 const exchangeLabel: Record<string, string> = {
   okx: "OKX",
   hyperliquid: "Hyperliquid",
   mexc: "MEXC",
+}
+
+const marketClass: Record<string, string> = {
+  favourable: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+  neutral:    "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+  hostile:    "bg-red-500/10 text-red-400 border-red-500/30",
 }
 
 const features = [
@@ -122,7 +173,7 @@ const features = [
     icon: ShieldCheck,
     title: "BTC Sentiment Filter",
     description:
-      "Market conditions assessed in real time using Fear & Greed, BTC dominance, and funding data. Signals suppressed when conditions are hostile.",
+      "Signals are completely suppressed during neutral and hostile market conditions — the scanner only fires when the macro supports the trade.",
   },
   {
     icon: Bell,
@@ -132,8 +183,22 @@ const features = [
   },
 ]
 
+const monthlyFeatures = [
+  "Real-time Telegram alerts",
+  "All three TP levels + stop loss",
+  "Full signal history with outcomes",
+  "Performance dashboard access",
+]
+
+const quarterlyFeatures = ["Same features as monthly", "Priority support"]
+
+function outcomeCellClass(v: number | null): string {
+  if (v === null) return "text-muted-foreground text-xs"
+  return v < 0 ? "text-emerald-400 font-medium" : "text-red-400 font-medium"
+}
+
 export default async function ScannerPage() {
-  const { total, thisWeek, preview } = await getStats()
+  const { tp1WinRate, directionalAccuracy, totalSignals, avgMove, preview } = await getStats()
 
   return (
     <>
@@ -161,10 +226,10 @@ export default async function ScannerPage() {
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Button size="lg" className="font-semibold gap-2 text-base" asChild>
-              <a href="mailto:contact@trading365.org">
+              <Link href="#pricing">
                 Get Access
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
             <Button size="lg" variant="outline" className="font-semibold border-border text-foreground hover:bg-zinc-800" asChild>
               <Link href="#performance">See Performance</Link>
@@ -175,19 +240,29 @@ export default async function ScannerPage() {
 
       {/* Stats bar */}
       <section className="border-b border-border bg-zinc-900">
-        <div className="mx-auto max-w-4xl px-4 py-8 lg:px-6">
-          <div className="grid grid-cols-3 divide-x divide-border text-center">
+        <div className="mx-auto max-w-5xl px-4 py-8 lg:px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border text-center">
             <div className="px-4 py-2">
-              <p className="text-3xl font-bold text-foreground tabular-nums">{total.toLocaleString()}</p>
-              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Total Signals</p>
+              <p className="text-3xl font-bold text-emerald-400 tabular-nums">{fmtPct(tp1WinRate)}</p>
+              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">TP1 Win Rate</p>
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">TP1 hit rate (1.5% move)</p>
             </div>
             <div className="px-4 py-2">
-              <p className="text-3xl font-bold text-foreground tabular-nums">{thisWeek}</p>
-              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">This Week</p>
+              <p className="text-3xl font-bold text-foreground tabular-nums">{fmtPct(directionalAccuracy)}</p>
+              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Directional Accuracy</p>
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">price fell within 24h</p>
             </div>
             <div className="px-4 py-2">
-              <p className="text-3xl font-bold text-foreground tabular-nums">3</p>
-              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Exchanges</p>
+              <p className="text-3xl font-bold text-foreground tabular-nums">{totalSignals.toLocaleString()}</p>
+              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Total Signals Tracked</p>
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">and counting</p>
+            </div>
+            <div className="px-4 py-2">
+              <p className={`text-3xl font-bold tabular-nums ${avgMove !== null && avgMove < 0 ? "text-emerald-400" : "text-foreground"}`}>
+                {avgMove === null ? "—" : `${avgMove > 0 ? "+" : ""}${avgMove.toFixed(2)}%`}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Avg Move</p>
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">avg 24h move</p>
             </div>
           </div>
         </div>
@@ -234,65 +309,75 @@ export default async function ScannerPage() {
           </Badge>
           <h2 className="text-2xl font-bold text-foreground">Recent Signals</h2>
           <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
-            Every signal is logged with entry price and tracked at 24h, 48h and 72h.
+            Only score ≥ 7 signals shown. Every signal is tracked at 24h, 48h and 72h.
           </p>
         </div>
 
         <div className="relative rounded-xl border border-border overflow-hidden">
-          {/* Table header — always visible */}
-          <div className="grid grid-cols-5 gap-4 border-b border-border bg-zinc-900 px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            <span>Symbol</span>
-            <span>Exchange</span>
-            <span>Score</span>
-            <span>Entry Price</span>
-            <span>24h Move</span>
-          </div>
+          <div className="overflow-x-auto">
+            {/* Table header — always visible */}
+            <div className="grid grid-cols-[1.1fr_1fr_0.7fr_1fr_1.1fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-border bg-zinc-900 px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground min-w-[760px]">
+              <span>Symbol</span>
+              <span>Exchange</span>
+              <span>Score</span>
+              <span>Market</span>
+              <span>Entry</span>
+              <span className="text-right">24h</span>
+              <span className="text-right">48h</span>
+              <span className="text-right">72h</span>
+            </div>
 
-          {/* Rows — blurred */}
-          <div className="select-none" style={{ filter: "blur(5px)", userSelect: "none" }}>
-            {preview.length > 0 ? preview.map((row, i) => (
-              <div
-                key={i}
-                className="grid grid-cols-5 gap-4 border-b border-border/50 px-5 py-3.5 text-sm last:border-0"
-              >
-                <span className="font-medium text-foreground">
-                  {row.symbol.replace("USDT", "")}
-                </span>
-                <span className="text-muted-foreground">
-                  {exchangeLabel[row.exchange] ?? row.exchange}
-                </span>
-                <span>
-                  <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-                    {row.score}
+            {/* Rows — blurred under lock overlay */}
+            <div className="select-none min-w-[760px]" style={{ filter: "blur(5px)", userSelect: "none" }}>
+              {preview.length > 0 ? preview.map((row, i) => (
+                <div
+                  key={i}
+                  className="grid grid-cols-[1.1fr_1fr_0.7fr_1fr_1.1fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-border/50 px-5 py-3.5 text-sm last:border-0 items-center"
+                >
+                  <span className="font-medium text-foreground">
+                    {row.symbol.replace("USDT", "")}
                   </span>
-                </span>
-                <span className="text-muted-foreground font-mono text-xs">
-                  ${fmtPrice(row.price_at_signal)}
-                </span>
-                <span className={
-                  row.outcome_24h === null
-                    ? "text-muted-foreground text-xs"
-                    : row.outcome_24h < 0
-                    ? "text-emerald-400 font-medium"
-                    : "text-red-400 font-medium"
-                }>
-                  {row.outcome_24h === null
-                    ? "Pending"
-                    : `${row.outcome_24h > 0 ? "+" : ""}${row.outcome_24h.toFixed(2)}%`}
-                </span>
-              </div>
-            )) : (
-              /* Placeholder rows when DB is empty */
-              Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="grid grid-cols-5 gap-4 border-b border-border/50 px-5 py-3.5 text-sm last:border-0">
-                  <span className="font-medium text-foreground">SOLUSDT</span>
-                  <span className="text-muted-foreground">OKX</span>
-                  <span><span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">7</span></span>
-                  <span className="text-muted-foreground font-mono text-xs">$142.3800</span>
-                  <span className="text-emerald-400 font-medium">-6.24%</span>
+                  <span className="text-muted-foreground">
+                    {exchangeLabel[row.exchange] ?? row.exchange}
+                  </span>
+                  <span>
+                    <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                      {row.score}
+                    </span>
+                  </span>
+                  <span>
+                    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${marketClass[row.market_condition] ?? "bg-zinc-800 text-muted-foreground border-border"}`}>
+                      {row.market_condition}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground font-mono text-xs">
+                    ${fmtPrice(row.price_at_signal)}
+                  </span>
+                  <span className={`text-right text-xs ${outcomeCellClass(row.outcome_24h)}`}>
+                    {fmtMove(row.outcome_24h)}
+                  </span>
+                  <span className={`text-right text-xs ${outcomeCellClass(row.outcome_48h)}`}>
+                    {fmtMove(row.outcome_48h)}
+                  </span>
+                  <span className={`text-right text-xs ${outcomeCellClass(row.outcome_72h)}`}>
+                    {fmtMove(row.outcome_72h)}
+                  </span>
                 </div>
-              ))
-            )}
+              )) : (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="grid grid-cols-[1.1fr_1fr_0.7fr_1fr_1.1fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-border/50 px-5 py-3.5 text-sm last:border-0 items-center">
+                    <span className="font-medium text-foreground">SOL</span>
+                    <span className="text-muted-foreground">OKX</span>
+                    <span><span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">8</span></span>
+                    <span><span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-emerald-500/10 text-emerald-400 border-emerald-500/30">favourable</span></span>
+                    <span className="text-muted-foreground font-mono text-xs">$142.3800</span>
+                    <span className="text-right text-xs text-emerald-400 font-medium">-2.81%</span>
+                    <span className="text-right text-xs text-emerald-400 font-medium">-3.42%</span>
+                    <span className="text-right text-xs text-emerald-400 font-medium">-4.15%</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           {/* Overlay */}
@@ -302,18 +387,101 @@ export default async function ScannerPage() {
                 <Lock className="h-5 w-5 text-muted-foreground" />
               </div>
               <div>
-                <p className="font-semibold text-foreground">Premium members see full performance data</p>
+                <p className="font-semibold text-foreground">Subscribe to reveal</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  24h, 48h and 72h outcomes for every signal — updated automatically.
+                  Full 24h, 48h and 72h outcomes for every signal — updated automatically.
                 </p>
               </div>
               <Button className="font-semibold gap-2" asChild>
-                <a href="mailto:contact@trading365.org">
+                <Link href="#pricing">
                   Get Access
                   <ArrowRight className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="border-t border-border bg-zinc-950">
+        <div className="mx-auto max-w-5xl px-4 py-20 lg:px-6">
+          <div className="text-center mb-10">
+            <Badge variant="outline" className="mb-3 text-primary border-primary/30">
+              Pricing
+            </Badge>
+            <h2 className="text-2xl font-bold text-foreground">Simple, Crypto-Native Pricing</h2>
+            <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
+              Pay in USDT or ETH. Cancel any time — no auto-renewal.
+            </p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 max-w-3xl mx-auto">
+            {/* Monthly */}
+            <div className="flex flex-col rounded-xl border border-border bg-zinc-900 p-6">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground">Monthly</p>
+              <p className="mt-3 text-4xl font-bold text-foreground tabular-nums">
+                $29 <span className="text-base font-medium text-muted-foreground">USDT / month</span>
+              </p>
+              <ul className="mt-6 space-y-3 text-sm">
+                {monthlyFeatures.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-muted-foreground">
+                    <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Quarterly */}
+            <div className="relative flex flex-col rounded-xl border border-primary/40 bg-zinc-900 p-6">
+              <Badge className="absolute -top-2.5 right-4 bg-primary text-primary-foreground hover:bg-primary">
+                Save 21%
+              </Badge>
+              <p className="text-xs uppercase tracking-widest text-primary">Quarterly</p>
+              <p className="mt-3 text-4xl font-bold text-foreground tabular-nums">
+                $69 <span className="text-base font-medium text-muted-foreground">USDT / 3 months</span>
+              </p>
+              <ul className="mt-6 space-y-3 text-sm">
+                {quarterlyFeatures.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-muted-foreground">
+                    <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Payment instructions */}
+          <div className="mt-12 max-w-3xl mx-auto rounded-xl border border-border bg-zinc-900 p-6">
+            <h3 className="text-lg font-semibold text-foreground">How to subscribe</h3>
+            <ol className="mt-5 space-y-4 text-sm">
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">1</span>
+                <div>
+                  <p className="text-foreground">Send USDT or ETH (ERC-20) to wallet address:</p>
+                  <code className="mt-1.5 block break-all rounded-md border border-border bg-zinc-950 px-3 py-2 font-mono text-xs text-emerald-400">
+                    {WALLET_ADDRESS}
+                  </code>
+                </div>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">2</span>
+                <p className="text-muted-foreground">
+                  Message <span className="text-foreground font-medium">{TELEGRAM_SUB_HANDLE}</span> on Telegram with your tx hash.
+                </p>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">3</span>
+                <p className="text-muted-foreground">
+                  Get added to the private signals group within 24 hours.
+                </p>
+              </li>
+            </ol>
+            <p className="mt-6 text-xs text-muted-foreground/80">
+              Payments verified manually. Refund available within 48h if not satisfied.
+            </p>
           </div>
         </div>
       </section>
@@ -330,10 +498,10 @@ export default async function ScannerPage() {
           </p>
           <div className="mt-8">
             <Button size="lg" className="font-semibold gap-2 text-base" asChild>
-              <a href="mailto:contact@trading365.org">
+              <Link href="#pricing">
                 Get Access
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
           </div>
         </div>
