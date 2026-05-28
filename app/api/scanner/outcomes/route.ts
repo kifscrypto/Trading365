@@ -59,6 +59,11 @@ export async function GET(request: Request) {
   try {
     await setupSignalTables(sql)
 
+    // Tiered take-profit tracking columns (idempotent — safe to run every cycle)
+    await sql`ALTER TABLE scanner_outcomes ADD COLUMN IF NOT EXISTS tp1_hit BOOLEAN DEFAULT FALSE`
+    await sql`ALTER TABLE scanner_outcomes ADD COLUMN IF NOT EXISTS tp2_hit BOOLEAN DEFAULT FALSE`
+    await sql`ALTER TABLE scanner_outcomes ADD COLUMN IF NOT EXISTS tp3_hit BOOLEAN DEFAULT FALSE`
+
     // Find signals in last 7 days that are missing one or more time-window outcomes
     const signals = await sql`
       SELECT
@@ -120,9 +125,13 @@ export async function GET(request: Request) {
       if (hours >= 72 && sig.needs_72h) toRecord.push(72)
 
       for (const hours_after of toRecord) {
+        // TP flags only meaningful at the 24h check (entry triggers exit timeframe)
+        const tp1Hit = hours_after === 24 && pctChange <= -1.5
+        const tp2Hit = hours_after === 24 && pctChange <= -2.5
+        const tp3Hit = hours_after === 24 && pctChange <= -4.0
         await sql`
-          INSERT INTO scanner_outcomes (signal_id, hours_after, price, pct_change)
-          VALUES (${sig.id as number}, ${hours_after}, ${currentPrice}, ${pctChange})
+          INSERT INTO scanner_outcomes (signal_id, hours_after, price, pct_change, tp1_hit, tp2_hit, tp3_hit)
+          VALUES (${sig.id as number}, ${hours_after}, ${currentPrice}, ${pctChange}, ${tp1Hit}, ${tp2Hit}, ${tp3Hit})
         `
         rows.push({ symbol: sig.symbol as string, hours: hours_after, pct: Math.round(pctChange * 100) / 100 })
         processed++

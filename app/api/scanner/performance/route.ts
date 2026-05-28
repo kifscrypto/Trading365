@@ -20,9 +20,14 @@ export interface SignalRecord {
 export interface PerfStats {
   total: number
   withOutcome: number
-  winRate: number        // % with 24h drop > 3%
+  winRate: number        // % with 24h drop ≥ 1.5% (TP1)
+  tp1Rate: number
+  tp2Rate: number
+  tp3Rate: number
   avgMove24h: number
   bestThreshold: string
+  regimeFired: number
+  regimeSuppressed: number
 }
 
 export interface ChartPoint {
@@ -68,8 +73,13 @@ export async function GET(request: Request) {
 
     // --- Stats ---
     const with24h   = signals.filter(s => s.outcome_24h !== null)
-    const wins24h   = with24h.filter(s => (s.outcome_24h as number) < -3)
+    const wins24h   = with24h.filter(s => (s.outcome_24h as number) <= -1.5)  // TP1
+    const tp2Hits   = with24h.filter(s => (s.outcome_24h as number) <= -2.5)
+    const tp3Hits   = with24h.filter(s => (s.outcome_24h as number) <= -4.0)
     const winRate   = with24h.length > 0 ? (wins24h.length / with24h.length) * 100 : 0
+    const tp1Rate   = winRate
+    const tp2Rate   = with24h.length > 0 ? (tp2Hits.length / with24h.length) * 100 : 0
+    const tp3Rate   = with24h.length > 0 ? (tp3Hits.length / with24h.length) * 100 : 0
     const avgMove24h = with24h.length > 0
       ? with24h.reduce((sum, s) => sum + (s.outcome_24h as number), 0) / with24h.length
       : 0
@@ -79,16 +89,37 @@ export async function GET(request: Request) {
     for (const t of [5, 6, 7, 8, 9]) {
       const sub = with24h.filter(s => s.score >= t)
       if (sub.length < 5) continue
-      const wr = sub.filter(s => (s.outcome_24h as number) < -3).length / sub.length * 100
+      const wr = sub.filter(s => (s.outcome_24h as number) <= -1.5).length / sub.length * 100
       if (wr > bestWR) { bestWR = wr; bestThreshold = `Score ${t}+ wins ${Math.round(wr)}%` }
     }
 
+    // --- Regime filter activity (over the same window) ---
+    // Fired   = telegram alerts actually sent in the window
+    // Suppressed = high-score (≥7) watchlist candidates seen during non-favourable cycles
+    const [firedRow]      = await sql`
+      SELECT COUNT(*)::int AS n FROM telegram_alerts
+      WHERE triggered_at > NOW() - (${days}::integer * INTERVAL '1 day')
+        AND (${exchange} = 'all' OR exchange = ${exchange})
+    ` as Array<{ n: number }>
+    const [suppressedRow] = await sql`
+      SELECT COUNT(*)::int AS n FROM scanner_watchlist
+      WHERE created_at > NOW() - (${days}::integer * INTERVAL '1 day')
+        AND adjusted_score >= 7
+        AND market_condition <> 'favourable'
+        AND (${exchange} = 'all' OR exchange = ${exchange})
+    ` as Array<{ n: number }>
+
     const stats: PerfStats = {
-      total:        signals.length,
-      withOutcome:  with24h.length,
-      winRate:      Math.round(winRate * 10) / 10,
-      avgMove24h:   Math.round(avgMove24h * 100) / 100,
+      total:            signals.length,
+      withOutcome:      with24h.length,
+      winRate:          Math.round(winRate * 10) / 10,
+      tp1Rate:          Math.round(tp1Rate * 10) / 10,
+      tp2Rate:          Math.round(tp2Rate * 10) / 10,
+      tp3Rate:          Math.round(tp3Rate * 10) / 10,
+      avgMove24h:       Math.round(avgMove24h * 100) / 100,
       bestThreshold,
+      regimeFired:      firedRow?.n ?? 0,
+      regimeSuppressed: suppressedRow?.n ?? 0,
     }
 
     // --- Rolling 30-signal win rate chart (ascending order) ---
@@ -98,7 +129,7 @@ export async function GET(request: Request) {
     const chartData: ChartPoint[] = asc
       .map((sig, i) => {
         const window  = asc.slice(Math.max(0, i - 29), i + 1)
-        const wWins   = window.filter(s => (s.outcome_24h as number) < -3).length
+        const wWins   = window.filter(s => (s.outcome_24h as number) <= -1.5).length
         return {
           date:    new Date(sig.scanned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           winRate: Math.round((wWins / window.length) * 100),

@@ -141,6 +141,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, checked: 0, triggered: 0, note: 'watchlist empty' })
     }
 
+    // Hard regime gate — only fire signals when the BTC sentiment regime is favourable.
+    // market_condition is computed by the watchlist builder and shared across all rows in a cycle.
+    const marketCondition = (watchlist[0].market_condition as string) ?? 'neutral'
+    if (marketCondition !== 'favourable') {
+      console.log(`[Scanner] Regime gate: ${marketCondition} — suppressing all signals`)
+      return NextResponse.json({
+        ok:                   true,
+        checked:               watchlist.length,
+        triggered:             0,
+        suppressed_by_regime:  marketCondition,
+      })
+    }
+
     const triggered: string[] = []
 
     // Process in batches of 10
@@ -198,9 +211,9 @@ export async function GET(request: Request) {
         const displaySymbol = sym.replace('USDT', '')
 
         // Stage 3 — pre-Telegram score check
-        console.log(`[entries] ${sym} PASSED firedCount threshold — adjustedScore=${adjustedScore} threshold=6 → will alert: ${adjustedScore >= 6}`)
+        console.log(`[entries] ${sym} PASSED firedCount threshold — adjustedScore=${adjustedScore} threshold=7 → will alert: ${adjustedScore >= 7}`)
 
-        if (adjustedScore >= 6) {
+        if (adjustedScore >= 7) {
           // Deduplicate: skip if already alerted this symbol in the last 4h
           const recent = await sql`
             SELECT id FROM telegram_alerts
@@ -233,14 +246,22 @@ export async function GET(request: Request) {
           const allSignalKeys = [...(item.signals as string[]), ...entrySignals]
           const signalStr     = allSignalKeys.map(s => SIGNAL_DISPLAY[s] ?? s).join(', ')
 
+          const tp1 = entryPrice * 0.985
+          const tp2 = entryPrice * 0.975
+          const tp3 = entryPrice * 0.96
+          const rawScore = item.score as number
+
           const text = [
             `🔴 SHORT SIGNAL — $${displaySymbol}`,
             `Exchange: ${exchangeLabel}`,
-            `Score: ${adjustedScore}/15`,
+            `Score: ${adjustedScore} (${rawScore})`,
+            `Market: FAVOURABLE ✅`,
             `Entry: $${fmtPrice(entryPrice)}`,
+            `TP1: $${fmtPrice(tp1)} (-1.5%)`,
+            `TP2: $${fmtPrice(tp2)} (-2.5%)`,
+            `TP3: $${fmtPrice(tp3)} (-4.0%)`,
             `Stop: above $${fmtPrice(stopPrice)} (last swing high)`,
             `Signals: ${signalStr}`,
-            `Market: ${(item.market_condition as string).toUpperCase()}`,
           ].join('\n')
 
           await sendTelegram(text)

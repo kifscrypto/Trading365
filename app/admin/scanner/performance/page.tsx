@@ -161,7 +161,7 @@ export default function PerformancePage() {
 
       {/* Stat cards */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mb-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-4">
             <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Total Signals</p>
             <p className="text-zinc-100 text-2xl font-bold leading-tight">{stats.total}</p>
@@ -169,13 +169,23 @@ export default function PerformancePage() {
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-4">
-            <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Win Rate (24h)</p>
+            <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Win Rate · TP1 (1.5%)</p>
             <p className={`text-2xl font-bold leading-tight ${
               stats.winRate >= 60 ? 'text-green-400' : stats.winRate >= 40 ? 'text-amber-400' : 'text-red-400'
             }`}>
               {stats.winRate}%
             </p>
-            <p className="text-zinc-700 text-xs mt-1">price dropped &gt;3% within 24h</p>
+            <div className="flex items-center gap-2 mt-2 text-[10px] font-mono">
+              <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                TP1 <span className="text-green-400">{stats.tp1Rate}%</span>
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                TP2 <span className="text-green-400">{stats.tp2Rate}%</span>
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                TP3 <span className="text-green-400">{stats.tp3Rate}%</span>
+              </span>
+            </div>
           </div>
 
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-4">
@@ -189,7 +199,17 @@ export default function PerformancePage() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-4">
             <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Best Threshold</p>
             <p className="text-amber-300 text-sm font-bold leading-tight mt-1">{stats.bestThreshold}</p>
-            <p className="text-zinc-700 text-xs mt-1">highest 24h win rate by score tier</p>
+            <p className="text-zinc-700 text-xs mt-1">highest TP1 win rate by score tier</p>
+          </div>
+
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-4">
+            <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Regime Filter</p>
+            <p className="text-2xl font-bold leading-tight">
+              <span className="text-green-400">{stats.regimeFired}</span>
+              <span className="text-zinc-600 text-lg"> / </span>
+              <span className="text-red-400">{stats.regimeSuppressed}</span>
+            </p>
+            <p className="text-zinc-700 text-xs mt-1">fired vs suppressed (score ≥ 7)</p>
           </div>
         </div>
       )}
@@ -320,7 +340,7 @@ export default function PerformancePage() {
       </div>
 
       <p className="mt-3 text-right text-zinc-700 text-xs">
-        Green = price fell (short profitable) · Red = price rose (short lost) · Win = drop &gt;3% within 24h
+        Green = price fell (short profitable) · Red = price rose (short lost) · Win = drop ≥1.5% within 24h (TP1)
       </p>
     </div>
   )
