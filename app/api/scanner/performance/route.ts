@@ -72,7 +72,12 @@ export async function GET(request: Request) {
     const signals = rows as SignalRecord[]
 
     // --- Stats ---
-    const with24h   = signals.filter(s => s.outcome_24h !== null)
+    // Win rate / TP rates / avg move / best threshold reflect the *product* — what the
+    // scanner actually fires on (favourable regime + score ≥ 7). Total/withOutcome remain
+    // UI-filter scoped so the admin can still see exploration counts.
+    const productSignals = signals.filter(s => s.market_condition === 'favourable' && s.score >= 7)
+    const with24h        = productSignals.filter(s => s.outcome_24h !== null)
+    const withOutcomeAll = signals.filter(s => s.outcome_24h !== null).length
     const wins24h   = with24h.filter(s => (s.outcome_24h as number) <= -1.5)  // TP1
     const tp2Hits   = with24h.filter(s => (s.outcome_24h as number) <= -2.5)
     const tp3Hits   = with24h.filter(s => (s.outcome_24h as number) <= -4.0)
@@ -86,7 +91,7 @@ export async function GET(request: Request) {
 
     let bestThreshold = 'Not enough data'
     let bestWR = -1
-    for (const t of [5, 6, 7, 8, 9]) {
+    for (const t of [7, 8, 9]) {
       const sub = with24h.filter(s => s.score >= t)
       if (sub.length < 5) continue
       const wr = sub.filter(s => (s.outcome_24h as number) <= -1.5).length / sub.length * 100
@@ -111,7 +116,7 @@ export async function GET(request: Request) {
 
     const stats: PerfStats = {
       total:            signals.length,
-      withOutcome:      with24h.length,
+      withOutcome:      withOutcomeAll,
       winRate:          Math.round(winRate * 10) / 10,
       tp1Rate:          Math.round(tp1Rate * 10) / 10,
       tp2Rate:          Math.round(tp2Rate * 10) / 10,
@@ -123,6 +128,7 @@ export async function GET(request: Request) {
     }
 
     // --- Rolling 30-signal win rate chart (ascending order) ---
+    // Same product filter as stat cards above — chart reflects favourable + score ≥ 7 only.
     const asc = [...with24h].sort(
       (a, b) => new Date(a.scanned_at).getTime() - new Date(b.scanned_at).getTime()
     )

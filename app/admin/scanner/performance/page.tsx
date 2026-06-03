@@ -21,6 +21,12 @@ function PctCell({ val }: { val: number | null }) {
   )
 }
 
+const marketClass: Record<string, string> = {
+  favourable: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+  neutral:    'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+  hostile:    'bg-red-500/10 text-red-400 border-red-500/30',
+}
+
 const SIGNAL_LABELS: Record<string, string> = {
   far_below_200ema: '↓↓ EMA200',
   below_200ema:     '↓ EMA200',
@@ -271,6 +277,7 @@ export default function PerformancePage() {
                   <th className="px-3 py-3 text-left text-zinc-500 uppercase tracking-widest font-normal">Symbol</th>
                   <th className="px-3 py-3 text-left text-zinc-500 uppercase tracking-widest font-normal">Exch</th>
                   <th className="px-3 py-3 text-center text-zinc-500 uppercase tracking-widest font-normal">Score</th>
+                  <th className="px-3 py-3 text-center text-zinc-500 uppercase tracking-widest font-normal">Market</th>
                   <th className="px-3 py-3 text-left text-zinc-500 uppercase tracking-widest font-normal">Signals</th>
                   <th className="px-3 py-3 text-right text-zinc-500 uppercase tracking-widest font-normal whitespace-nowrap">Entry $</th>
                   <th className="px-3 py-3 text-right text-zinc-500 uppercase tracking-widest font-normal">24h</th>
@@ -311,6 +318,11 @@ export default function PerformancePage() {
                         : 'bg-zinc-800 border-zinc-700 text-zinc-400'
                       }`}>
                         {sig.score}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${marketClass[sig.market_condition] ?? 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+                        {sig.market_condition}
                       </span>
                     </td>
                     <td className="px-3 py-2.5 max-w-[180px]">
