@@ -11,6 +11,10 @@
     {
       "path": "/api/scanner/outcomes?cron=true",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/scanner/monitor?cron=true",
+      "schedule": "7,22,37,52 * * * *"
     }
   ]
 }
