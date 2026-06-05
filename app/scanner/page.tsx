@@ -134,6 +134,54 @@ async function getStats(): Promise<Stats> {
   }
 }
 
+interface RecentWin {
+  symbol: string
+  exchange: string
+  pctChange: number
+  tp: number // highest target reached: 1, 2 or 3
+  scannedAt: string
+}
+
+// Recent confirmed wins — sourced from the SAME dataset as the headline win
+// rate (favourable regime, score ≥ 7, 24h outcome ≤ −1.5% = TP1), so the feed
+// can never contradict the advertised numbers.
+async function getRecentWins(): Promise<RecentWin[]> {
+  const sql = neon(process.env.DATABASE_URL!)
+  try {
+    const rows = await sql`
+      SELECT s.symbol, s.exchange,
+             o24.pct_change::float AS pct_change,
+             s.scanned_at
+      FROM scanner_signals s
+      JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
+      WHERE s.market_condition = 'favourable'
+        AND s.score >= 7
+        AND o24.pct_change <= -1.5
+        AND s.scanned_at > NOW() - INTERVAL '30 days'
+      ORDER BY s.scanned_at DESC
+      LIMIT 12
+    `
+    return (rows as Array<{ symbol: string; exchange: string; pct_change: number; scanned_at: string }>).map(r => ({
+      symbol:    r.symbol,
+      exchange:  r.exchange,
+      pctChange: r.pct_change,
+      tp:        r.pct_change <= -4 ? 3 : r.pct_change <= -2.5 ? 2 : 1,
+      scannedAt: r.scanned_at,
+    }))
+  } catch {
+    return []
+  }
+}
+
+function fmtAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60_000)
+  if (mins < 60) return `${Math.max(1, mins)}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
 function fmtPrice(p: number): string {
   if (p >= 1000) return p.toLocaleString("en-US", { maximumFractionDigits: 2 })
   if (p >= 1) return p.toFixed(4)
@@ -198,7 +246,8 @@ function outcomeCellClass(v: number | null): string {
 }
 
 export default async function ScannerPage() {
-  const { tp1WinRate, directionalAccuracy, totalSignals, avgMove, preview } = await getStats()
+  const [stats, recentWins] = await Promise.all([getStats(), getRecentWins()])
+  const { tp1WinRate, directionalAccuracy, totalSignals, avgMove, preview } = stats
 
   return (
     <>
@@ -267,6 +316,52 @@ export default async function ScannerPage() {
           </div>
         </div>
       </section>
+
+      {/* Recent wins */}
+      {recentWins.length > 0 && (
+        <section className="border-b border-border bg-zinc-950">
+          <div className="mx-auto max-w-5xl px-4 py-10 lg:px-6">
+            <div className="mb-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                  Recent Wins
+                </h2>
+                <Badge variant="outline" className="gap-1.5 border-emerald-500/40 text-emerald-400">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  </span>
+                  Live
+                </Badge>
+              </div>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                Confirmed shorts · last 30 days
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {recentWins.map((w, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] px-4 py-3"
+                >
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-foreground">${w.symbol.replace("USDT", "")}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {exchangeLabel[w.exchange] ?? w.exchange} · {fmtAgo(w.scannedAt)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="font-bold tabular-nums text-emerald-400">{w.pctChange.toFixed(1)}%</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/80">
+                      TP{w.tp} ✓
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Feature cards */}
       <section className="mx-auto max-w-5xl px-4 py-20 lg:px-6">
