@@ -1,8 +1,8 @@
 import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 import {
-  okx1hKlines, hyperliquid1hKlines, mexcKlines,
-  calcRSI, calcMACD, setupSignalTables,
+  okx1hKlines, hyperliquid1hKlines, mexcKlines, weex1hKlines, bitunix1hKlines,
+  calcRSI, calcMACD, setupSignalTables, exchangeTradeUrl, EXCHANGE_LABEL,
   type Kline, type SqlClient,
 } from '@/app/api/scanner/_core'
 
@@ -171,6 +171,13 @@ export async function GET(request: Request) {
             const mexcSym = (item.symbol as string).replace('USDT', '_USDT')
             return mexcKlines(mexcSym, 'Min60', 105)
           }
+          if (item.exchange === 'weex') {
+            // BTCUSDT → cmt_btcusdt
+            return weex1hKlines('cmt_' + (item.symbol as string).toLowerCase())
+          }
+          if (item.exchange === 'bitunix') {
+            return bitunix1hKlines(item.symbol as string)
+          }
           // OKX: BTCUSDT → BTC-USDT-SWAP
           const instId = (item.symbol as string).replace('USDT', '-USDT-SWAP')
           return okx1hKlines(instId)
@@ -240,9 +247,9 @@ export async function GET(request: Request) {
             )
           `
 
-          const exchangeLabel = item.exchange === 'hyperliquid' ? 'Hyperliquid'
-                              : item.exchange === 'mexc'        ? 'MEXC'
-                              : 'OKX'
+          const exchange      = item.exchange as string
+          const exchangeLabel = EXCHANGE_LABEL[exchange] ?? 'OKX'
+          const tradeUrl      = exchangeTradeUrl(exchange, sym)
           const allSignalKeys = [...(item.signals as string[]), ...entrySignals]
           const signalStr     = allSignalKeys.map(s => SIGNAL_DISPLAY[s] ?? s).join(', ')
 
@@ -262,6 +269,7 @@ export async function GET(request: Request) {
             `TP3: $${fmtPrice(tp3)} (-4.0%)`,
             `Stop: above $${fmtPrice(stopPrice)} (last swing high)`,
             `Signals: ${signalStr}`,
+            `Trade on ${exchangeLabel}: ${tradeUrl}`,
           ].join('\n')
 
           await sendTelegram(text)

@@ -3,6 +3,7 @@
  * Not a route itself; Next.js only treats route.ts as an API endpoint.
  */
 import { neon } from '@neondatabase/serverless'
+import crypto from 'crypto'
 
 export type Kline = [string, string, string, string, string, string, ...string[]]
 export type SqlClient = ReturnType<typeof neon>
@@ -36,6 +37,39 @@ const MIN_OI: Record<string, number> = {
   okx:          20_000_000,
   hyperliquid:  10_000_000,
   mexc:          8_000_000,
+  bydfi:         2_000_000,
+  // WEEX + Bitunix expose no reliable public open interest, so for these two the
+  // gate is 24h quote (USD) volume instead — a liquidity proxy. See runWEEXScan /
+  // runBitunixScan, where oi_usd is populated with the 24h volume.
+  weex:          5_000_000,
+  bitunix:       5_000_000,
+}
+
+/** Per-exchange display label for alerts + UI. */
+export const EXCHANGE_LABEL: Record<string, string> = {
+  okx:         'OKX',
+  hyperliquid: 'Hyperliquid',
+  mexc:        'MEXC',
+  bydfi:       'BYDFi',
+  weex:        'WEEX',
+  bitunix:     'Bitunix',
+}
+
+/**
+ * Deep-link to the perpetual trading page for a signal, by exchange.
+ * `symbol` is the stored form, e.g. 'BTCUSDT'.
+ */
+export function exchangeTradeUrl(exchange: string, symbol: string): string {
+  const base = symbol.replace(/USDT$/i, '')
+  switch (exchange) {
+    case 'hyperliquid': return `https://app.hyperliquid.xyz/trade/${base}`
+    case 'mexc':        return `https://futures.mexc.com/exchange/${base}_USDT`
+    case 'weex':        return `https://www.weex.com/futures/${base}-USDT`
+    case 'bitunix':     return `https://www.bitunix.com/contract-trade/${base}USDT`
+    case 'bydfi':       return `https://www.bydfi.com/en/futures/${base}USDT`
+    case 'okx':
+    default:            return `https://www.okx.com/trade-swap/${base.toLowerCase()}-usdt-swap`
+  }
 }
 
 // --- Indicators ---
@@ -369,6 +403,319 @@ export async function runMEXCScan(): Promise<RawResult[]> {
         score,
         signals,
         exchange:    'mexc',
+        scanned_at:  new Date().toISOString(),
+      })
+    }
+  }
+  return results.sort((a, b) => b.score - a.score).slice(0, 20)
+}
+
+// --- BYDFi ---
+// Two hosts: the public b2b listing API (www.bydfi.com/b2b/rank/contracts) gives
+// price+OI+funding for every USDT perp in one unsigned call. Klines, however, live on the
+// signed trading gateway (api.bydfi.com) — periods are integer minutes (240 = 4H, 1440 = 1D),
+// so unlike the other exchanges we read 4H directly with no aggregation.
+// NOTE: api.bydfi.com gates market data behind a signed request (x-sign / x-nonce / x-token
+// headers per its CORS policy); bydfiSignedHeaders() builds them from BYDFI_API_KEY/SECRET.
+
+const BYDFI_RANK_BASE = 'https://www.bydfi.com/b2b'
+const BYDFI_API_BASE  = 'https://api.bydfi.com'
+
+type BYDFiKlineRow = { id: number; open: string; close: string; high: string; low: string; vol: string }
+
+// api.bydfi.com gates requests behind a signature; its CORS policy advertises x-token/x-nonce/x-sign.
+// Standard CEX scheme: x-sign = HMAC-SHA256(secret, nonce + METHOD + path + "?" + query), hex.
+// TODO(verify): confirm the exact string-to-sign + header names against developers.bydfi.com/signature.
+function bydfiSignedHeaders(method: string, path: string, query: string): Record<string, string> {
+  const key = process.env.BYDFI_API_KEY
+  const secret = process.env.BYDFI_API_SECRET
+  if (!key || !secret) return {}
+  const nonce = String(Date.now())
+  const payload = `${nonce}${method}${path}${query ? '?' + query : ''}`
+  const sign = crypto.createHmac('sha256', secret).update(payload).digest('hex')
+  return { 'x-token': key, 'x-nonce': nonce, 'x-sign': sign }
+}
+
+export async function bydfiRawKlines(symbol: string, periodMins: number): Promise<Kline[]> {
+  const qs = `symbol=${symbol}&period=${periodMins}&limit=210`
+  const r = await fetch(
+    `${BYDFI_API_BASE}/api/v1/contract/market/kline?${qs}`,
+    { cache: 'no-store', headers: { ...HEADERS, ...bydfiSignedHeaders('GET', '/api/v1/contract/market/kline', qs) } }
+  )
+  if (!r.ok) return []
+  const d = await r.json()
+  if (d.code && d.code !== 0 && d.code !== 200) return []   // gateway error envelope
+  const rows = (d.data ?? d) as BYDFiKlineRow[]
+  if (!Array.isArray(rows) || rows.length === 0) return []
+  return rows
+    .map(c => [String(c.id * 1000), c.open, c.high, c.low, c.close, c.vol] as Kline)
+    .sort((a, b) => Number(a[0]) - Number(b[0]))   // oldest-first
+}
+
+export async function bydfiKlines(symbol: string): Promise<Kline[]> {
+  return bydfiRawKlines(symbol, 240)    // 4H, direct
+}
+
+export async function bydfiDailyKlines(symbol: string): Promise<Kline[]> {
+  return bydfiRawKlines(symbol, 1440)   // 1D
+}
+
+export async function runBYDFiScan(): Promise<RawResult[]> {
+  const r = await fetch(`${BYDFI_RANK_BASE}/rank/contracts`, { cache: 'no-store', headers: HEADERS })
+  if (!r.ok) throw new Error(`BYDFi HTTP ${r.status}`)
+
+  type BYDFiContract = {
+    ticker_id: string
+    quote_currency: string
+    product_type: string
+    last_price: number | string
+    open_interest: number | string
+    funding_rate: number | string
+  }
+
+  const d = await r.json()
+  const contracts = (d.data ?? []) as BYDFiContract[]
+
+  const qualified: Array<{ pair: string; price: number; oiUsd: number; funding: number }> = []
+  for (const c of contracts) {
+    if (c.quote_currency !== 'USDT' || c.product_type !== 'Perpetual') continue
+    const price = parseFloat(String(c.last_price))
+    if (!price) continue
+    const oiUsd = parseFloat(String(c.open_interest)) * price
+    if (oiUsd < MIN_OI.bydfi) continue
+    qualified.push({ pair: c.ticker_id, price, oiUsd, funding: parseFloat(String(c.funding_rate)) || 0 })
+  }
+  qualified.sort((a, b) => b.oiUsd - a.oiUsd)
+  const top = qualified.slice(0, 100)
+
+  const results: RawResult[] = []
+  for (let i = 0; i < top.length; i += 10) {
+    const batch = top.slice(i, i + 10)
+    const [klineRes, dailyRes] = await Promise.all([
+      Promise.allSettled(batch.map(t => bydfiKlines(t.pair))),
+      Promise.allSettled(batch.map(t => bydfiDailyKlines(t.pair))),
+    ])
+    for (let j = 0; j < batch.length; j++) {
+      const t = batch[j]
+      if (klineRes[j].status !== 'fulfilled') continue
+      const kl = (klineRes[j] as PromiseFulfilledResult<Kline[]>).value
+      if (kl.length < 50) continue
+      const dailyKl = dailyRes[j].status === 'fulfilled'
+        ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
+      // ticker_id is e.g. BTC-PERPUSDT → normalise to BTCUSDT for scoring + display
+      const symbol = t.pair.replace('-PERPUSDT', 'USDT')
+      const { score, signals, skip } = scoreKlines(symbol, kl, dailyKl, t.price, t.funding)
+      if (skip) continue
+      results.push({
+        symbol,
+        price:       t.price,
+        oi_usd:      t.oiUsd,
+        funding_pct: t.funding * 100,
+        score,
+        signals,
+        exchange:    'bydfi',
+        scanned_at:  new Date().toISOString(),
+      })
+    }
+  }
+  return results.sort((a, b) => b.score - a.score).slice(0, 20)
+}
+
+// --- WEEX ---
+// Bitget-derived contract API (capi/v2), fully public/unsigned. Contract symbols
+// look like 'cmt_btcusdt'; funding lives in one all-symbols call keyed by
+// '<BASE>_<QUOTE>' (e.g. 'BTC_USDT') with a 4h collectCycle, so funding ×2 ≈ 8h
+// equivalent to match the other exchanges' thresholds. No reliable public OI, so
+// we qualify by 24h quote (USD) volume. Candles come back in a mixed order (the
+// live candle is appended last), so we always sort ascending.
+
+const WEEX_BASE = 'https://api-contract.weex.com/capi/v2'
+
+type WeexCandle = [string, string, string, string, string, string, string] // [time, o, h, l, c, baseVol, quoteVol]
+
+async function weexCandles(cmtSymbol: string, granularity: string, limit: number): Promise<Kline[]> {
+  const r = await fetch(
+    `${WEEX_BASE}/market/candles?symbol=${cmtSymbol}&granularity=${granularity}&limit=${limit}`,
+    { cache: 'no-store', headers: HEADERS }
+  )
+  if (!r.ok) return []
+  const rows = await r.json() as WeexCandle[]
+  if (!Array.isArray(rows)) return []
+  return rows
+    .map(c => [c[0], c[1], c[2], c[3], c[4], c[5]] as Kline)
+    .sort((a, b) => Number(a[0]) - Number(b[0]))   // oldest-first
+}
+
+export function weexKlines(cmtSymbol: string): Promise<Kline[]> {
+  return weexCandles(cmtSymbol, '4h', 210)
+}
+
+export function weex1hKlines(cmtSymbol: string): Promise<Kline[]> {
+  return weexCandles(cmtSymbol, '1h', 105)
+}
+
+export function weexDailyKlines(cmtSymbol: string): Promise<Kline[]> {
+  return weexCandles(cmtSymbol, '1d', 215)
+}
+
+export async function runWEEXScan(): Promise<RawResult[]> {
+  const [contractRes, tickerRes, fundingRes] = await Promise.all([
+    fetch(`${WEEX_BASE}/market/contracts`,     { cache: 'no-store', headers: HEADERS }),
+    fetch(`${WEEX_BASE}/market/tickers`,       { cache: 'no-store', headers: HEADERS }),
+    fetch(`${WEEX_BASE}/market/funding_rate`,  { cache: 'no-store', headers: HEADERS }),
+  ])
+  if (!contractRes.ok || !tickerRes.ok) throw new Error(`WEEX HTTP ${contractRes.status}/${tickerRes.status}`)
+
+  type WeexContract = { symbol: string; underlying_index: string; quote_currency: string }
+  type WeexTicker   = { symbol: string; last: string; volume_24h: string }
+  type WeexFunding  = { baseCurrency: string; fundingRate: string }
+
+  const contracts = await contractRes.json() as WeexContract[]
+  const tickers   = await tickerRes.json()   as WeexTicker[]
+  const fundings  = fundingRes.ok ? await fundingRes.json() as WeexFunding[] : []
+
+  const tickerMap  = new Map(tickers.map(t => [t.symbol, t]))
+  const fundingMap = new Map(fundings.map(f => [f.baseCurrency, parseFloat(f.fundingRate) || 0]))
+
+  const qualified: Array<{ cmt: string; symbol: string; price: number; volUsd: number; funding: number }> = []
+  for (const c of contracts) {
+    if (c.quote_currency !== 'USDT') continue
+    const ticker = tickerMap.get(c.symbol)
+    if (!ticker) continue
+    const price  = parseFloat(ticker.last)
+    const volUsd = parseFloat(ticker.volume_24h)
+    if (!price || volUsd < MIN_OI.weex) continue
+    // WEEX funding collects every 4h; ×2 ≈ 8h equivalent.
+    const funding = (fundingMap.get(`${c.underlying_index}_${c.quote_currency}`) ?? 0) * 2
+    qualified.push({ cmt: c.symbol, symbol: `${c.underlying_index}USDT`, price, volUsd, funding })
+  }
+  qualified.sort((a, b) => b.volUsd - a.volUsd)
+  const top = qualified.slice(0, 100)
+
+  const results: RawResult[] = []
+  for (let i = 0; i < top.length; i += 10) {
+    const batch = top.slice(i, i + 10)
+    const [klineRes, dailyRes] = await Promise.all([
+      Promise.allSettled(batch.map(t => weexKlines(t.cmt))),
+      Promise.allSettled(batch.map(t => weexDailyKlines(t.cmt))),
+    ])
+    for (let j = 0; j < batch.length; j++) {
+      const t = batch[j]
+      if (klineRes[j].status !== 'fulfilled') continue
+      const kl = (klineRes[j] as PromiseFulfilledResult<Kline[]>).value
+      if (kl.length < 50) continue
+      const dailyKl = dailyRes[j].status === 'fulfilled'
+        ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
+      const { score, signals, skip } = scoreKlines(t.symbol, kl, dailyKl, t.price, t.funding)
+      if (skip) continue
+      results.push({
+        symbol:      t.symbol,
+        price:       t.price,
+        oi_usd:      t.volUsd,    // 24h quote volume proxy (WEEX has no public OI)
+        funding_pct: t.funding * 100,
+        score,
+        signals,
+        exchange:    'weex',
+        scanned_at:  new Date().toISOString(),
+      })
+    }
+  }
+  return results.sort((a, b) => b.score - a.score).slice(0, 20)
+}
+
+// --- Bitunix ---
+// Public/unsigned futures API. Symbols are already in 'BTCUSDT' form. Tickers
+// carry 24h quote (USD) volume but no OI, so qualification is volume-based;
+// funding is a per-symbol call (8h interval). Klines come back newest-first, so
+// we sort ascending.
+
+const BITUNIX_BASE = 'https://fapi.bitunix.com/api/v1/futures/market'
+
+type BitunixCandle = { open: string; high: string; low: string; close: string; baseVol: string; time: string | number }
+
+async function bitunixCandles(symbol: string, interval: string, limit: number): Promise<Kline[]> {
+  const r = await fetch(
+    `${BITUNIX_BASE}/kline?symbol=${symbol}&interval=${interval}&limit=${limit}`,
+    { cache: 'no-store', headers: HEADERS }
+  )
+  if (!r.ok) return []
+  const d = await r.json()
+  if (d.code !== 0 || !Array.isArray(d.data)) return []
+  return (d.data as BitunixCandle[])
+    .map(c => [String(c.time), c.open, c.high, c.low, c.close, c.baseVol] as Kline)
+    .sort((a, b) => Number(a[0]) - Number(b[0]))   // oldest-first
+}
+
+export function bitunixKlines(symbol: string): Promise<Kline[]> {
+  return bitunixCandles(symbol, '4h', 200)
+}
+
+export function bitunix1hKlines(symbol: string): Promise<Kline[]> {
+  return bitunixCandles(symbol, '1h', 105)
+}
+
+export function bitunixDailyKlines(symbol: string): Promise<Kline[]> {
+  return bitunixCandles(symbol, '1d', 200)
+}
+
+export async function bitunixFunding(symbol: string): Promise<number> {
+  const r = await fetch(
+    `${BITUNIX_BASE}/funding_rate?symbol=${symbol}`,
+    { cache: 'no-store', headers: HEADERS }
+  )
+  if (!r.ok) return 0
+  const d = await r.json()
+  if (d.code !== 0) return 0
+  return parseFloat(d.data?.fundingRate ?? '0') || 0
+}
+
+export async function runBitunixScan(): Promise<RawResult[]> {
+  const r = await fetch(`${BITUNIX_BASE}/tickers`, { cache: 'no-store', headers: HEADERS })
+  if (!r.ok) throw new Error(`Bitunix HTTP ${r.status}`)
+  const d = await r.json()
+  if (d.code !== 0) throw new Error('Bitunix API returned error')
+
+  type BitunixTicker = { symbol: string; lastPrice: string; last: string; quoteVol: string }
+  const tickers = (d.data ?? []) as BitunixTicker[]
+
+  const qualified: Array<{ symbol: string; price: number; volUsd: number }> = []
+  for (const t of tickers) {
+    if (!t.symbol.endsWith('USDT')) continue
+    const price  = parseFloat(t.lastPrice ?? t.last)
+    const volUsd = parseFloat(t.quoteVol)
+    if (!price || volUsd < MIN_OI.bitunix) continue
+    qualified.push({ symbol: t.symbol, price, volUsd })
+  }
+  qualified.sort((a, b) => b.volUsd - a.volUsd)
+  const top = qualified.slice(0, 100)
+
+  const results: RawResult[] = []
+  for (let i = 0; i < top.length; i += 10) {
+    const batch = top.slice(i, i + 10)
+    const [klineRes, dailyRes, fundingRes] = await Promise.all([
+      Promise.allSettled(batch.map(t => bitunixKlines(t.symbol))),
+      Promise.allSettled(batch.map(t => bitunixDailyKlines(t.symbol))),
+      Promise.allSettled(batch.map(t => bitunixFunding(t.symbol))),
+    ])
+    for (let j = 0; j < batch.length; j++) {
+      const t = batch[j]
+      if (klineRes[j].status !== 'fulfilled') continue
+      const kl = (klineRes[j] as PromiseFulfilledResult<Kline[]>).value
+      if (kl.length < 50) continue
+      const dailyKl = dailyRes[j].status === 'fulfilled'
+        ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
+      const funding = fundingRes[j].status === 'fulfilled'
+        ? (fundingRes[j] as PromiseFulfilledResult<number>).value : 0
+      const { score, signals, skip } = scoreKlines(t.symbol, kl, dailyKl, t.price, funding)
+      if (skip) continue
+      results.push({
+        symbol:      t.symbol,
+        price:       t.price,
+        oi_usd:      t.volUsd,    // 24h quote volume proxy (Bitunix has no public OI)
+        funding_pct: funding * 100,
+        score,
+        signals,
+        exchange:    'bitunix',
         scanned_at:  new Date().toISOString(),
       })
     }

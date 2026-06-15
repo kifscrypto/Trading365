@@ -1,7 +1,8 @@
 import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 import {
-  okx1hKlines, hyperliquid1hKlines, mexcKlines,
+  okx1hKlines, hyperliquid1hKlines, mexcKlines, weex1hKlines, bitunix1hKlines,
+  exchangeTradeUrl, EXCHANGE_LABEL,
   type Kline,
 } from '@/app/api/scanner/_core'
 
@@ -51,6 +52,12 @@ function fetchKlines(symbol: string, exchange: string): Promise<Kline[]> {
   }
   if (exchange === 'mexc') {
     return mexcKlines(symbol.replace('USDT', '_USDT'), 'Min60', 105)
+  }
+  if (exchange === 'weex') {
+    return weex1hKlines('cmt_' + symbol.toLowerCase())
+  }
+  if (exchange === 'bitunix') {
+    return bitunix1hKlines(symbol)
   }
   return okx1hKlines(symbol.replace('USDT', '-USDT-SWAP'))
 }
@@ -153,9 +160,8 @@ export async function GET(request: Request) {
         }
 
         const displaySymbol = (a.symbol as string).replace('USDT', '')
-        const exchangeLabel = a.exchange === 'hyperliquid' ? 'Hyperliquid'
-                            : a.exchange === 'mexc'        ? 'MEXC'
-                            : 'OKX'
+        const exchange      = a.exchange as string
+        const exchangeLabel = EXCHANGE_LABEL[exchange] ?? 'OKX'
 
         if (newlyHit.length > 0) {
           const hitLabels = newlyHit.map(tp => `TP${tp.level} (${tp.label})`).join(' & ')
@@ -167,6 +173,7 @@ export async function GET(request: Request) {
             `Reached: ${hitLabels}`,
             `Target price: $${fmtPrice(entry * best.mult)}`,
             `Signal confirmed 🎯`,
+            `Trade on ${exchangeLabel}: ${exchangeTradeUrl(exchange, a.symbol as string)}`,
           ].join('\n')
           if (doSend) await broadcast(text)
           if (doWrite) {
