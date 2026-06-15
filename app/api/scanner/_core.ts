@@ -3,7 +3,6 @@
  * Not a route itself; Next.js only treats route.ts as an API endpoint.
  */
 import { neon } from '@neondatabase/serverless'
-import crypto from 'crypto'
 
 export type Kline = [string, string, string, string, string, string, ...string[]]
 export type SqlClient = ReturnType<typeof neon>
@@ -37,7 +36,6 @@ const MIN_OI: Record<string, number> = {
   okx:          20_000_000,
   hyperliquid:  10_000_000,
   mexc:          8_000_000,
-  bydfi:         2_000_000,
   // WEEX + Bitunix expose no reliable public open interest, so for these two the
   // gate is 24h quote (USD) volume instead — a liquidity proxy. See runWEEXScan /
   // runBitunixScan, where oi_usd is populated with the 24h volume.
@@ -50,7 +48,6 @@ export const EXCHANGE_LABEL: Record<string, string> = {
   okx:         'OKX',
   hyperliquid: 'Hyperliquid',
   mexc:        'MEXC',
-  bydfi:       'BYDFi',
   weex:        'WEEX',
   bitunix:     'Bitunix',
 }
@@ -66,7 +63,6 @@ export function exchangeTradeUrl(exchange: string, symbol: string): string {
     case 'mexc':        return `https://futures.mexc.com/exchange/${base}_USDT`
     case 'weex':        return `https://www.weex.com/futures/${base}-USDT`
     case 'bitunix':     return `https://www.bitunix.com/contract-trade/${base}USDT`
-    case 'bydfi':       return `https://www.bydfi.com/en/futures/${base}USDT`
     case 'okx':
     default:            return `https://www.okx.com/trade-swap/${base.toLowerCase()}-usdt-swap`
   }
@@ -403,117 +399,6 @@ export async function runMEXCScan(): Promise<RawResult[]> {
         score,
         signals,
         exchange:    'mexc',
-        scanned_at:  new Date().toISOString(),
-      })
-    }
-  }
-  return results.sort((a, b) => b.score - a.score).slice(0, 20)
-}
-
-// --- BYDFi ---
-// Two hosts: the public b2b listing API (www.bydfi.com/b2b/rank/contracts) gives
-// price+OI+funding for every USDT perp in one unsigned call. Klines, however, live on the
-// signed trading gateway (api.bydfi.com) — periods are integer minutes (240 = 4H, 1440 = 1D),
-// so unlike the other exchanges we read 4H directly with no aggregation.
-// NOTE: api.bydfi.com gates market data behind a signed request (x-sign / x-nonce / x-token
-// headers per its CORS policy); bydfiSignedHeaders() builds them from BYDFI_API_KEY/SECRET.
-
-const BYDFI_RANK_BASE = 'https://www.bydfi.com/b2b'
-const BYDFI_API_BASE  = 'https://api.bydfi.com'
-
-type BYDFiKlineRow = { id: number; open: string; close: string; high: string; low: string; vol: string }
-
-// api.bydfi.com gates requests behind a signature; its CORS policy advertises x-token/x-nonce/x-sign.
-// Standard CEX scheme: x-sign = HMAC-SHA256(secret, nonce + METHOD + path + "?" + query), hex.
-// TODO(verify): confirm the exact string-to-sign + header names against developers.bydfi.com/signature.
-function bydfiSignedHeaders(method: string, path: string, query: string): Record<string, string> {
-  const key = process.env.BYDFI_API_KEY
-  const secret = process.env.BYDFI_API_SECRET
-  if (!key || !secret) return {}
-  const nonce = String(Date.now())
-  const payload = `${nonce}${method}${path}${query ? '?' + query : ''}`
-  const sign = crypto.createHmac('sha256', secret).update(payload).digest('hex')
-  return { 'x-token': key, 'x-nonce': nonce, 'x-sign': sign }
-}
-
-export async function bydfiRawKlines(symbol: string, periodMins: number): Promise<Kline[]> {
-  const qs = `symbol=${symbol}&period=${periodMins}&limit=210`
-  const r = await fetch(
-    `${BYDFI_API_BASE}/api/v1/contract/market/kline?${qs}`,
-    { cache: 'no-store', headers: { ...HEADERS, ...bydfiSignedHeaders('GET', '/api/v1/contract/market/kline', qs) } }
-  )
-  if (!r.ok) return []
-  const d = await r.json()
-  if (d.code && d.code !== 0 && d.code !== 200) return []   // gateway error envelope
-  const rows = (d.data ?? d) as BYDFiKlineRow[]
-  if (!Array.isArray(rows) || rows.length === 0) return []
-  return rows
-    .map(c => [String(c.id * 1000), c.open, c.high, c.low, c.close, c.vol] as Kline)
-    .sort((a, b) => Number(a[0]) - Number(b[0]))   // oldest-first
-}
-
-export async function bydfiKlines(symbol: string): Promise<Kline[]> {
-  return bydfiRawKlines(symbol, 240)    // 4H, direct
-}
-
-export async function bydfiDailyKlines(symbol: string): Promise<Kline[]> {
-  return bydfiRawKlines(symbol, 1440)   // 1D
-}
-
-export async function runBYDFiScan(): Promise<RawResult[]> {
-  const r = await fetch(`${BYDFI_RANK_BASE}/rank/contracts`, { cache: 'no-store', headers: HEADERS })
-  if (!r.ok) throw new Error(`BYDFi HTTP ${r.status}`)
-
-  type BYDFiContract = {
-    ticker_id: string
-    quote_currency: string
-    product_type: string
-    last_price: number | string
-    open_interest: number | string
-    funding_rate: number | string
-  }
-
-  const d = await r.json()
-  const contracts = (d.data ?? []) as BYDFiContract[]
-
-  const qualified: Array<{ pair: string; price: number; oiUsd: number; funding: number }> = []
-  for (const c of contracts) {
-    if (c.quote_currency !== 'USDT' || c.product_type !== 'Perpetual') continue
-    const price = parseFloat(String(c.last_price))
-    if (!price) continue
-    const oiUsd = parseFloat(String(c.open_interest)) * price
-    if (oiUsd < MIN_OI.bydfi) continue
-    qualified.push({ pair: c.ticker_id, price, oiUsd, funding: parseFloat(String(c.funding_rate)) || 0 })
-  }
-  qualified.sort((a, b) => b.oiUsd - a.oiUsd)
-  const top = qualified.slice(0, 100)
-
-  const results: RawResult[] = []
-  for (let i = 0; i < top.length; i += 10) {
-    const batch = top.slice(i, i + 10)
-    const [klineRes, dailyRes] = await Promise.all([
-      Promise.allSettled(batch.map(t => bydfiKlines(t.pair))),
-      Promise.allSettled(batch.map(t => bydfiDailyKlines(t.pair))),
-    ])
-    for (let j = 0; j < batch.length; j++) {
-      const t = batch[j]
-      if (klineRes[j].status !== 'fulfilled') continue
-      const kl = (klineRes[j] as PromiseFulfilledResult<Kline[]>).value
-      if (kl.length < 50) continue
-      const dailyKl = dailyRes[j].status === 'fulfilled'
-        ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      // ticker_id is e.g. BTC-PERPUSDT → normalise to BTCUSDT for scoring + display
-      const symbol = t.pair.replace('-PERPUSDT', 'USDT')
-      const { score, signals, skip } = scoreKlines(symbol, kl, dailyKl, t.price, t.funding)
-      if (skip) continue
-      results.push({
-        symbol,
-        price:       t.price,
-        oi_usd:      t.oiUsd,
-        funding_pct: t.funding * 100,
-        score,
-        signals,
-        exchange:    'bydfi',
         scanned_at:  new Date().toISOString(),
       })
     }

@@ -261,7 +261,7 @@ export default function ScannerPage() {
 
         <div className="flex items-center gap-3">
           <div className="flex gap-0.5 bg-zinc-900 rounded-lg p-1">
-            {(['okx', 'hyperliquid', 'mexc', 'bydfi', 'weex', 'bitunix'] as const).map(ex => (
+            {(['okx', 'hyperliquid', 'mexc', 'weex', 'bitunix'] as const).map(ex => (
               <button
                 key={ex}
                 onClick={() => setExchange(ex)}
@@ -271,7 +271,7 @@ export default function ScannerPage() {
                     : 'text-zinc-500 hover:text-zinc-300'
                 }`}
               >
-                {ex === 'bydfi' ? 'BYDFi' : ex === 'weex' ? 'WEEX' : ex.charAt(0).toUpperCase() + ex.slice(1)}
+                {ex === 'weex' ? 'WEEX' : ex.charAt(0).toUpperCase() + ex.slice(1)}
               </button>
             ))}
           </div>
@@ -398,7 +398,6 @@ export default function ScannerPage() {
         Cached 5 min · OI filter &gt;$50M · {
           exchange === 'hyperliquid' ? 'funding normalised to 8h' :
           exchange === 'mexc'        ? 'MEXC USDT perps' :
-          exchange === 'bydfi'       ? 'BYDFi USDT perps · 4H from 60min' :
           exchange === 'weex'        ? 'WEEX USDT perps · liquidity by 24h vol' :
           exchange === 'bitunix'     ? 'Bitunix USDT perps · liquidity by 24h vol' :
           'OKX USDT perps'
