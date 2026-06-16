@@ -5,6 +5,7 @@ export interface SignalRecord {
   id: number
   symbol: string
   exchange: string
+  direction: string
   score: number
   raw_score: number
   signals: string[]
@@ -20,7 +21,7 @@ export interface SignalRecord {
 export interface PerfStats {
   total: number
   withOutcome: number
-  winRate: number        // % with 24h drop ≥ 1.5% (TP1)
+  winRate: number        // % hitting TP1 within 24h (direction-aware)
   tp1Rate: number
   tp2Rate: number
   tp3Rate: number
@@ -35,20 +36,30 @@ export interface ChartPoint {
   winRate: number
 }
 
+type Direction = 'short' | 'long' | 'both'
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const minScore = parseInt(searchParams.get('minScore') ?? '5', 10)
+  const minScore = parseInt(searchParams.get('minScore') ?? '7', 10)
   const exchange = searchParams.get('exchange') ?? 'all'
   const days     = Math.min(parseInt(searchParams.get('days') ?? '30', 10), 90)
+  const dParam   = searchParams.get('direction') ?? 'both'
+  const direction: Direction = dParam === 'short' || dParam === 'long' ? dParam : 'both'
 
   const sql = neon(process.env.DATABASE_URL!)
 
   try {
+    // Regime-gated product set, direction-aware:
+    //   short → direction='short' AND market_condition='favourable'
+    //   long  → direction='long'  AND market_condition='hostile'
+    //   both  → either of the above
+    // The single param-guarded predicate covers all three cases.
     const rows = await sql`
       SELECT
         s.id,
         s.symbol,
         s.exchange,
+        s.direction,
         s.score,
         s.raw_score,
         s.signals,
@@ -66,25 +77,32 @@ export async function GET(request: Request) {
       WHERE s.scanned_at > NOW() - (${days}::integer * INTERVAL '1 day')
         AND s.score >= ${minScore}
         AND (${exchange} = 'all' OR s.exchange = ${exchange})
+        AND (
+          (${direction} IN ('short', 'both') AND s.direction = 'short' AND s.market_condition = 'favourable')
+          OR
+          (${direction} IN ('long', 'both')  AND s.direction = 'long'  AND s.market_condition = 'hostile')
+        )
       ORDER BY s.scanned_at DESC
     `
 
     const signals = rows as SignalRecord[]
 
-    // --- Stats ---
-    // Win rate / TP rates / avg move / best threshold reflect the *product* — what the
-    // scanner actually fires on (favourable regime + score ≥ 7). Total/withOutcome remain
-    // UI-filter scoped so the admin can still see exploration counts.
-    const productSignals = signals.filter(s => s.market_condition === 'favourable' && s.score >= 7)
-    const with24h        = productSignals.filter(s => s.outcome_24h !== null)
-    const withOutcomeAll = signals.filter(s => s.outcome_24h !== null).length
-    const wins24h   = with24h.filter(s => (s.outcome_24h as number) <= -1.5)  // TP1
-    const tp2Hits   = with24h.filter(s => (s.outcome_24h as number) <= -2.5)
-    const tp3Hits   = with24h.filter(s => (s.outcome_24h as number) <= -4.0)
-    const winRate   = with24h.length > 0 ? (wins24h.length / with24h.length) * 100 : 0
-    const tp1Rate   = winRate
-    const tp2Rate   = with24h.length > 0 ? (tp2Hits.length / with24h.length) * 100 : 0
-    const tp3Rate   = with24h.length > 0 ? (tp3Hits.length / with24h.length) * 100 : 0
+    // Direction-aware win test on the 24h move: shorts win when price falls
+    // (move <= -mag), longs win when price rises (move >= +mag).
+    const isWin = (s: SignalRecord, mag: number): boolean => {
+      const m = s.outcome_24h
+      if (m === null) return false
+      return s.direction === 'long' ? m >= mag : m <= -mag
+    }
+
+    const with24h = signals.filter(s => s.outcome_24h !== null)
+    const wins24h = with24h.filter(s => isWin(s, 1.5))   // TP1
+    const tp2Hits = with24h.filter(s => isWin(s, 2.5))
+    const tp3Hits = with24h.filter(s => isWin(s, 4.0))
+    const winRate = with24h.length > 0 ? (wins24h.length / with24h.length) * 100 : 0
+    const tp1Rate = winRate
+    const tp2Rate = with24h.length > 0 ? (tp2Hits.length / with24h.length) * 100 : 0
+    const tp3Rate = with24h.length > 0 ? (tp3Hits.length / with24h.length) * 100 : 0
     const avgMove24h = with24h.length > 0
       ? with24h.reduce((sum, s) => sum + (s.outcome_24h as number), 0) / with24h.length
       : 0
@@ -94,48 +112,76 @@ export async function GET(request: Request) {
     for (const t of [7, 8, 9]) {
       const sub = with24h.filter(s => s.score >= t)
       if (sub.length < 5) continue
-      const wr = sub.filter(s => (s.outcome_24h as number) <= -1.5).length / sub.length * 100
+      const wr = sub.filter(s => isWin(s, 1.5)).length / sub.length * 100
       if (wr > bestWR) { bestWR = wr; bestThreshold = `Score ${t}+ wins ${Math.round(wr)}%` }
     }
 
-    // --- Regime filter activity (over the same window) ---
-    // Fired   = telegram alerts actually sent in the window
-    // Suppressed = high-score (≥7) watchlist candidates seen during non-favourable cycles
-    const [firedRow]      = await sql`
-      SELECT COUNT(*)::int AS n FROM telegram_alerts
-      WHERE triggered_at > NOW() - (${days}::integer * INTERVAL '1 day')
-        AND (${exchange} = 'all' OR exchange = ${exchange})
-    ` as Array<{ n: number }>
-    const [suppressedRow] = await sql`
-      SELECT COUNT(*)::int AS n FROM scanner_watchlist
-      WHERE created_at > NOW() - (${days}::integer * INTERVAL '1 day')
-        AND adjusted_score >= 7
-        AND market_condition <> 'favourable'
-        AND (${exchange} = 'all' OR exchange = ${exchange})
-    ` as Array<{ n: number }>
+    // --- Regime filter activity (direction-aware) ---
+    // Fired = alerts actually sent; Suppressed = high-score (≥7) watchlist candidates
+    // seen in the WRONG regime for that direction. Long tables are guarded — they may
+    // not exist until the long crons have run.
+    let regimeFired = 0
+    let regimeSuppressed = 0
+
+    if (direction === 'short' || direction === 'both') {
+      const [f] = await sql`
+        SELECT COUNT(*)::int AS n FROM telegram_alerts
+        WHERE triggered_at > NOW() - (${days}::integer * INTERVAL '1 day')
+          AND (${exchange} = 'all' OR exchange = ${exchange})
+      ` as Array<{ n: number }>
+      const [s] = await sql`
+        SELECT COUNT(*)::int AS n FROM scanner_watchlist
+        WHERE created_at > NOW() - (${days}::integer * INTERVAL '1 day')
+          AND adjusted_score >= 7
+          AND market_condition <> 'favourable'
+          AND (${exchange} = 'all' OR exchange = ${exchange})
+      ` as Array<{ n: number }>
+      regimeFired += f?.n ?? 0
+      regimeSuppressed += s?.n ?? 0
+    }
+
+    if (direction === 'long' || direction === 'both') {
+      try {
+        const [f] = await sql`
+          SELECT COUNT(*)::int AS n FROM telegram_alerts_long
+          WHERE triggered_at > NOW() - (${days}::integer * INTERVAL '1 day')
+            AND (${exchange} = 'all' OR exchange = ${exchange})
+        ` as Array<{ n: number }>
+        regimeFired += f?.n ?? 0
+      } catch { /* telegram_alerts_long not created yet */ }
+      try {
+        const [s] = await sql`
+          SELECT COUNT(*)::int AS n FROM scanner_long_watchlist
+          WHERE created_at > NOW() - (${days}::integer * INTERVAL '1 day')
+            AND adjusted_score >= 7
+            AND market_condition <> 'hostile'
+            AND (${exchange} = 'all' OR exchange = ${exchange})
+        ` as Array<{ n: number }>
+        regimeSuppressed += s?.n ?? 0
+      } catch { /* scanner_long_watchlist not created yet */ }
+    }
 
     const stats: PerfStats = {
       total:            signals.length,
-      withOutcome:      withOutcomeAll,
+      withOutcome:      with24h.length,
       winRate:          Math.round(winRate * 10) / 10,
       tp1Rate:          Math.round(tp1Rate * 10) / 10,
       tp2Rate:          Math.round(tp2Rate * 10) / 10,
       tp3Rate:          Math.round(tp3Rate * 10) / 10,
       avgMove24h:       Math.round(avgMove24h * 100) / 100,
       bestThreshold,
-      regimeFired:      firedRow?.n ?? 0,
-      regimeSuppressed: suppressedRow?.n ?? 0,
+      regimeFired,
+      regimeSuppressed,
     }
 
-    // --- Rolling 30-signal win rate chart (ascending order) ---
-    // Same product filter as stat cards above — chart reflects favourable + score ≥ 7 only.
+    // --- Rolling 30-signal win rate chart (ascending, direction-aware) ---
     const asc = [...with24h].sort(
       (a, b) => new Date(a.scanned_at).getTime() - new Date(b.scanned_at).getTime()
     )
     const chartData: ChartPoint[] = asc
       .map((sig, i) => {
-        const window  = asc.slice(Math.max(0, i - 29), i + 1)
-        const wWins   = window.filter(s => (s.outcome_24h as number) <= -1.5).length
+        const window = asc.slice(Math.max(0, i - 29), i + 1)
+        const wWins  = window.filter(s => isWin(s, 1.5)).length
         return {
           date:    new Date(sig.scanned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           winRate: Math.round((wWins / window.length) * 100),

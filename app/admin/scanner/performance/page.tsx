@@ -11,9 +11,11 @@ function fmtPrice(p: number): string {
   return p.toFixed(6)
 }
 
-function PctCell({ val }: { val: number | null }) {
+function PctCell({ val, direction }: { val: number | null; direction: string }) {
   if (val === null) return <span className="text-zinc-700">—</span>
-  const color = val < 0 ? 'text-green-400' : 'text-red-400'
+  // Win = green: shorts win when price falls (val < 0), longs when it rises (val > 0).
+  const win = direction === 'long' ? val > 0 : val < 0
+  const color = win ? 'text-green-400' : 'text-red-400'
   return (
     <span className={`font-mono ${color}`}>
       {val > 0 ? '+' : ''}{val.toFixed(2)}%
@@ -44,6 +46,38 @@ const SIGNAL_LABELS: Record<string, string> = {
   macd_zero:        'MACD <0',
   d_200ema:         'D 200EMA',
   d_lh:             'D LH',
+  macd_1h_cross:    'MACD 1H ✗',
+  rsi_1h_falling:   'RSI 1H ↓',
+  bearish_engulf:   'Bear Engulf',
+  // long signal keys
+  above_200ema:      '>200EMA',
+  above_50ema:       '>50EMA',
+  golden_cross:      'Golden X',
+  macd_bull:         'MACD Bull',
+  macd_hist_pos:     'MACD Hist+',
+  rsi_building:      'RSI Build',
+  vol_above_avg:     'Vol ✓',
+  vol_rising_up:     'Vol Rising',
+  higher_lows:       'HL',
+  higher_highs:      'HH',
+  ema50_tight:       'EMA50 ✓✓',
+  ema50_near:        'EMA50 ✓',
+  funding_squeeze:   'Fund Sqz',
+  funding_low:       'Fund Low',
+  d_above_200ema:    'D >200EMA',
+  d_higher_lows:     'D HL',
+  rsi_bull_div:      'RSI Div',
+  macd_1h_cross_bull:'MACD 1H ✓',
+  rsi_1h_rising:     'RSI 1H ↑',
+  bullish_engulf:    'Bull Engulf',
+}
+
+type Direction = 'short' | 'long' | 'both'
+
+const DIRECTION_LABELS: Record<Direction, string> = {
+  short: 'fired vs suppressed (favourable only)',
+  long:  'fired vs suppressed (hostile only)',
+  both:  'fired vs suppressed (regime-gated)',
 }
 
 export default function PerformancePage() {
@@ -52,9 +86,10 @@ export default function PerformancePage() {
   const [fetching,    setFetching]    = useState(false)
   const [error,       setError]       = useState('')
 
-  const [minScore, setMinScore] = useState('5')
-  const [exchange, setExchange] = useState('all')
-  const [days,     setDays]     = useState('30')
+  const [minScore,  setMinScore]  = useState('7')
+  const [exchange,  setExchange]  = useState('all')
+  const [days,      setDays]      = useState('30')
+  const [direction, setDirection] = useState<Direction>('both')
 
   const [signals,   setSignals]   = useState<SignalRecord[]>([])
   const [stats,     setStats]     = useState<PerfStats | null>(null)
@@ -71,7 +106,7 @@ export default function PerformancePage() {
     setFetching(true)
     setError('')
     try {
-      const params = new URLSearchParams({ minScore, exchange, days })
+      const params = new URLSearchParams({ minScore, exchange, days, direction })
       const r = await fetch(`/api/scanner/performance?${params}`)
       const d = await r.json()
       if (!r.ok) throw new Error(d.error ?? 'Failed to load')
@@ -83,7 +118,7 @@ export default function PerformancePage() {
     } finally {
       setFetching(false)
     }
-  }, [minScore, exchange, days])
+  }, [minScore, exchange, days, direction])
 
   useEffect(() => {
     if (!authLoading) fetchData()
@@ -106,7 +141,11 @@ export default function PerformancePage() {
         <div>
           <h1 className="text-zinc-100 text-lg font-bold tracking-tight">Signal Performance</h1>
           <p className="text-zinc-600 text-xs mt-1">
-            Historical accuracy of short signals · green = price fell (short worked) · red = price rose (short lost)
+            {direction === 'long'
+              ? 'Historical accuracy of long signals · green = price rose (long worked) · red = price fell (long lost)'
+              : direction === 'short'
+              ? 'Historical accuracy of short signals · green = price fell (short worked) · red = price rose (short lost)'
+              : 'Historical accuracy of short + long signals · green = move in the signal’s favour · red = against'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -119,6 +158,23 @@ export default function PerformancePage() {
       <div className="flex flex-wrap items-center gap-3 mb-6 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl">
         <span className="text-zinc-500 text-xs font-medium">Filters</span>
         <span className="text-zinc-800">·</span>
+
+        <div className="flex items-center gap-2">
+          <label className="text-zinc-600 text-xs">Direction</label>
+          <div className="flex rounded-lg overflow-hidden border border-zinc-700">
+            {([['short', '🔴 Short'], ['long', '🟢 Long'], ['both', 'Both']] as [Direction, string][]).map(([d, lbl]) => (
+              <button
+                key={d}
+                onClick={() => setDirection(d)}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  direction === d ? 'bg-zinc-700 text-zinc-100' : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="flex items-center gap-2">
           <label className="text-zinc-600 text-xs">Score ≥</label>
@@ -198,7 +254,10 @@ export default function PerformancePage() {
 
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-4">
             <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Avg Move 24h</p>
-            <p className={`text-2xl font-bold leading-tight ${stats.avgMove24h < 0 ? 'text-green-400' : 'text-red-400'}`}>
+            <p className={`text-2xl font-bold leading-tight ${
+              direction === 'both' ? 'text-zinc-300'
+              : (direction === 'long' ? stats.avgMove24h > 0 : stats.avgMove24h < 0) ? 'text-green-400' : 'text-red-400'
+            }`}>
               {stats.avgMove24h > 0 ? '+' : ''}{stats.avgMove24h}%
             </p>
             <p className="text-zinc-700 text-xs mt-1">avg price change at 24h mark</p>
@@ -217,7 +276,7 @@ export default function PerformancePage() {
               <span className="text-zinc-600 text-lg"> / </span>
               <span className="text-red-400">{stats.regimeSuppressed}</span>
             </p>
-            <p className="text-zinc-700 text-xs mt-1">fired vs suppressed (score ≥ 7)</p>
+            <p className="text-zinc-700 text-xs mt-1">{DIRECTION_LABELS[direction]}</p>
           </div>
         </div>
       )}
@@ -278,6 +337,7 @@ export default function PerformancePage() {
                   <th className="px-3 py-3 text-left text-zinc-500 uppercase tracking-widest font-normal whitespace-nowrap">Date</th>
                   <th className="px-3 py-3 text-left text-zinc-500 uppercase tracking-widest font-normal">Symbol</th>
                   <th className="px-3 py-3 text-left text-zinc-500 uppercase tracking-widest font-normal">Exch</th>
+                  <th className="px-3 py-3 text-center text-zinc-500 uppercase tracking-widest font-normal">Dir</th>
                   <th className="px-3 py-3 text-center text-zinc-500 uppercase tracking-widest font-normal">Score</th>
                   <th className="px-3 py-3 text-center text-zinc-500 uppercase tracking-widest font-normal">Market</th>
                   <th className="px-3 py-3 text-left text-zinc-500 uppercase tracking-widest font-normal">Signals</th>
@@ -314,6 +374,15 @@ export default function PerformancePage() {
                       {sig.exchange === 'hyperliquid' ? 'HL' : sig.exchange.toUpperCase()}
                     </td>
                     <td className="px-3 py-2.5 text-center">
+                      <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide whitespace-nowrap ${
+                        sig.direction === 'long'
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          : 'bg-red-500/10 text-red-400 border-red-500/30'
+                      }`}>
+                        {sig.direction === 'long' ? '🟢 LONG' : '🔴 SHORT'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
                       <span className={`inline-block px-2 py-0.5 rounded border font-bold font-mono min-w-[24px] text-center ${
                         sig.score >= 7 ? 'bg-red-950 border-red-800 text-red-300'
                         : sig.score >= 5 ? 'bg-amber-950 border-amber-800 text-amber-300'
@@ -342,9 +411,9 @@ export default function PerformancePage() {
                     <td className="px-3 py-2.5 text-right text-zinc-400 font-mono whitespace-nowrap">
                       ${fmtPrice(sig.price_at_signal)}
                     </td>
-                    <td className="px-3 py-2.5 text-right"><PctCell val={sig.outcome_24h} /></td>
-                    <td className="px-3 py-2.5 text-right"><PctCell val={sig.outcome_48h} /></td>
-                    <td className="px-3 py-2.5 text-right"><PctCell val={sig.outcome_72h} /></td>
+                    <td className="px-3 py-2.5 text-right"><PctCell val={sig.outcome_24h} direction={sig.direction} /></td>
+                    <td className="px-3 py-2.5 text-right"><PctCell val={sig.outcome_48h} direction={sig.direction} /></td>
+                    <td className="px-3 py-2.5 text-right"><PctCell val={sig.outcome_72h} direction={sig.direction} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -354,7 +423,11 @@ export default function PerformancePage() {
       </div>
 
       <p className="mt-3 text-right text-zinc-700 text-xs">
-        Green = price fell (short profitable) · Red = price rose (short lost) · Win = drop ≥1.5% within 24h (TP1)
+        {direction === 'long'
+          ? 'Green = price rose (long profitable) · Red = price fell · Win = rise ≥1.5% within 24h (TP1)'
+          : direction === 'short'
+          ? 'Green = price fell (short profitable) · Red = price rose · Win = drop ≥1.5% within 24h (TP1)'
+          : 'Green = move in the signal’s favour · Red = against · Win = ≥1.5% favourable move within 24h (TP1)'}
       </p>
     </div>
   )
