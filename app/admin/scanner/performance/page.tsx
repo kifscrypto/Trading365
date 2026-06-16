@@ -136,6 +136,8 @@ export default function PerformancePage() {
             <option value="okx">OKX</option>
             <option value="hyperliquid">Hyperliquid</option>
             <option value="mexc">MEXC</option>
+            <option value="weex">WEEX</option>
+            <option value="bitunix">Bitunix</option>
           </select>
         </div>
 
