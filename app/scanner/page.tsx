@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Radar, ShieldCheck, Bell, Lock, ArrowRight, Zap, Check } from "lucide-react"
+import { premiumEnabled } from "@/lib/premium"
 
 const BASE_URL = "https://trading365.org"
 
@@ -248,6 +249,7 @@ function outcomeCellClass(v: number | null): string {
 export default async function ScannerPage() {
   const [stats, recentWins] = await Promise.all([getStats(), getRecentWins()])
   const { tp1WinRate, directionalAccuracy, totalSignals, avgMove, preview } = stats
+  const automated = premiumEnabled()
 
   return (
     <>
@@ -526,6 +528,11 @@ export default async function ScannerPage() {
                   </li>
                 ))}
               </ul>
+              {automated && (
+                <Button asChild className="mt-auto w-full font-semibold">
+                  <a href="/api/pay/create?plan=monthly">Subscribe — $29 / month</a>
+                </Button>
+              )}
             </div>
 
             {/* Quarterly */}
@@ -545,39 +552,67 @@ export default async function ScannerPage() {
                   </li>
                 ))}
               </ul>
+              {automated && (
+                <Button asChild className="mt-auto w-full font-semibold">
+                  <a href="/api/pay/create?plan=quarterly">Subscribe — $69 / 3 months</a>
+                </Button>
+              )}
             </div>
           </div>
 
           {/* Payment instructions */}
-          <div className="mt-12 max-w-3xl mx-auto rounded-xl border border-border bg-zinc-900 p-6">
-            <h3 className="text-lg font-semibold text-foreground">How to subscribe</h3>
-            <ol className="mt-5 space-y-4 text-sm">
-              <li className="flex gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">1</span>
-                <div>
-                  <p className="text-foreground">Send USDT or ETH (ERC-20) to wallet address:</p>
-                  <code className="mt-1.5 block break-all rounded-md border border-border bg-zinc-950 px-3 py-2 font-mono text-xs text-emerald-400">
-                    {WALLET_ADDRESS}
-                  </code>
-                </div>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">2</span>
-                <p className="text-muted-foreground">
-                  Message <span className="text-foreground font-medium">{TELEGRAM_SUB_HANDLE}</span> on Telegram with your tx hash.
-                </p>
-              </li>
-              <li className="flex gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">3</span>
-                <p className="text-muted-foreground">
-                  Get added to the private signals group within 24 hours.
-                </p>
-              </li>
-            </ol>
-            <p className="mt-6 text-xs text-muted-foreground/80">
-              Payments verified manually. Refund available within 48h if not satisfied.
-            </p>
-          </div>
+          {automated ? (
+            <div className="mt-12 max-w-3xl mx-auto rounded-xl border border-border bg-zinc-900 p-6">
+              <h3 className="text-lg font-semibold text-foreground">How it works</h3>
+              <ol className="mt-5 space-y-4 text-sm">
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">1</span>
+                  <p className="text-muted-foreground">Hit a <span className="text-foreground font-medium">Subscribe</span> button above and pay in USDT, ETH or any supported coin at checkout.</p>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">2</span>
+                  <p className="text-muted-foreground">Once the payment confirms, you get a private one-time link to the premium signals channel.</p>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">3</span>
+                  <p className="text-muted-foreground">Tap the link, you&apos;re approved automatically, and access runs for your full term.</p>
+                </li>
+              </ol>
+              <p className="mt-6 text-xs text-muted-foreground/80">
+                Instant access on confirmation. Refund available within 48h if not satisfied.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-12 max-w-3xl mx-auto rounded-xl border border-border bg-zinc-900 p-6">
+              <h3 className="text-lg font-semibold text-foreground">How to subscribe</h3>
+              <ol className="mt-5 space-y-4 text-sm">
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">1</span>
+                  <div>
+                    <p className="text-foreground">Send USDT or ETH (ERC-20) to wallet address:</p>
+                    <code className="mt-1.5 block break-all rounded-md border border-border bg-zinc-950 px-3 py-2 font-mono text-xs text-emerald-400">
+                      {WALLET_ADDRESS}
+                    </code>
+                  </div>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">2</span>
+                  <p className="text-muted-foreground">
+                    Message <span className="text-foreground font-medium">{TELEGRAM_SUB_HANDLE}</span> on Telegram with your tx hash.
+                  </p>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">3</span>
+                  <p className="text-muted-foreground">
+                    Get added to the private signals group within 24 hours.
+                  </p>
+                </li>
+              </ol>
+              <p className="mt-6 text-xs text-muted-foreground/80">
+                Payments verified manually. Refund available within 48h if not satisfied.
+              </p>
+            </div>
+          )}
         </div>
       </section>
 

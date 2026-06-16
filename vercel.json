@@ -15,6 +15,10 @@
     {
       "path": "/api/scanner/monitor?cron=true",
       "schedule": "7,22,37,52 * * * *"
+    },
+    {
+      "path": "/api/pay/expiry?cron=true",
+      "schedule": "0 3 * * *"
     }
   ]
 }
