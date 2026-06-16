@@ -11,9 +11,13 @@ export const PLANS = {
 export type PlanKey = keyof typeof PLANS
 export const isPlanKey = (v: string): v is PlanKey => v === 'monthly' || v === 'quarterly'
 
-/** Premium-payments are only wired on when both NOWPayments + the premium channel are configured. */
+// There is ONE Telegram channel (the premium channel, @ShortsScanner =
+// TELEGRAM_CHAT_ID). The membership flow targets it directly.
+const PREMIUM_CHANNEL_ID = () => process.env.TELEGRAM_CHAT_ID!
+
+/** Premium-payments activate once NOWPayments is configured (the channel is always set). */
 export function premiumEnabled(): boolean {
-  return !!process.env.NOWPAYMENTS_API_KEY && !!process.env.TELEGRAM_PREMIUM_CHAT_ID
+  return !!process.env.NOWPAYMENTS_API_KEY && !!process.env.TELEGRAM_CHAT_ID
 }
 
 export const sql = neon(process.env.DATABASE_URL!)
@@ -112,9 +116,8 @@ async function tg(method: string, params: Record<string, unknown>): Promise<Reco
 
 /** A single-buyer join-request link into the premium channel, tagged with the order id. */
 export async function createPremiumInvite(orderId: string): Promise<string | null> {
-  const chatId = process.env.TELEGRAM_PREMIUM_CHAT_ID!
   const json = await tg('createChatInviteLink', {
-    chat_id: chatId,
+    chat_id: PREMIUM_CHANNEL_ID(),
     name: orderId.slice(0, 32),        // shows in chat_join_request.invite_link.name
     creates_join_request: true,
   })
@@ -123,15 +126,15 @@ export async function createPremiumInvite(orderId: string): Promise<string | nul
 }
 
 export async function approveJoinRequest(userId: number): Promise<void> {
-  await tg('approveChatJoinRequest', { chat_id: process.env.TELEGRAM_PREMIUM_CHAT_ID!, user_id: userId })
+  await tg('approveChatJoinRequest', { chat_id: PREMIUM_CHANNEL_ID(), user_id: userId })
 }
 export async function declineJoinRequest(userId: number): Promise<void> {
-  await tg('declineChatJoinRequest', { chat_id: process.env.TELEGRAM_PREMIUM_CHAT_ID!, user_id: userId })
+  await tg('declineChatJoinRequest', { chat_id: PREMIUM_CHANNEL_ID(), user_id: userId })
 }
 
 /** Remove a member; immediately unban so a future re-purchase can rejoin. */
 export async function removeMember(userId: number): Promise<void> {
-  const chatId = process.env.TELEGRAM_PREMIUM_CHAT_ID!
+  const chatId = PREMIUM_CHANNEL_ID()
   await tg('banChatMember', { chat_id: chatId, user_id: userId })
   await tg('unbanChatMember', { chat_id: chatId, user_id: userId, only_if_banned: true })
 }

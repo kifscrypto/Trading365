@@ -40,10 +40,9 @@ async function sendTelegram(text: string, chatIdOverride?: string): Promise<void
 }
 
 async function broadcast(text: string): Promise<void> {
+  // Single premium channel (TELEGRAM_CHAT_ID = @ShortsScanner). No separate
+  // premium broadcast — that would double-post to the same channel.
   await sendTelegram(text)
-  if (process.env.TELEGRAM_PREMIUM_CHAT_ID) {
-    await sendTelegram(text, process.env.TELEGRAM_PREMIUM_CHAT_ID)
-  }
 }
 
 function fetchKlines(symbol: string, exchange: string): Promise<Kline[]> {

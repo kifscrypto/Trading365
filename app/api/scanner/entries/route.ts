@@ -272,10 +272,8 @@ export async function GET(request: Request) {
             `Trade on ${exchangeLabel}: ${tradeUrl}`,
           ].join('\n')
 
+          // Single premium channel (TELEGRAM_CHAT_ID = @ShortsScanner) — one send only.
           await sendTelegram(text)
-          if (process.env.TELEGRAM_PREMIUM_CHAT_ID) {
-            await sendTelegram(text, process.env.TELEGRAM_PREMIUM_CHAT_ID)
-          }
           triggered.push(displaySymbol)
         } else {
           // Below threshold — log to scanner_signals without alerting
