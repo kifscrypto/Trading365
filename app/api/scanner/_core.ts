@@ -212,6 +212,118 @@ export function scoreKlines(
   return { score, signals, skip: false }
 }
 
+/**
+ * LONG scoring — fully inverted, bullish-setup model. Same shape/inputs as
+ * scoreKlines so the scan functions can swap scorers. Raw factors can total
+ * ~17; applyBtcSentiment clamps the adjusted score to 15 (same ceiling as shorts).
+ */
+export function scoreLongKlines(
+  symbol: string,
+  klines: Kline[],
+  dailyKlines: Kline[],
+  price: number,
+  fundingRate: number
+): { score: number; signals: string[]; skip: boolean } {
+  const base = symbol.replace(/USDT$|USDC$|BUSD$|-USDT|-USDC|_USDT/i, '').toUpperCase()
+  if (HARD_EXCLUDE.includes(base)) return { score: 0, signals: [], skip: true }
+
+  const signals: string[] = []
+  let score = 0
+  if (klines.length < 50) return { score, signals, skip: false }
+
+  const closes  = klines.map(k => parseFloat(k[4]))
+  const highs   = klines.map(k => parseFloat(k[2]))
+  const lows    = klines.map(k => parseFloat(k[3]))
+  const volumes = klines.map(k => parseFloat(k[5]))
+
+  // Are per-window extremes strictly ascending across the last n windows?
+  const ascending = (vals: number[], pick: (w: number[]) => number, seg = 5, n = 3): boolean => {
+    if (vals.length < seg * n) return false
+    const tail = vals.slice(-seg * n)
+    const pts: number[] = []
+    for (let i = 0; i < n; i++) pts.push(pick(tail.slice(i * seg, (i + 1) * seg)))
+    for (let i = 1; i < n; i++) if (pts[i] <= pts[i - 1]) return false
+    return true
+  }
+  const minOf = (w: number[]) => Math.min(...w)
+  const maxOf = (w: number[]) => Math.max(...w)
+
+  // STRUCTURE (0–3)
+  let e50last = NaN, e200last = NaN
+  if (closes.length >= 200) {
+    const e200 = calcEMA(closes, 200); e200last = e200[e200.length - 1]
+    if (price > e200last) { score++; signals.push('above_200ema') }
+  }
+  if (closes.length >= 50) {
+    const e50 = calcEMA(closes, 50); e50last = e50[e50.length - 1]
+    if (price > e50last) { score++; signals.push('above_50ema') }
+  }
+  if (!Number.isNaN(e50last) && !Number.isNaN(e200last) && e50last > e200last) {
+    score++; signals.push('golden_cross')
+  }
+
+  // MOMENTUM (0–3)
+  if (closes.length >= 35) {
+    const { macd, signal: macdSig } = calcMACD(closes)
+    if (macd > macdSig)     { score++; signals.push('macd_bull') }
+    if (macd - macdSig > 0) { score++; signals.push('macd_hist_pos') }
+  }
+  if (closes.length >= 18) {
+    const rsi     = calcRSI(closes)
+    const rsiPrev = calcRSI(closes.slice(0, -3))
+    if (rsi >= 40 && rsi <= 65 && rsi > rsiPrev) { score++; signals.push('rsi_building') }
+  }
+
+  // VOLUME (0–2)
+  if (volumes.length >= 20) {
+    const last  = volumes[volumes.length - 1]
+    const avg20 = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20
+    if (last > avg20) { score++; signals.push('vol_above_avg') }
+  }
+  if (closes.length >= 4) {
+    const upMove = closes[closes.length - 1] > closes[closes.length - 4]
+    const v = volumes.slice(-3)
+    if (upMove && v[2] >= v[1] && v[1] >= v[0]) { score++; signals.push('vol_rising_up') }
+  }
+
+  // PATTERN (0–2)
+  if (ascending(lows, minOf))  { score++; signals.push('higher_lows') }
+  if (ascending(highs, maxOf)) { score++; signals.push('higher_highs') }
+
+  // EMA DISTANCE BANDING off the 50 EMA (0–2) — reward proximity, penalise extension
+  if (!Number.isNaN(e50last) && e50last > 0) {
+    const pctAbove = (price - e50last) / e50last
+    if (pctAbove >= 0 && pctAbove <= 0.03)        { score += 2; signals.push('ema50_tight') }
+    else if (pctAbove > 0.03 && pctAbove <= 0.06) { score += 1; signals.push('ema50_near') }
+    // > 6% above = too extended = 0
+  }
+
+  // FUNDING (0–2) — longs cheap when funding is low/negative; squeeze fuel when very negative
+  if (fundingRate < -0.0005)     { score += 2; signals.push('funding_squeeze') }
+  else if (fundingRate < 0.0001) { score += 1; signals.push('funding_low') }
+
+  // DAILY CONFIRMATION (0–2)
+  if (dailyKlines.length >= 200) {
+    const dCloses = dailyKlines.map(k => parseFloat(k[4]))
+    const dLows   = dailyKlines.map(k => parseFloat(k[3]))
+    const dPrice  = dCloses[dCloses.length - 1]
+    const dEma200 = calcEMA(dCloses, 200)
+    if (dPrice > dEma200[dEma200.length - 1]) { score++; signals.push('d_above_200ema') }
+    if (ascending(dLows, minOf))              { score++; signals.push('d_higher_lows') }
+  }
+
+  // RSI DIVERGENCE — bullish (0–1): price lower lows, RSI higher lows
+  if (closes.length >= 18 && lows.length >= 10) {
+    const rsi       = calcRSI(closes)
+    const rsiPrev   = calcRSI(closes.slice(0, -5))
+    const recentLow = Math.min(...lows.slice(-5))
+    const priorLow  = Math.min(...lows.slice(-10, -5))
+    if (recentLow < priorLow && rsi > rsiPrev) { score++; signals.push('rsi_bull_div') }
+  }
+
+  return { score, signals, skip: false }
+}
+
 // --- OKX ---
 
 export async function okxKlines(instId: string): Promise<Kline[]> {
@@ -254,7 +366,8 @@ export async function okxFunding(instId: string): Promise<number> {
   return parseFloat(d.data?.[0]?.fundingRate ?? '0')
 }
 
-export async function runOKXScan(): Promise<RawResult[]> {
+export async function runOKXScan(direction: 'short' | 'long' = 'short'): Promise<RawResult[]> {
+  const scoreFn = direction === 'long' ? scoreLongKlines : scoreKlines
   const [tickerRes, oiRes] = await Promise.all([
     fetch('https://www.okx.com/api/v5/market/tickers?instType=SWAP', { cache: 'no-store', headers: HEADERS }),
     fetch('https://www.okx.com/api/v5/public/open-interest?instType=SWAP', { cache: 'no-store', headers: HEADERS }),
@@ -297,7 +410,7 @@ export async function runOKXScan(): Promise<RawResult[]> {
         ? (fundingRes[j] as PromiseFulfilledResult<number>).value : 0
       const dailyKl = dailyRes[j].status === 'fulfilled'
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      const { score, signals, skip } = scoreKlines(t.instId.replace('-USDT-SWAP', 'USDT'), kl, dailyKl, t.price, funding)
+      const { score, signals, skip } = scoreFn(t.instId.replace('-USDT-SWAP', 'USDT'), kl, dailyKl, t.price, funding)
       if (skip) continue
       results.push({
         symbol:      t.instId.replace('-USDT-SWAP', 'USDT'),
@@ -343,7 +456,8 @@ export async function mexcKlines(symbol: string, interval: string, lookback: num
   return time.map((t, i) => [String(t * 1000), open[i], high[i], low[i], close[i], vol[i]] as Kline)
 }
 
-export async function runMEXCScan(): Promise<RawResult[]> {
+export async function runMEXCScan(direction: 'short' | 'long' = 'short'): Promise<RawResult[]> {
+  const scoreFn = direction === 'long' ? scoreLongKlines : scoreKlines
   const [detailRes, tickerRes] = await Promise.all([
     fetch(`${MEXC_BASE}/detail`,  { cache: 'no-store', headers: HEADERS }),
     fetch(`${MEXC_BASE}/ticker`,  { cache: 'no-store', headers: HEADERS }),
@@ -389,7 +503,7 @@ export async function runMEXCScan(): Promise<RawResult[]> {
       if (kl.length < 50) continue
       const dailyKl = dailyRes[j].status === 'fulfilled'
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      const { score, signals, skip } = scoreKlines(t.symbol, kl, dailyKl, t.price, t.funding)
+      const { score, signals, skip } = scoreFn(t.symbol, kl, dailyKl, t.price, t.funding)
       if (skip) continue
       results.push({
         symbol:      t.symbol.replace('_', ''),   // BTC_USDT → BTCUSDT
@@ -443,7 +557,8 @@ export function weexDailyKlines(cmtSymbol: string): Promise<Kline[]> {
   return weexCandles(cmtSymbol, '1d', 215)
 }
 
-export async function runWEEXScan(): Promise<RawResult[]> {
+export async function runWEEXScan(direction: 'short' | 'long' = 'short'): Promise<RawResult[]> {
+  const scoreFn = direction === 'long' ? scoreLongKlines : scoreKlines
   const [contractRes, tickerRes, fundingRes] = await Promise.all([
     fetch(`${WEEX_BASE}/market/contracts`,     { cache: 'no-store', headers: HEADERS }),
     fetch(`${WEEX_BASE}/market/tickers`,       { cache: 'no-store', headers: HEADERS }),
@@ -491,7 +606,7 @@ export async function runWEEXScan(): Promise<RawResult[]> {
       if (kl.length < 50) continue
       const dailyKl = dailyRes[j].status === 'fulfilled'
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      const { score, signals, skip } = scoreKlines(t.symbol, kl, dailyKl, t.price, t.funding)
+      const { score, signals, skip } = scoreFn(t.symbol, kl, dailyKl, t.price, t.funding)
       if (skip) continue
       results.push({
         symbol:      t.symbol,
@@ -554,7 +669,8 @@ export async function bitunixFunding(symbol: string): Promise<number> {
   return parseFloat(d.data?.fundingRate ?? '0') || 0
 }
 
-export async function runBitunixScan(): Promise<RawResult[]> {
+export async function runBitunixScan(direction: 'short' | 'long' = 'short'): Promise<RawResult[]> {
+  const scoreFn = direction === 'long' ? scoreLongKlines : scoreKlines
   const r = await fetch(`${BITUNIX_BASE}/tickers`, { cache: 'no-store', headers: HEADERS })
   if (!r.ok) throw new Error(`Bitunix HTTP ${r.status}`)
   const d = await r.json()
@@ -591,7 +707,7 @@ export async function runBitunixScan(): Promise<RawResult[]> {
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
       const funding = fundingRes[j].status === 'fulfilled'
         ? (fundingRes[j] as PromiseFulfilledResult<number>).value : 0
-      const { score, signals, skip } = scoreKlines(t.symbol, kl, dailyKl, t.price, funding)
+      const { score, signals, skip } = scoreFn(t.symbol, kl, dailyKl, t.price, funding)
       if (skip) continue
       results.push({
         symbol:      t.symbol,
@@ -649,7 +765,8 @@ export async function hyperliquidDailyKlines(coin: string): Promise<Kline[]> {
   return candles.map(c => [String(c.t), c.o, c.h, c.l, c.c, c.v] as Kline)
 }
 
-export async function runHyperliquidScan(): Promise<RawResult[]> {
+export async function runHyperliquidScan(direction: 'short' | 'long' = 'short'): Promise<RawResult[]> {
+  const scoreFn = direction === 'long' ? scoreLongKlines : scoreKlines
   const r = await fetch('https://api.hyperliquid.xyz/info', {
     method: 'POST', cache: 'no-store',
     headers: { ...HEADERS, 'Content-Type': 'application/json' },
@@ -689,7 +806,7 @@ export async function runHyperliquidScan(): Promise<RawResult[]> {
       if (kl.length < 50) continue
       const dailyKl = dailyRes[j].status === 'fulfilled'
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      const { score, signals, skip } = scoreKlines(t.coin, kl, dailyKl, t.price, t.funding8h)
+      const { score, signals, skip } = scoreFn(t.coin, kl, dailyKl, t.price, t.funding8h)
       if (skip) continue
       results.push({
         symbol:      t.coin + 'USDT',
@@ -708,12 +825,18 @@ export async function runHyperliquidScan(): Promise<RawResult[]> {
 
 // --- BTC Sentiment ---
 
-export function applyBtcSentiment(rawScore: number, s: SentimentCondition): {
+export function applyBtcSentiment(
+  rawScore: number,
+  s: SentimentCondition,
+  direction: 'short' | 'long' = 'short',
+): {
   adjustedScore: number
   marketCondition: 'favourable' | 'neutral' | 'hostile'
   sentimentFlags: string[]
 } {
   const sentimentFlags: string[] = []
+  // fav/hos are computed from the SHORT perspective; for longs we swap them at
+  // the end (bullish BTC = bonus for longs, was a penalty for shorts, and vice versa).
   let fav = 0, hos = 0
 
   if (s.fng >= 75)      { sentimentFlags.push('extreme_greed'); fav += 2 }
@@ -730,6 +853,8 @@ export function applyBtcSentiment(rawScore: number, s: SentimentCondition): {
 
   if (s.domTrend === 'up')        { sentimentFlags.push('dom_rising');  fav += 1 }
   else if (s.domTrend === 'down') { sentimentFlags.push('dom_falling'); hos += 1 }
+
+  if (direction === 'long') { const tmp = fav; fav = hos; hos = tmp }
 
   const marketCondition: 'favourable' | 'neutral' | 'hostile' =
     hos >= 2 && hos >= fav ? 'hostile' :
@@ -869,15 +994,22 @@ export interface LoggableResult {
   funding_pct: number    // already ×100, e.g. 0.01 means 0.01%
 }
 
-export async function logSignals(sql: SqlClient, results: LoggableResult[]): Promise<number> {
+export async function logSignals(
+  sql: SqlClient,
+  results: LoggableResult[],
+  direction: 'short' | 'long' = 'short',
+): Promise<number> {
   let logged = 0
   for (const r of results) {
     if (r.adjusted_score < 5) continue
 
+    // Dedupe within direction so a long signal isn't blocked by a recent short
+    // (or vice versa) on the same symbol+exchange.
     const recent = await sql`
       SELECT id FROM scanner_signals
-      WHERE  symbol   = ${r.symbol}
-        AND  exchange = ${r.exchange}
+      WHERE  symbol    = ${r.symbol}
+        AND  exchange  = ${r.exchange}
+        AND  direction = ${direction}
         AND  scanned_at > NOW() - INTERVAL '4 hours'
       LIMIT 1
     `
@@ -895,7 +1027,7 @@ export async function logSignals(sql: SqlClient, results: LoggableResult[]): Pro
         ${signalsLiteral}::text[],
         ${r.market_condition},
         ${r.fng}, ${r.oi_usd}, ${r.funding_pct / 100},
-        'short'
+        ${direction}
       )
     `
     logged++
