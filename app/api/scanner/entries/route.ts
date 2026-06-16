@@ -226,7 +226,6 @@ export async function GET(request: Request) {
           const recent = await sql`
             SELECT id FROM telegram_alerts
             WHERE  symbol    = ${sym}
-              AND  exchange  = ${item.exchange as string}
               AND  triggered_at > NOW() - INTERVAL '4 hours'
             LIMIT 1
           `
