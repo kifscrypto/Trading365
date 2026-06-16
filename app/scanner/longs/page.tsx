@@ -3,8 +3,7 @@ import Link from "next/link"
 import { neon } from "@neondatabase/serverless"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { Radar, ShieldCheck, Bell, Lock, ArrowRight, Zap, Check, TrendingDown } from "lucide-react"
+import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingDown } from "lucide-react"
 import { premiumEnabled } from "@/lib/premium"
 
 const BASE_URL = "https://trading365.org"
@@ -53,24 +52,11 @@ const schemaData = {
 
 export const revalidate = 300
 
-interface PreviewRow {
-  symbol: string
-  exchange: string
-  score: number
-  market_condition: string
-  price_at_signal: number
-  scanned_at: string
-  outcome_24h: number | null
-  outcome_48h: number | null
-  outcome_72h: number | null
-}
-
 interface Stats {
   tp1WinRate: number | null
   directionalAccuracy: number | null
   totalSignals: number
   avgMove: number | null
-  preview: PreviewRow[]
 }
 
 // Stats are the LONG product: direction='long', hostile (bullish BTC) regime,
@@ -78,43 +64,25 @@ interface Stats {
 async function getStats(): Promise<Stats> {
   const sql = neon(process.env.DATABASE_URL!)
   try {
-    const [aggRows, previewRows] = await Promise.all([
-      sql`
-        SELECT
-          COUNT(*) FILTER (
-            WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change IS NOT NULL
-          )::int AS filtered_with_24h,
-          COUNT(*) FILTER (
-            WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change >= 1.5
-          )::int AS tp1_hits,
-          COUNT(*) FILTER (
-            WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change > 0
-          )::int AS up_hits,
-          AVG(o24.pct_change) FILTER (
-            WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change IS NOT NULL
-          )::float AS avg_move,
-          (SELECT COUNT(*)::int FROM scanner_signals WHERE direction = 'long') AS total_all
-        FROM scanner_signals s
-        LEFT JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
-        WHERE s.direction = 'long'
-      `,
-      sql`
-        SELECT
-          s.symbol, s.exchange, s.score, s.market_condition,
-          s.price_at_signal::float AS price_at_signal,
-          s.scanned_at,
-          o24.pct_change::float AS outcome_24h,
-          o48.pct_change::float AS outcome_48h,
-          o72.pct_change::float AS outcome_72h
-        FROM scanner_signals s
-        LEFT JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
-        LEFT JOIN scanner_outcomes o48 ON o48.signal_id = s.id AND o48.hours_after = 48
-        LEFT JOIN scanner_outcomes o72 ON o72.signal_id = s.id AND o72.hours_after = 72
-        WHERE s.direction = 'long' AND s.score >= 7
-        ORDER BY s.scanned_at DESC
-        LIMIT 5
-      `,
-    ])
+    const aggRows = await sql`
+      SELECT
+        COUNT(*) FILTER (
+          WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+        )::int AS filtered_with_24h,
+        COUNT(*) FILTER (
+          WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change >= 1.5
+        )::int AS tp1_hits,
+        COUNT(*) FILTER (
+          WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change > 0
+        )::int AS up_hits,
+        AVG(o24.pct_change) FILTER (
+          WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+        )::float AS avg_move,
+        (SELECT COUNT(*)::int FROM scanner_signals WHERE direction = 'long') AS total_all
+      FROM scanner_signals s
+      LEFT JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
+      WHERE s.direction = 'long'
+    `
 
     const agg = aggRows[0] ?? {}
     const denom = (agg.filtered_with_24h ?? 0) as number
@@ -123,10 +91,9 @@ async function getStats(): Promise<Stats> {
       directionalAccuracy: denom > 0 ? ((agg.up_hits as number) / denom) * 100 : null,
       totalSignals:        (agg.total_all ?? 0) as number,
       avgMove:             denom > 0 ? (agg.avg_move as number) : null,
-      preview:             previewRows as PreviewRow[],
     }
   } catch {
-    return { tp1WinRate: null, directionalAccuracy: null, totalSignals: 0, avgMove: null, preview: [] }
+    return { tp1WinRate: null, directionalAccuracy: null, totalSignals: 0, avgMove: null }
   }
 }
 
@@ -173,20 +140,9 @@ function fmtAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
-function fmtPrice(p: number): string {
-  if (p >= 1000) return p.toLocaleString("en-US", { maximumFractionDigits: 2 })
-  if (p >= 1) return p.toFixed(4)
-  return p.toFixed(6)
-}
-
 function fmtPct(n: number | null, digits = 0): string {
   if (n === null) return "—"
   return `${n.toFixed(digits)}%`
-}
-
-function fmtMove(n: number | null): string {
-  if (n === null) return "—"
-  return `${n > 0 ? "+" : ""}${n.toFixed(2)}%`
 }
 
 const exchangeLabel: Record<string, string> = {
@@ -195,12 +151,6 @@ const exchangeLabel: Record<string, string> = {
   mexc: "MEXC",
   weex: "WEEX",
   bitunix: "Bitunix",
-}
-
-const marketClass: Record<string, string> = {
-  favourable: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-  neutral:    "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
-  hostile:    "bg-red-500/10 text-red-400 border-red-500/30",
 }
 
 const features = [
@@ -233,15 +183,9 @@ const monthlyFeatures = [
 
 const quarterlyFeatures = ["Same features as monthly", "Priority support"]
 
-// Long: price rising (positive) is the win → green.
-function outcomeCellClass(v: number | null): string {
-  if (v === null) return "text-muted-foreground text-xs"
-  return v > 0 ? "text-emerald-400 font-medium" : "text-red-400 font-medium"
-}
-
 export default async function LongScannerPage() {
   const [stats, recentWins] = await Promise.all([getStats(), getRecentWins()])
-  const { tp1WinRate, directionalAccuracy, totalSignals, avgMove, preview } = stats
+  const { tp1WinRate, directionalAccuracy, totalSignals, avgMove } = stats
   const automated = premiumEnabled()
 
   return (
@@ -283,7 +227,7 @@ export default async function LongScannerPage() {
       </section>
 
       {/* Stats bar */}
-      <section className="border-b border-border bg-zinc-900">
+      <section id="performance" className="border-b border-border bg-zinc-900">
         <div className="mx-auto max-w-5xl px-4 py-8 lg:px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border text-center">
             <div className="px-4 py-2">
@@ -419,95 +363,6 @@ export default async function LongScannerPage() {
           </div>
           <span className="text-sm font-semibold text-foreground whitespace-nowrap">Short Scanner →</span>
         </Link>
-      </section>
-
-      <Separator className="mx-auto max-w-5xl bg-border" />
-
-      {/* Performance preview */}
-      <section id="performance" className="mx-auto max-w-5xl px-4 py-20 lg:px-6">
-        <div className="text-center mb-10">
-          <Badge variant="outline" className="mb-3 text-emerald-400 border-emerald-500/30">
-            Performance
-          </Badge>
-          <h2 className="text-2xl font-bold text-foreground">Recent Signals</h2>
-          <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
-            Only score ≥ 7 signals shown. Every signal is tracked at 24h, 48h and 72h.
-          </p>
-        </div>
-
-        <div className="relative rounded-xl border border-border overflow-hidden">
-          <div className="overflow-x-auto">
-            <div className="grid grid-cols-[1.1fr_1fr_0.7fr_1fr_1.1fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-border bg-zinc-900 px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground min-w-[760px]">
-              <span>Symbol</span>
-              <span>Exchange</span>
-              <span>Score</span>
-              <span>Market</span>
-              <span>Entry</span>
-              <span className="text-right">24h</span>
-              <span className="text-right">48h</span>
-              <span className="text-right">72h</span>
-            </div>
-
-            <div className="select-none min-w-[760px]" style={{ filter: "blur(5px)", userSelect: "none" }}>
-              {preview.length > 0 ? preview.map((row, i) => (
-                <div
-                  key={i}
-                  className="grid grid-cols-[1.1fr_1fr_0.7fr_1fr_1.1fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-border/50 px-5 py-3.5 text-sm last:border-0 items-center"
-                >
-                  <span className="font-medium text-foreground">{row.symbol.replace("USDT", "")}</span>
-                  <span className="text-muted-foreground">{exchangeLabel[row.exchange] ?? row.exchange}</span>
-                  <span>
-                    <span className="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-400">
-                      {row.score}
-                    </span>
-                  </span>
-                  <span>
-                    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${marketClass[row.market_condition] ?? "bg-zinc-800 text-muted-foreground border-border"}`}>
-                      {row.market_condition}
-                    </span>
-                  </span>
-                  <span className="text-muted-foreground font-mono text-xs">${fmtPrice(row.price_at_signal)}</span>
-                  <span className={`text-right text-xs ${outcomeCellClass(row.outcome_24h)}`}>{fmtMove(row.outcome_24h)}</span>
-                  <span className={`text-right text-xs ${outcomeCellClass(row.outcome_48h)}`}>{fmtMove(row.outcome_48h)}</span>
-                  <span className={`text-right text-xs ${outcomeCellClass(row.outcome_72h)}`}>{fmtMove(row.outcome_72h)}</span>
-                </div>
-              )) : (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="grid grid-cols-[1.1fr_1fr_0.7fr_1fr_1.1fr_0.9fr_0.9fr_0.9fr] gap-3 border-b border-border/50 px-5 py-3.5 text-sm last:border-0 items-center">
-                    <span className="font-medium text-foreground">SOL</span>
-                    <span className="text-muted-foreground">OKX</span>
-                    <span><span className="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-400">8</span></span>
-                    <span><span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-red-500/10 text-red-400 border-red-500/30">hostile</span></span>
-                    <span className="text-muted-foreground font-mono text-xs">$142.3800</span>
-                    <span className="text-right text-xs text-emerald-400 font-medium">+2.81%</span>
-                    <span className="text-right text-xs text-emerald-400 font-medium">+3.42%</span>
-                    <span className="text-right text-xs text-emerald-400 font-medium">+4.15%</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/75 backdrop-blur-[2px]">
-            <div className="flex flex-col items-center gap-4 text-center px-6">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-800 border border-border">
-                <Lock className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="font-semibold text-foreground">Subscribe to reveal</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Full 24h, 48h and 72h outcomes for every signal — updated automatically.
-                </p>
-              </div>
-              <Button className="font-semibold gap-2" asChild>
-                <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer">
-                  Get Access
-                  <ArrowRight className="h-4 w-4" />
-                </a>
-              </Button>
-            </div>
-          </div>
-        </div>
       </section>
 
       {/* Pricing */}
