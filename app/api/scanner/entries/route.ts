@@ -260,12 +260,12 @@ export async function GET(request: Request) {
           const rawScore = item.score as number
           const div = '━━━━━━━━━━━━━━━━━━'
 
-          const text = [
+          const text = '<b>' + [
             div,
             '🔴 SHORT SIGNAL',
             div,
             '',
-            `💰 <b>$${displaySymbol}</b>`,
+            `💰 $${displaySymbol}`,
             `📊 Score: ${adjustedScore} (${rawScore})`,
             `🏦 Exchange: ${exchangeLabel}`,
             '📉 Market: BEARISH ✅',
@@ -285,7 +285,7 @@ export async function GET(request: Request) {
             '',
             '⚡ trading365.org/scanner',
             div,
-          ].join('\n')
+          ].join('\n') + '</b>'
 
           // Single premium channel (TELEGRAM_CHAT_ID = @ShortsScanner) — one send only.
           await sendTelegram(text)

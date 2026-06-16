@@ -234,12 +234,12 @@ export async function GET(request: Request) {
           const rawScore = item.score as number
           const div = '━━━━━━━━━━━━━━━━━━'
 
-          const text = [
+          const text = '<b>' + [
             div,
             '🟢 LONG SIGNAL',
             div,
             '',
-            `💰 <b>$${displaySymbol}</b>`,
+            `💰 $${displaySymbol}`,
             `📊 Score: ${adjustedScore} (${rawScore})`,
             `🏦 Exchange: ${exchangeLabel}`,
             '📈 Market: BULLISH ✅',
@@ -259,7 +259,7 @@ export async function GET(request: Request) {
             '',
             '⚡ trading365.org/scanner/longs',
             div,
-          ].join('\n')
+          ].join('\n') + '</b>'
 
           await sendTelegram(text)
           triggered.push(displaySymbol)
