@@ -30,45 +30,49 @@ interface SentimentSummary {
   sentimentFlags: string[]
 }
 
+// Long signal keys
 const SIGNAL_LABELS: Record<string, string> = {
-  // EMA (ema_-X% signals fall through and display as-is)
-  far_below_200ema: '↓↓ EMA200',
-  below_200ema:     '↓ EMA200',
-  near_200ema:      '≈ EMA200',
-  // Structure
-  lower_highs:      'LH ✓✓',
-  weak_lower_highs: 'LH ✓',
-  // Volume
-  heavy_bear_vol:   'Vol Bear ✓✓',
-  bear_vol:         'Vol Bear ✓',
-  // Funding
-  high_funding:     'Fund ↑↑↑',
-  pos_funding:      'Fund ↑↑',
-  slight_funding:   'Fund ↑',
-  // RSI
-  rsi_ob:           'RSI OB',
-  rsi_div:          'RSI Div',
-  // MACD
-  macd_bear:        'MACD Bear',
-  macd_zero:        'MACD <0',
-  // Daily
-  d_200ema:         'D 200EMA',
-  d_lh:             'D LH',
+  above_200ema:       '>200EMA',
+  above_50ema:        '>50EMA',
+  golden_cross:       'Golden X',
+  macd_bull:          'MACD Bull',
+  macd_hist_pos:      'MACD Hist+',
+  rsi_building:       'RSI Build',
+  vol_above_avg:      'Vol ✓',
+  vol_rising_up:      'Vol Rising',
+  higher_lows:        'HL',
+  higher_highs:       'HH',
+  ema50_tight:        'EMA50 ✓✓',
+  ema50_near:         'EMA50 ✓',
+  funding_squeeze:    'Fund Sqz',
+  funding_low:        'Fund Low',
+  d_above_200ema:     'D >200EMA',
+  d_higher_lows:      'D HL',
+  rsi_bull_div:       'RSI Div',
 }
 
+// Sentiment flags reframed for LONGS: a regime that's 'hostile' (bullish BTC) is
+// GOOD for longs, so the short-perspective fav/hos types are inverted here.
 const SENTIMENT_FLAG_LABELS: Record<string, { label: string; type: 'fav' | 'hos' }> = {
-  extreme_greed:   { label: 'F&G extreme greed (≥75) — longs over-leveraged',         type: 'fav' },
-  greed:           { label: 'F&G greed (≥60) — elevated long positioning',              type: 'fav' },
-  extreme_fear:    { label: 'F&G extreme fear (≤20) — panic selling, late to short',   type: 'hos' },
-  fear:            { label: 'F&G fear (≤35) — crowd defensive, low conviction',         type: 'hos' },
-  btc_high_longs:  { label: 'BTC funding >0.03%/8h — longs dangerously over-extended', type: 'fav' },
-  btc_pos_funding: { label: 'BTC funding positive — longs paying shorts',               type: 'fav' },
-  btc_crowd_short: { label: 'BTC funding negative — crowd already short, squeeze risk', type: 'hos' },
-  btc_bearish:     { label: 'BTC structure bearish — below 50EMA + lower highs',        type: 'fav' },
-  btc_bullish:     { label: 'BTC structure bullish — above 50EMA, alts may recover',    type: 'hos' },
-  dom_rising:      { label: 'BTC dominance rising — capital rotating from alts to BTC', type: 'fav' },
-  dom_falling:     { label: 'BTC dominance falling — alts gaining vs BTC',              type: 'hos' },
+  extreme_greed:   { label: 'F&G extreme greed (≥75) — euphoric, risky to chase longs',  type: 'hos' },
+  greed:           { label: 'F&G greed (≥60) — bullish but extended',                     type: 'hos' },
+  extreme_fear:    { label: 'F&G extreme fear (≤20) — capitulation, reversal fuel',        type: 'fav' },
+  fear:            { label: 'F&G fear (≤35) — washed out, bounce setup',                    type: 'fav' },
+  btc_high_longs:  { label: 'BTC funding >0.03%/8h — longs crowded, pullback risk',        type: 'hos' },
+  btc_pos_funding: { label: 'BTC funding positive — longs already paying',                 type: 'hos' },
+  btc_crowd_short: { label: 'BTC funding negative — shorts crowded, squeeze fuel',         type: 'fav' },
+  btc_bearish:     { label: 'BTC structure bearish — downtrend, longs risky',              type: 'hos' },
+  btc_bullish:     { label: 'BTC structure bullish — uptrend supports longs',             type: 'fav' },
+  dom_rising:      { label: 'BTC dominance rising — capital leaving alts',                 type: 'hos' },
+  dom_falling:     { label: 'BTC dominance falling — alts gaining, longs favoured',        type: 'fav' },
 }
+
+// Regime, from the LONG perspective: 'hostile' (bullish BTC) is when longs fire.
+const REGIME = {
+  hostile:    { label: 'bullish', good: true },
+  favourable: { label: 'bearish', good: false },
+  neutral:    { label: 'neutral', good: false },
+} as const
 
 function fmtPrice(p: number | null | undefined): string {
   if (p == null || isNaN(p)) return '—'
@@ -92,8 +96,9 @@ function timeAgoStr(isoDate: string): string {
 }
 
 function ScoreBadge({ score, raw }: { score: number; raw: number }) {
+  // Long: high score = strong LONG → green.
   let cls = 'bg-zinc-800 border-zinc-700 text-zinc-400'
-  if (score >= 7)      cls = 'bg-red-950 border-red-800 text-red-300'
+  if (score >= 7)      cls = 'bg-emerald-950 border-emerald-800 text-emerald-300'
   else if (score >= 5) cls = 'bg-amber-950 border-amber-800 text-amber-300'
   else if (score >= 3) cls = 'bg-yellow-950 border-yellow-800 text-yellow-300'
 
@@ -111,6 +116,7 @@ function ScoreBadge({ score, raw }: { score: number; raw: number }) {
 
 function SentimentBar({ s }: { s: SentimentSummary }) {
   const [showFlags, setShowFlags] = useState(false)
+  const regime = REGIME[s.marketCondition]
 
   const fngColor = s.fng >= 75 ? 'text-red-400'
                  : s.fng >= 60 ? 'text-amber-400'
@@ -125,12 +131,13 @@ function SentimentBar({ s }: { s: SentimentSummary }) {
                  : 'Extreme Fear'
 
   const domArrow = s.domTrend === 'up' ? '↑' : s.domTrend === 'down' ? '↓' : '→'
-  const domColor = s.domTrend === 'up' ? 'text-amber-400' : s.domTrend === 'down' ? 'text-zinc-500' : 'text-zinc-600'
+  const domColor = s.domTrend === 'down' ? 'text-emerald-400' : s.domTrend === 'up' ? 'text-zinc-500' : 'text-zinc-600'
 
-  const mcColor = s.marketCondition === 'hostile'
-    ? 'bg-red-950 border-red-800 text-red-300 hover:bg-red-900'
-    : s.marketCondition === 'favourable'
+  // Long perspective: bullish (hostile) regime is GOOD → green.
+  const mcColor = regime.good
     ? 'bg-green-950 border-green-800 text-green-300 hover:bg-green-900'
+    : s.marketCondition === 'favourable'
+    ? 'bg-red-950 border-red-800 text-red-300 hover:bg-red-900'
     : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
 
   return (
@@ -151,7 +158,7 @@ function SentimentBar({ s }: { s: SentimentSummary }) {
         <span className="text-zinc-700">·</span>
         <span>
           <span className="text-zinc-600">BTC Fund </span>
-          <span className={s.btcFunding > 0 ? 'text-red-400' : s.btcFunding < 0 ? 'text-green-400' : 'text-zinc-500'}>
+          <span className={s.btcFunding < 0 ? 'text-green-400' : s.btcFunding > 0 ? 'text-red-400' : 'text-zinc-500'}>
             {(s.btcFunding ?? 0) > 0 ? '+' : ''}{((s.btcFunding ?? 0) * 100).toFixed(4)}%
           </span>
         </span>
@@ -161,13 +168,13 @@ function SentimentBar({ s }: { s: SentimentSummary }) {
           title="Click to see why"
           className={`px-2 py-0.5 rounded border text-xs uppercase tracking-wider font-bold transition-colors cursor-pointer ${mcColor}`}
         >
-          {s.marketCondition} {showFlags ? '▴' : '▾'}
+          {regime.label} {showFlags ? '▴' : '▾'}
         </button>
       </div>
 
       {showFlags && (
         <div className="mt-1 px-4 py-3 bg-zinc-900/80 border border-zinc-800 border-t-0 rounded-b-xl text-xs font-mono space-y-2">
-          <p className="text-zinc-600 uppercase tracking-widest text-[10px] mb-1">Why {s.marketCondition}</p>
+          <p className="text-zinc-600 uppercase tracking-widest text-[10px] mb-1">Why {regime.label} (for longs)</p>
           {s.sentimentFlags.length === 0 ? (
             <p className="text-zinc-600">No signals fired — neutral by default.</p>
           ) : (
@@ -192,7 +199,7 @@ function SentimentBar({ s }: { s: SentimentSummary }) {
   )
 }
 
-export default function ScannerPage() {
+export default function LongScannerPage() {
   const router = useRouter()
   const [exchange,  setExchange]  = useState('okx')
   const [results,   setResults]   = useState<ScanResult[]>([])
@@ -211,7 +218,6 @@ export default function ScannerPage() {
     }).catch(() => router.push('/admin'))
   }, [router])
 
-  // Live "X ago" counter
   useEffect(() => {
     if (!scanTime) { setTimeAgo(null); return }
     const tick = () => setTimeAgo(timeAgoStr(scanTime))
@@ -224,7 +230,7 @@ export default function ScannerPage() {
     setScanning(true)
     setError('')
     try {
-      const r = await fetch(`/api/scanner?exchange=${exchange}${refresh ? '&refresh=1' : ''}`)
+      const r = await fetch(`/api/scanner?exchange=${exchange}&direction=long${refresh ? '&refresh=1' : ''}`)
       const d = await r.json()
       if (!r.ok) throw new Error(d.detail ? `${d.error ?? 'Scan failed'}: ${d.detail}` : (d.error ?? 'Scan failed'))
       setResults(d.results ?? [])
@@ -246,16 +252,18 @@ export default function ScannerPage() {
     )
   }
 
+  const longsActive = sentiment?.marketCondition === 'hostile'
+
   return (
     <div className="min-h-screen bg-zinc-950 p-6 font-mono">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
         <div>
-          <h1 className="text-zinc-100 text-lg font-bold tracking-tight">Altcoin Short Scanner</h1>
+          <h1 className="text-zinc-100 text-lg font-bold tracking-tight">Altcoin Long Scanner</h1>
           <p className="text-zinc-600 text-xs mt-1">
             {timeAgo
               ? <>{cached ? '⚡ cached' : '🔄 live'} · scanned <span className="text-zinc-500">{timeAgo}</span></>
-              : 'EMA200 (3pt) · lower highs (2pt) · bear vol (2pt) · funding (3pt) · BTC sentiment adj'}
+              : 'structure (3pt) · momentum (3pt) · volume (2pt) · pattern (2pt) · EMA dist (2pt) · funding (2pt) · daily (2pt) · BTC sentiment adj'}
           </p>
         </div>
 
@@ -285,10 +293,10 @@ export default function ScannerPage() {
           </button>
 
           <a
-            href="/admin/scanner/longs"
+            href="/admin/scanner"
             className="px-4 py-1.5 rounded-lg border border-zinc-700 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
           >
-            Long Scanner →
+            Short Scanner →
           </a>
 
           <a
@@ -304,11 +312,17 @@ export default function ScannerPage() {
         </div>
       </div>
 
-      {/* Hostile banner */}
-      {sentiment?.marketCondition === 'hostile' && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-red-950/60 border border-red-800 text-red-300 text-xs font-mono">
-          ⚠ BTC sentiment hostile — short conviction reduced. Scores adjusted.
-        </div>
+      {/* Regime banner — longs only fire in a bullish (hostile) BTC regime */}
+      {sentiment && (
+        longsActive ? (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-green-950/60 border border-green-800 text-green-300 text-xs font-mono">
+            ✅ BTC bullish — long signals active.
+          </div>
+        ) : (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-amber-950/60 border border-amber-800 text-amber-300 text-xs font-mono">
+            ⚠ BTC not bullish ({REGIME[sentiment.marketCondition].label}) — long signals are suppressed until conditions turn bullish. Candidates below are exploratory only.
+          </div>
+        )
       )}
 
       {/* Sentiment bar */}
@@ -317,9 +331,9 @@ export default function ScannerPage() {
       {/* Legend */}
       <div className="flex flex-wrap gap-4 mb-5">
         {[
-          { label: '7–10  Strong short', cls: 'bg-red-950 border-red-800' },
-          { label: '5–6    Moderate',    cls: 'bg-amber-950 border-amber-800' },
-          { label: '3–4    Weak',        cls: 'bg-yellow-950 border-yellow-800' },
+          { label: '7+    Strong long', cls: 'bg-emerald-950 border-emerald-800' },
+          { label: '5–6   Moderate',    cls: 'bg-amber-950 border-amber-800' },
+          { label: '3–4   Weak',        cls: 'bg-yellow-950 border-yellow-800' },
         ].map(({ label, cls }) => (
           <div key={label} className="flex items-center gap-1.5">
             <div className={`w-2.5 h-2.5 rounded-sm border ${cls}`} />
@@ -374,7 +388,7 @@ export default function ScannerPage() {
                       </td>
                       <td className="px-4 py-3 text-zinc-300 text-sm">${fmtPrice(r.price)}</td>
                       <td className="px-4 py-3 text-zinc-400 text-sm">{fmtOI(r.oi_usd)}</td>
-                      <td className={`px-4 py-3 text-sm font-mono ${(r.funding_pct ?? 0) > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                      <td className={`px-4 py-3 text-sm font-mono ${(r.funding_pct ?? 0) < 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {(r.funding_pct ?? 0) > 0 ? '+' : ''}{(r.funding_pct ?? 0).toFixed(4)}%
                       </td>
                       <td className="px-4 py-3 text-center">

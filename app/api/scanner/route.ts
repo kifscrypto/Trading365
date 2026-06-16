@@ -35,6 +35,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url)
   const exchange     = (searchParams.get('exchange') ?? 'okx').toLowerCase()
+  const direction: 'short' | 'long' = (searchParams.get('direction') ?? 'short').toLowerCase() === 'long' ? 'long' : 'short'
   const isCron       = searchParams.get('cron') === 'true'
   const forceRefresh = isCron || searchParams.get('refresh') === '1'
 
@@ -64,6 +65,7 @@ export async function GET(request: Request) {
       sql`ALTER TABLE scanner_results ADD COLUMN IF NOT EXISTS market_condition TEXT`,
       sql`ALTER TABLE scanner_results ADD COLUMN IF NOT EXISTS adjusted_score  INTEGER`,
       sql`ALTER TABLE scanner_results ADD COLUMN IF NOT EXISTS sentiment_flags JSONB DEFAULT '[]'`,
+      sql`ALTER TABLE scanner_results ADD COLUMN IF NOT EXISTS direction TEXT DEFAULT 'short'`,
     ])
 
     if (!forceRefresh) {
@@ -74,6 +76,7 @@ export async function GET(request: Request) {
                btc_dom_trend, market_condition, sentiment_flags
         FROM   scanner_results
         WHERE  exchange       = ${exchange}
+          AND  direction      = ${direction}
           AND  scanned_at     > NOW() - INTERVAL '5 minutes'
           AND  adjusted_score IS NOT NULL
         ORDER  BY adjusted_score DESC
@@ -98,16 +101,16 @@ export async function GET(request: Request) {
     }
 
     const [rawResults, sentiment] = await Promise.all([
-      exchange === 'hyperliquid' ? runHyperliquidScan()
-      : exchange === 'mexc'      ? runMEXCScan()
-      : exchange === 'weex'      ? runWEEXScan()
-      : exchange === 'bitunix'   ? runBitunixScan()
-      : runOKXScan(),
+      exchange === 'hyperliquid' ? runHyperliquidScan(direction)
+      : exchange === 'mexc'      ? runMEXCScan(direction)
+      : exchange === 'weex'      ? runWEEXScan(direction)
+      : exchange === 'bitunix'   ? runBitunixScan(direction)
+      : runOKXScan(direction),
       fetchBtcSentimentData(sql),
     ])
 
     const results: ScanResult[] = rawResults.map(r => {
-      const { adjustedScore, marketCondition, sentimentFlags } = applyBtcSentiment(r.score, sentiment)
+      const { adjustedScore, marketCondition, sentimentFlags } = applyBtcSentiment(r.score, sentiment, direction)
       return {
         ...r,
         adjusted_score:   adjustedScore,
@@ -120,20 +123,20 @@ export async function GET(request: Request) {
       }
     }).sort((a, b) => b.adjusted_score - a.adjusted_score)
 
-    await logSignals(sql, results)
+    await logSignals(sql, results, direction)
 
-    await sql`DELETE FROM scanner_results WHERE exchange = ${exchange}`
+    await sql`DELETE FROM scanner_results WHERE exchange = ${exchange} AND direction = ${direction}`
     await Promise.all(
       results.map(r => sql`
         INSERT INTO scanner_results (
           symbol, price, oi_usd, funding_pct, score, signals, exchange, scanned_at,
-          adjusted_score, fng, btc_dominance, btc_funding, btc_dom_trend, market_condition, sentiment_flags
+          adjusted_score, fng, btc_dominance, btc_funding, btc_dom_trend, market_condition, sentiment_flags, direction
         ) VALUES (
           ${r.symbol}, ${r.price}, ${r.oi_usd}, ${r.funding_pct},
           ${r.score}, ${JSON.stringify(r.signals)}::jsonb,
           ${r.exchange}, ${r.scanned_at}::timestamptz,
           ${r.adjusted_score}, ${r.fng}, ${r.btc_dominance}, ${r.btc_funding},
-          ${r.btc_dom_trend}, ${r.market_condition}, ${JSON.stringify(r.sentiment_flags)}::jsonb
+          ${r.btc_dom_trend}, ${r.market_condition}, ${JSON.stringify(r.sentiment_flags)}::jsonb, ${direction}
         )
       `)
     )
