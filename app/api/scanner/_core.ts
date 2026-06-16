@@ -835,8 +835,9 @@ export function applyBtcSentiment(
   sentimentFlags: string[]
 } {
   const sentimentFlags: string[] = []
-  // fav/hos are computed from the SHORT perspective; for longs we swap them at
-  // the end (bullish BTC = bonus for longs, was a penalty for shorts, and vice versa).
+  // fav/hos are from the SHORT perspective (favourable = greedy/bearish-BTC regime;
+  // hostile = bullish BTC). This LABEL is shared by both directions — only the score
+  // delta below is inverted for longs — so 'hostile' always means bullish BTC.
   let fav = 0, hos = 0
 
   if (s.fng >= 75)      { sentimentFlags.push('extreme_greed'); fav += 2 }
@@ -854,14 +855,16 @@ export function applyBtcSentiment(
   if (s.domTrend === 'up')        { sentimentFlags.push('dom_rising');  fav += 1 }
   else if (s.domTrend === 'down') { sentimentFlags.push('dom_falling'); hos += 1 }
 
-  if (direction === 'long') { const tmp = fav; fav = hos; hos = tmp }
-
   const marketCondition: 'favourable' | 'neutral' | 'hostile' =
     hos >= 2 && hos >= fav ? 'hostile' :
     fav >= 2               ? 'favourable' :
                              'neutral'
 
-  const delta = marketCondition === 'hostile' ? -2 : marketCondition === 'favourable' ? 1 : 0
+  // Score delta is inverted by direction: shorts want a 'favourable' (bearish/greedy
+  // BTC) regime, longs want a 'hostile' (bullish BTC) regime.
+  const delta = direction === 'long'
+    ? (marketCondition === 'favourable' ? -2 : marketCondition === 'hostile'    ? 1 : 0)
+    : (marketCondition === 'hostile'    ? -2 : marketCondition === 'favourable' ? 1 : 0)
   return {
     adjustedScore:  Math.max(0, Math.min(15, rawScore + delta)),
     marketCondition,
