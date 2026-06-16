@@ -56,6 +56,7 @@ interface Stats {
   tp1WinRate: number | null
   directionalAccuracy: number | null
   totalSignals: number
+  signalsConfirmed: number
   avgMove: number | null
 }
 
@@ -90,10 +91,11 @@ async function getStats(): Promise<Stats> {
       tp1WinRate:          denom > 0 ? ((agg.tp1_hits as number) / denom) * 100 : null,
       directionalAccuracy: denom > 0 ? ((agg.up_hits as number) / denom) * 100 : null,
       totalSignals:        (agg.total_all ?? 0) as number,
+      signalsConfirmed:    (agg.tp1_hits ?? 0) as number,
       avgMove:             denom > 0 ? (agg.avg_move as number) : null,
     }
   } catch {
-    return { tp1WinRate: null, directionalAccuracy: null, totalSignals: 0, avgMove: null }
+    return { tp1WinRate: null, directionalAccuracy: null, totalSignals: 0, signalsConfirmed: 0, avgMove: null }
   }
 }
 
@@ -185,7 +187,7 @@ const quarterlyFeatures = ["Same features as monthly", "Priority support"]
 
 export default async function LongScannerPage() {
   const [stats, recentWins] = await Promise.all([getStats(), getRecentWins()])
-  const { tp1WinRate, directionalAccuracy, totalSignals, avgMove } = stats
+  const { tp1WinRate, directionalAccuracy, totalSignals, signalsConfirmed, avgMove } = stats
   const automated = premiumEnabled()
 
   return (
@@ -229,7 +231,7 @@ export default async function LongScannerPage() {
       {/* Stats bar */}
       <section id="performance" className="border-b border-border bg-zinc-900">
         <div className="mx-auto max-w-5xl px-4 py-8 lg:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border text-center">
+          <div className="grid grid-cols-2 md:grid-cols-5 divide-x divide-border text-center">
             <div className="px-4 py-2">
               {tp1WinRate === null
                 ? <p className="text-base font-semibold text-muted-foreground pt-2.5">Accumulating data</p>
@@ -248,6 +250,13 @@ export default async function LongScannerPage() {
               <p className="text-3xl font-bold text-foreground tabular-nums">{totalSignals.toLocaleString()}</p>
               <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Total Signals Tracked</p>
               <p className="text-[10px] text-muted-foreground/70 mt-0.5">and counting</p>
+            </div>
+            <div className="px-4 py-2">
+              {signalsConfirmed > 0
+                ? <p className="text-3xl font-bold text-emerald-400 tabular-nums">{signalsConfirmed.toLocaleString()}</p>
+                : <p className="text-base font-semibold text-muted-foreground pt-2.5">Accumulating data</p>}
+              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Signals Confirmed</p>
+              <p className="text-[10px] text-muted-foreground/70 mt-0.5">hit TP1 within 24h</p>
             </div>
             <div className="px-4 py-2">
               {avgMove === null
