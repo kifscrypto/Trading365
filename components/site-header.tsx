@@ -23,7 +23,8 @@ const navLinks = [
   { href: "/no-kyc", label: "No-KYC" },
   { href: "/bonuses", label: "Bonuses" },
   { href: "/guides", label: "Guides" },
-  { href: "/scanner", label: "Scanner" },
+  { href: "/scanner", label: "Short Scanner" },
+  { href: "/scanner/longs", label: "Long Scanner" },
 ]
 
 export function SiteHeader() {

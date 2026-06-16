@@ -118,7 +118,7 @@ export default async function HomePage() {
           <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
             Expert crypto exchange reviews, unbiased comparisons, and exclusive bonus deals to maximize your trading profits.
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Button size="lg" className="gap-2 font-semibold px-8" asChild>
               <Link href="/reviews">
                 Browse Reviews
@@ -132,6 +132,12 @@ export default async function HomePage() {
               <Link href="/scanner">
                 <Zap className="h-4 w-4" />
                 Short Scanner
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" className="gap-2 font-semibold px-8 border-emerald-500/30 text-foreground hover:bg-emerald-500/10" asChild>
+              <Link href="/scanner/longs">
+                <Zap className="h-4 w-4 text-emerald-400" />
+                Long Scanner
               </Link>
             </Button>
           </div>
