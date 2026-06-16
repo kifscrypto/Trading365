@@ -836,9 +836,13 @@ export async function setupSignalTables(sql: SqlClient): Promise<void> {
       fng              INTEGER,
       oi_usd           DECIMAL(20,2),
       funding_rate     DECIMAL(10,6),
+      direction        VARCHAR(10)   NOT NULL DEFAULT 'short',
       scanned_at       TIMESTAMP     DEFAULT NOW()
     )
   `
+
+  // Migration: ensure the direction column exists on pre-existing tables (long/short support)
+  await sql`ALTER TABLE scanner_signals ADD COLUMN IF NOT EXISTS direction VARCHAR(10) DEFAULT 'short'`
 
   await sql`
     CREATE TABLE IF NOT EXISTS scanner_outcomes (
@@ -884,13 +888,14 @@ export async function logSignals(sql: SqlClient, results: LoggableResult[]): Pro
 
     await sql`
       INSERT INTO scanner_signals
-        (symbol, exchange, price_at_signal, score, raw_score, signals, market_condition, fng, oi_usd, funding_rate)
+        (symbol, exchange, price_at_signal, score, raw_score, signals, market_condition, fng, oi_usd, funding_rate, direction)
       VALUES (
         ${r.symbol}, ${r.exchange}, ${r.price},
         ${r.adjusted_score}, ${r.score},
         ${signalsLiteral}::text[],
         ${r.market_condition},
-        ${r.fng}, ${r.oi_usd}, ${r.funding_pct / 100}
+        ${r.fng}, ${r.oi_usd}, ${r.funding_pct / 100},
+        'short'
       )
     `
     logged++

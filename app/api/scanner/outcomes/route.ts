@@ -70,6 +70,7 @@ export async function GET(request: Request) {
         s.id,
         s.symbol,
         s.exchange,
+        s.direction,
         s.price_at_signal::float               AS price_at_signal,
         EXTRACT(EPOCH FROM (NOW() - s.scanned_at)) / 3600 AS hours_old,
         (SELECT id FROM scanner_outcomes WHERE signal_id = s.id AND hours_after = 24 LIMIT 1) IS NULL AS needs_24h,
@@ -124,11 +125,14 @@ export async function GET(request: Request) {
       if (hours >= 48 && sig.needs_48h) toRecord.push(48)
       if (hours >= 72 && sig.needs_72h) toRecord.push(72)
 
+      const isLong = (sig.direction as string) === 'long'
+
       for (const hours_after of toRecord) {
-        // TP flags only meaningful at the 24h check (entry triggers exit timeframe)
-        const tp1Hit = hours_after === 24 && pctChange <= -1.5
-        const tp2Hit = hours_after === 24 && pctChange <= -2.5
-        const tp3Hit = hours_after === 24 && pctChange <= -4.0
+        // TP flags only meaningful at the 24h check (entry triggers exit timeframe).
+        // Direction-aware: shorts win when price falls, longs win when price rises.
+        const tp1Hit = hours_after === 24 && (isLong ? pctChange >=  1.5 : pctChange <= -1.5)
+        const tp2Hit = hours_after === 24 && (isLong ? pctChange >=  2.5 : pctChange <= -2.5)
+        const tp3Hit = hours_after === 24 && (isLong ? pctChange >=  4.0 : pctChange <= -4.0)
         await sql`
           INSERT INTO scanner_outcomes (signal_id, hours_after, price, pct_change, tp1_hit, tp2_hit, tp3_hit)
           VALUES (${sig.id as number}, ${hours_after}, ${currentPrice}, ${pctChange}, ${tp1Hit}, ${tp2Hit}, ${tp3Hit})
