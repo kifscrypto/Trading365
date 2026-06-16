@@ -4,7 +4,7 @@ import { neon } from "@neondatabase/serverless"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Radar, ShieldCheck, Bell, Lock, ArrowRight, Zap, Check } from "lucide-react"
+import { Radar, ShieldCheck, Bell, Lock, ArrowRight, Zap, Check, TrendingUp } from "lucide-react"
 import { premiumEnabled } from "@/lib/premium"
 
 const BASE_URL = "https://trading365.org"
@@ -290,11 +290,21 @@ export default async function ScannerPage() {
       </section>
 
       {/* Cross-link to long scanner */}
-      <section className="border-b border-border bg-zinc-950">
-        <div className="mx-auto max-w-5xl px-4 py-3 lg:px-6 text-center">
-          <Link href="/scanner/longs" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <span className="font-semibold text-emerald-400">BTC ripping?</span> Check our Long Scanner
-            <ArrowRight className="h-4 w-4" />
+      <section className="bg-zinc-950">
+        <div className="mx-auto max-w-5xl px-4 py-6 lg:px-6">
+          <Link
+            href="/scanner/longs"
+            className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-6 py-5 hover:border-emerald-500/40 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
+                <TrendingUp className="h-5 w-5 text-emerald-400" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">New — the Long Scanner is live.</span> When BTC turns bullish, catch the upside: the same engine, inverted for long setups. One subscription covers both.
+              </p>
+            </div>
+            <span className="text-sm font-semibold text-emerald-400 whitespace-nowrap">Open Long Scanner →</span>
           </Link>
         </div>
       </section>
