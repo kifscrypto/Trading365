@@ -2,9 +2,10 @@ import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 import {
   okx1hKlines, hyperliquid1hKlines, mexcKlines, weex1hKlines, bitunix1hKlines,
-  calcRSI, calcMACD, setupSignalTables, exchangeTradeUrl, EXCHANGE_LABEL,
+  calcRSI, calcMACD, setupSignalTables, EXCHANGE_LABEL,
   type Kline, type SqlClient,
 } from '@/app/api/scanner/_core'
+import { exchangeTradeLink } from '@/app/api/scanner/_config'
 
 // Long entry trigger — parallel to /api/scanner/entries, inverted for longs.
 // Reads the long watchlist, fires only in a BULLISH-BTC ('hostile') regime, and
@@ -88,7 +89,7 @@ async function sendTelegram(text: string): Promise<void> {
   const res  = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
   })
   const json = await res.json()
   if (!res.ok || !json.ok) console.error('[long-entries/sendTelegram] API error:', JSON.stringify(json))
@@ -223,7 +224,7 @@ export async function GET(request: Request) {
 
           const exchange      = item.exchange as string
           const exchangeLabel = EXCHANGE_LABEL[exchange] ?? 'OKX'
-          const tradeUrl      = exchangeTradeUrl(exchange, sym)
+          const tradeLink     = exchangeTradeLink(exchange, sym)
           const allSignalKeys = [...(item.signals as string[]), ...entrySignals]
           const signalStr     = allSignalKeys.map(s => SIGNAL_DISPLAY[s] ?? s).join(', ')
 
@@ -231,19 +232,33 @@ export async function GET(request: Request) {
           const tp2 = entryPrice * 1.025
           const tp3 = entryPrice * 1.04
           const rawScore = item.score as number
+          const div = '━━━━━━━━━━━━━━━━━━'
 
           const text = [
-            `🟢 LONG SIGNAL — $${displaySymbol}`,
-            `Exchange: ${exchangeLabel}`,
-            `Score: ${adjustedScore} (${rawScore})`,
-            `Market: BULLISH ✅`,
-            `Entry: $${fmtPrice(entryPrice)}`,
-            `TP1: $${fmtPrice(tp1)} (+1.5%)`,
-            `TP2: $${fmtPrice(tp2)} (+2.5%)`,
-            `TP3: $${fmtPrice(tp3)} (+4.0%)`,
-            `Stop: below $${fmtPrice(stopPrice)} (last swing low)`,
-            `Signals: ${signalStr}`,
-            `Trade on ${exchangeLabel}: ${tradeUrl}`,
+            div,
+            '🟢 LONG SIGNAL',
+            div,
+            '',
+            `💰 <b>$${displaySymbol}</b>`,
+            `📊 Score: ${adjustedScore} (${rawScore})`,
+            `🏦 Exchange: ${exchangeLabel}`,
+            '📈 Market: BULLISH ✅',
+            '',
+            `💲 Entry: $${fmtPrice(entryPrice)}`,
+            '',
+            '🎯 Targets:',
+            `   TP1: $${fmtPrice(tp1)} (+1.5%)`,
+            `   TP2: $${fmtPrice(tp2)} (+2.5%)`,
+            `   TP3: $${fmtPrice(tp3)} (+4.0%)`,
+            '',
+            `🛑 Stop: $${fmtPrice(stopPrice)} (last swing low)`,
+            '',
+            `📋 Signals: ${signalStr}`,
+            '',
+            `🔗 Trade now: ${tradeLink}`,
+            '',
+            '⚡ trading365.org/scanner/longs',
+            div,
           ].join('\n')
 
           await sendTelegram(text)
