@@ -132,13 +132,13 @@ export function ExitIntentPopup() {
                   <span className="text-cyan-400">Master List</span>
                 </h2>
                 <p className="mt-3 text-slate-400 text-sm leading-relaxed">
-                  We track 50+ exchanges daily. Join 12,000+ traders receiving our weekly breakdown of the highest-paying sign-up bonuses and hidden referral perks.
+                  We scan 100+ coins and 50+ exchanges daily. Join 12,000+ traders for our weekly signal recaps, top-paying bonuses, and hidden referral perks.
                 </p>
               </div>
 
               {/* Checklist */}
               <ul className="mb-6 space-y-2">
-                {['Weekly Bonus Updates', 'No-KYC Exchange Alerts', 'Exclusive T365 Referral Codes'].map((item) => (
+                {['Live Scanner Signal Recaps', 'Top Exchange Bonuses', 'Exclusive T365 Referral Codes'].map((item) => (
                   <li key={item} className="flex items-center gap-2.5 text-sm text-slate-300">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-500/15 border border-cyan-500/40 flex items-center justify-center text-cyan-400 text-xs">✓</span>
                     {item}

@@ -50,7 +50,7 @@ export function NewsletterCta() {
             Stay Ahead of the Market
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-            Get exclusive exchange deals, in-depth reviews, and market insights delivered to your inbox. No spam, unsubscribe anytime.
+            Free trade signals, exclusive exchange deals, and in-depth reviews — straight to your inbox. No spam, unsubscribe anytime.
           </p>
 
           {status === "success" ? (

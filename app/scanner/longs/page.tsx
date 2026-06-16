@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingDown } from "lucide-react"
 import { premiumEnabled } from "@/lib/premium"
+import { ScannerNewsletter } from "@/components/scanner-newsletter"
 
 const BASE_URL = "https://trading365.org"
 
@@ -373,6 +374,9 @@ export default async function LongScannerPage() {
           <span className="text-sm font-semibold text-foreground whitespace-nowrap">Short Scanner →</span>
         </Link>
       </section>
+
+      {/* Newsletter capture */}
+      <ScannerNewsletter accent="emerald" utmCampaign="long-scanner" />
 
       {/* Pricing */}
       <section id="pricing" className="border-t border-border bg-zinc-950">
