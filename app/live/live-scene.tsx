@@ -4,33 +4,39 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import Script from "next/script"
 import type { LiveData, LivePrice, Verdict } from "@/lib/live-types"
 
-const TELEGRAM_URL = "https://t.me/trading365Sub"
+// Destinations are env-configurable (no hardcoded literals). The website is the
+// primary hub; the QR encodes NEXT_PUBLIC_QR_TARGET_URL (defaults to the site).
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.trading365.org"
+const SUB_URL = process.env.NEXT_PUBLIC_SUB_URL || "https://t.me/trading365Sub"
+const QR_URL = process.env.NEXT_PUBLIC_QR_TARGET_URL || SITE_URL
+const host = (u: string) => u.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/+$/, "")
+const SITE_HOST = host(SITE_URL)
+const SUB_HANDLE = host(SUB_URL)
+const QR_HOST = host(QR_URL)
+
+// Rotating strip alternates website-intent and sub lines (URLs from env).
+const CTA_MSGS = [
+  `Independent exchange reviews, fees &amp; sign-up bonuses → <b>${SITE_HOST}</b>`,
+  `Find the right exchange for your strategy → <b>${SITE_HOST}</b>`,
+  `Live signal alerts in the premium group → <b>${SUB_HANDLE}</b>`,
+  `Long or short, every fire hits the premium group in real time`,
+]
 
 // Non-revealing per-verdict presentation. Never states WHY (no gate inputs).
-const REG: Record<Verdict, { state: string; head: string; desc: string; c: string; tint: string; border: string }> = {
+const REG: Record<Verdict, { state: string; head: string; desc: string; c: string }> = {
   long: {
     state: "LONG BOOK · LIVE", head: "LONG SCANNER ENGAGED",
-    desc: "Long book engaged. Setups that clear the bar are firing live to members.",
-    c: "#37d98a", tint: "rgba(55,217,138,.10)", border: "#1f3a2c",
+    desc: "Long book engaged. Setups that clear the bar are firing live to members.", c: "#37d98a",
   },
   short: {
     state: "SHORT BOOK · LIVE", head: "SHORT SCANNER ENGAGED",
-    desc: "Conditions favour the short book. Setups that clear the bar are firing live to members.",
-    c: "#ff4d5e", tint: "rgba(255,77,94,.10)", border: "#3a2024",
+    desc: "Conditions favour the short book. Setups that clear the bar are firing live to members.", c: "#ff4d5e",
   },
   neutral: {
     state: "STANDING DOWN", head: "SCANNERS HOLDING FIRE",
-    desc: "No book engaged — standing down. The scanner stays silent until conditions align.",
-    c: "#ff9d2e", tint: "rgba(255,157,46,.10)", border: "#3a2f1c",
+    desc: "No book engaged — standing down. The scanner stays silent until conditions align.", c: "#ff9d2e",
   },
 }
-
-const CTA_MSGS = [
-  "The instant a book engages, members get the <b>entry, TPs and stop</b> — live.",
-  "Premium signals · <b>$29/mo</b> · <b>$69/quarter</b> · paid in USDT.",
-  "You’re watching the discipline. <b>Subscribers trade the signal.</b>",
-  "Long or short, every fire is pushed to the <b>premium group</b> in real time.",
-]
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 const pad = (n: number) => String(n).padStart(2, "0")
@@ -58,7 +64,6 @@ function fmtAgo(iso: string): string {
 function fmtPct(n: number | null, digits = 0): string {
   return n === null || !Number.isFinite(n) ? "—" : `${n.toFixed(digits)}%`
 }
-// Map a public metric to a 0–5 ambient bar level (NOT a gate threshold).
 function momentumLevel(p: number | null) { if (p == null) return 0; const a = Math.abs(p); return a < 0.5 ? 1 : a < 1 ? 2 : a < 2 ? 3 : a < 3.5 ? 4 : 5 }
 function volLevel(v: number | null) { if (v == null) return 0; return v < 2 ? 1 : v < 3.5 ? 2 : v < 5 ? 3 : v < 7 ? 4 : 5 }
 function breadthLevel(b: number | null) { if (b == null) return 0; return Math.max(1, Math.min(5, Math.round(b / 20))) }
@@ -77,6 +82,19 @@ export function LiveScene() {
   const [nextScan, setNextScan] = useState("--:--")
   const [ctaIdx, setCtaIdx] = useState(0)
 
+  // Fire-moment state (purely client-side reaction to a newer signal id)
+  const [firingId, setFiringId] = useState<number | null>(null)
+  const [heldId, setHeldId] = useState<number | null>(null)
+  const seenIdRef = useRef<number | null>(null)
+  const firstPollDoneRef = useRef(false)
+  const prevVerdictRef = useRef<Verdict | null>(null)
+  const settleTimerRef = useRef<number | null>(null)
+  const fireflashRef = useRef<HTMLDivElement>(null)
+  const firebannerRef = useRef<HTMLDivElement>(null)
+  const qrcardRef = useRef<HTMLDivElement>(null)
+  const actxRef = useRef<AudioContext | null>(null)
+  const reducedRef = useRef(false)
+
   // ── scale-to-fit 1920×1080 ──
   useEffect(() => {
     const fit = () => {
@@ -88,9 +106,9 @@ export function LiveScene() {
     return () => window.removeEventListener("resize", fit)
   }, [])
 
-  // ── token from this page's own URL ──
   useEffect(() => {
     tokenRef.current = new URLSearchParams(window.location.search).get("k")
+    reducedRef.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches
   }, [])
 
   const applyPrices = useCallback((next: LivePrice[]) => {
@@ -106,7 +124,65 @@ export function LiveScene() {
     window.setTimeout(() => setFlash({}), 260)
   }, [])
 
-  // ── full data poll (5s) ──
+  const chime = useCallback(() => {
+    try {
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      const actx = actxRef.current || (actxRef.current = new AC())
+      if (actx.state === "suspended") actx.resume().catch(() => {})
+      const now = actx.currentTime
+      const lp = actx.createBiquadFilter()
+      lp.type = "lowpass"; lp.frequency.value = 2200; lp.connect(actx.destination)
+      ;([[523.25, 0], [783.99, 0.09]] as const).forEach(([f, t]) => {
+        const o = actx.createOscillator(), g = actx.createGain()
+        o.type = "triangle"; o.frequency.value = f
+        g.gain.setValueAtTime(0, now + t)
+        g.gain.linearRampToValueAtTime(0.13, now + t + 0.012)
+        g.gain.exponentialRampToValueAtTime(0.0008, now + t + 0.55)
+        o.connect(g); g.connect(lp); o.start(now + t); o.stop(now + t + 0.6)
+      })
+    } catch { /* audio optional */ }
+  }, [])
+
+  // Clear any in-flight fire visuals + pending settle. Called when the state
+  // moves on without a fresh fire, so one fire never bleeds into a later state.
+  const clearFire = useCallback(() => {
+    if (settleTimerRef.current) { window.clearTimeout(settleTimerRef.current); settleTimerRef.current = null }
+    setFiringId(null); setHeldId(null)
+    fireflashRef.current?.classList.remove("go")
+    firebannerRef.current?.classList.remove("go")
+    qrcardRef.current?.classList.remove("pulse")
+  }, [])
+
+  const triggerFire = useCallback((sig: { id: number; direction: "long" | "short" }) => {
+    // Always cancel a prior fire first (timer + classes) so they can't overlap.
+    if (settleTimerRef.current) { window.clearTimeout(settleTimerRef.current); settleTimerRef.current = null }
+    setHeldId(null)
+    setFiringId(sig.id)
+
+    if (!reducedRef.current) {
+      const ff = fireflashRef.current
+      if (ff) { ff.classList.remove("go"); void ff.offsetWidth; ff.classList.add("go") }
+      const bn = firebannerRef.current
+      if (bn) { bn.textContent = `⚡ SIGNAL FIRED · ${sig.direction === "long" ? "LONG" : "SHORT"}`; bn.classList.remove("go"); void bn.offsetWidth; bn.classList.add("go") }
+      const qc = qrcardRef.current
+      if (qc) { qc.classList.remove("pulse"); void qc.offsetWidth; qc.classList.add("pulse") }
+      chime()
+    }
+
+    // SETTLE after ~12s: the fired row drops to a steady left-accent highlight.
+    // Keyed by signal id (the React-safe equivalent of "only that row, if still
+    // connected") — if it has scrolled out of the last-10 it simply won't render.
+    settleTimerRef.current = window.setTimeout(() => {
+      setFiringId(null)
+      setHeldId(sig.id)
+      fireflashRef.current?.classList.remove("go")
+      firebannerRef.current?.classList.remove("go")
+      qrcardRef.current?.classList.remove("pulse")
+      settleTimerRef.current = null
+    }, 12000)
+  }, [chime])
+
+  // ── full data poll (5s) — also the fire trigger ──
   useEffect(() => {
     let alive = true
     const pull = async () => {
@@ -117,6 +193,24 @@ export function LiveScene() {
         if (!r.ok) return
         const d: LiveData = await r.json()
         if (!alive) return
+
+        const newest = d.signals[0]
+        const newestId = newest?.id ?? null
+        const verdictChanged = prevVerdictRef.current !== null && prevVerdictRef.current !== d.regime.verdict
+
+        if (!firstPollDoneRef.current) {
+          // First successful poll: record baseline, never fire (no pop on load/restart).
+          firstPollDoneRef.current = true
+          seenIdRef.current = newestId
+        } else if (newestId != null && (seenIdRef.current == null || newestId > seenIdRef.current)) {
+          seenIdRef.current = newestId
+          triggerFire({ id: newestId, direction: newest.direction })
+        } else if (verdictChanged) {
+          // State moved on without a new signal → clear any lingering fire.
+          clearFire()
+        }
+        prevVerdictRef.current = d.regime.verdict
+
         setData(d)
         applyPrices(d.prices)
       } catch { /* keep previous */ }
@@ -124,7 +218,7 @@ export function LiveScene() {
     pull()
     const id = window.setInterval(pull, 5000)
     return () => { alive = false; window.clearInterval(id) }
-  }, [applyPrices])
+  }, [applyPrices, triggerFire, clearFire])
 
   // ── fast prices poll (3s) ──
   useEffect(() => {
@@ -175,7 +269,7 @@ export function LiveScene() {
     return () => window.clearInterval(id)
   }, [])
 
-  // ── QR (public telegram link) via qrcodejs once loaded ──
+  // ── QR (encodes the env target) via qrcodejs once loaded ──
   const [qrReady, setQrReady] = useState(false)
   useEffect(() => {
     if (!qrReady) return
@@ -184,9 +278,12 @@ export function LiveScene() {
     if (!el || !QR) return
     el.innerHTML = ""
     try {
-      new QR(el, { text: TELEGRAM_URL, width: 84, height: 84, colorDark: "#0a0a0a", colorLight: "#f7f1e3", correctLevel: 1 })
+      new QR(el, { text: QR_URL, width: 84, height: 84, colorDark: "#0a0a0a", colorLight: "#f7f1e3", correctLevel: 1 })
     } catch { /* leave empty */ }
   }, [qrReady])
+
+  // clear pending settle timer on unmount
+  useEffect(() => () => { if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current) }, [])
 
   const verdict: Verdict = data?.regime.verdict ?? "neutral"
   const reg = REG[verdict]
@@ -197,8 +294,9 @@ export function LiveScene() {
   const regVars: React.CSSProperties & Record<string, string> = {
     "--reg-c": reg.c, "--reg-h": reg.c,
     "--reg-glow": reg.c + "cc", "--reg-hglow": reg.c + "47",
-    "--reg-tint": reg.tint, "--reg-border": reg.border,
+    "--reg-tint": reg.c + "1a", "--reg-border": reg.c + "3a",
     "--lv-c": reg.c, "--lv-tint": reg.c + "1f", "--lv-bd": reg.c + "66",
+    "--acc": reg.c, "--acc-glow": reg.c + "73",
   }
 
   const gauges: Array<{ k: string; level: number; v: string }> = [
@@ -211,11 +309,12 @@ export function LiveScene() {
     <div className="t365-live">
       <Script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" strategy="afterInteractive" onLoad={() => setQrReady(true)} />
       <div className="stage" ref={stageRef}>
-        {/* HEADER */}
+        {/* HEADER — persistent site URL beside the brand */}
         <header className="head">
           <div className="brand">
             <h1>TRADING365</h1>
             <span className="sub">Live Altcoin Scanner · Longs &amp; Shorts</span>
+            <span className="url">{SITE_HOST}</span>
           </div>
           <div className="head-right">
             <div className="live"><span className="dot" /> ON AIR</div>
@@ -227,7 +326,7 @@ export function LiveScene() {
         </header>
 
         <div className="main">
-          {/* LEFT COLUMN: market + scoreboard */}
+          {/* LEFT: market + scoreboard */}
           <div className="col">
             <section className="panel market">
               <div className="eyebrow">Market</div>
@@ -257,9 +356,11 @@ export function LiveScene() {
             </section>
           </div>
 
-          {/* RIGHT COLUMN: regime + feed */}
+          {/* RIGHT: regime + feed */}
           <div className="rcol">
             <section className="panel regime" style={regVars}>
+              <div className="fireflash" ref={fireflashRef} />
+              <div className="firebanner" ref={firebannerRef} />
               <div className="top">
                 <div className="eyebrow">Market Regime</div>
                 <div className="timers">
@@ -271,14 +372,12 @@ export function LiveScene() {
               <h2>{reg.head}</h2>
               <p className="desc">{reg.desc}</p>
 
-              {/* DEVIATION 1: three-state verdict indicator */}
               <div className="tri">
                 <div className={`seg long${verdict === "long" ? " on" : ""}`}><span className="d" />LONG</div>
                 <div className={`seg neutral${verdict === "neutral" ? " on" : ""}`}><span className="d" />NEUTRAL</div>
                 <div className={`seg short${verdict === "short" ? " on" : ""}`}><span className="d" />SHORT</div>
               </div>
 
-              {/* DEVIATION 2: market-context gauges (ambient, decoupled from verdict) */}
               <div className="ctx">
                 <div className="ctx-eyebrow">Market Context</div>
                 <div className="gauges">
@@ -300,12 +399,15 @@ export function LiveScene() {
                 <span>TP1 / TP2 / TP3</span><span className="r">Closed</span><span className="r">Score</span><span className="r">Ago</span>
               </div>
               <div className="rows">
-                {signals.map((s, idx) => {
+                {signals.map((s) => {
                   const open = s.closeResult === null
                   const tps = [s.tp1, s.tp2, s.tp3]
+                  const firing = firingId === s.id
+                  const held = heldId === s.id
+                  const cls = firing ? "frow firerow live" : held ? "frow held" : `frow${s.live ? " live" : ""}`
                   return (
-                    <div className={`frow${s.live ? " liverow" : ""}`} key={`${s.pair}-${s.time}-${idx}`}>
-                      <span className="pair">{s.pair}{s.live && <span className="lflag">● LIVE</span>}</span>
+                    <div className={cls} key={s.id}>
+                      <span className="pair">{s.pair}{(s.live || firing) && <span className="lflag">● LIVE</span>}</span>
                       <span className={`dir ${s.direction === "long" ? "L" : "S"}`}>{s.direction === "long" ? "LONG" : "SHORT"}</span>
                       <span className="entry">{fmtEntry(s.entry)}</span>
                       <span className="tps">{tps.map((h, i) => <span key={i} className={`tp ${h ? "hit" : open ? "pend" : "miss"}`}>TP{i + 1}</span>)}</span>
@@ -323,21 +425,22 @@ export function LiveScene() {
           </div>
         </div>
 
-        {/* BOTTOM: CTA + QR */}
+        {/* BOTTOM: persistent site tag (CTA) + rotating strip + single QR */}
         <div className="bottom">
           <footer className="cta">
-            <div className="tag">Premium</div>
+            <div className="tag">{SITE_HOST}</div>
             <div className="msgwrap">
               {CTA_MSGS.map((m, i) => (
                 <div key={i} className={`msg${i === ctaIdx ? " show" : ""}`} dangerouslySetInnerHTML={{ __html: m }} />
               ))}
             </div>
           </footer>
-          <div className="qrcard">
+          <div className="qrcard" ref={qrcardRef}>
             <div className="qbox"><div id="t365qr" /></div>
             <div className="qt">
-              <span className="h">SCAN TO JOIN</span>
-              <span className="p">Live alerts the instant a book engages</span>
+              <span className="h">SCAN TO VISIT</span>
+              <span className="p">Reviews, fees &amp; sign-up bonuses</span>
+              <span className="pr">{QR_HOST}</span>
             </div>
           </div>
         </div>

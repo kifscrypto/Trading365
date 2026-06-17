@@ -5,6 +5,7 @@
 export type Verdict = "long" | "short" | "neutral"
 
 export interface LiveSignal {
+  id: number // scanner_signals.id — lets the client detect a genuinely new signal
   pair: string
   direction: "long" | "short"
   entry: number

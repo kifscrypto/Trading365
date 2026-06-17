@@ -51,7 +51,7 @@ async function getRegime(sql: SqlClient) {
 async function getSignals(sql: SqlClient): Promise<LiveSignal[]> {
   try {
     const rows = (await sql`
-      SELECT s.symbol, s.direction, s.price_at_signal, s.score, s.scanned_at,
+      SELECT s.id, s.symbol, s.direction, s.price_at_signal, s.score, s.scanned_at,
              o.pct_change
       FROM scanner_signals s
       LEFT JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
@@ -75,6 +75,7 @@ async function getSignals(sql: SqlClient): Promise<LiveSignal[]> {
       const closeResult = hasOutcome ? (direction === "short" ? -pct! : pct!) : null
       const scannedMs = new Date(r.scanned_at as string).getTime()
       return {
+        id: num(r.id),
         pair: String(r.symbol).replace("USDT", ""),
         direction,
         entry: num(r.price_at_signal),

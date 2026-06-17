@@ -11,7 +11,7 @@
   --gold:#f0b94a;--gold-deep:#c8922e;
   --long:#37d98a;--short:#ff4d5e;--tp:#37d98a;
   --amber:#ff9d2e;--hostile:#ff7a47;
-  --ctx:#7da2c9; /* market-context gauge colour — fixed, decoupled from verdict */
+  --ctx:#7d8aa0; /* market-context gauge colour — fixed, decoupled from verdict */
   --text:#e9ecf1;--muted:#8a929e;--dim:#586170;
 
   position:fixed;inset:0;z-index:2147483000;
@@ -131,7 +131,7 @@
 .t365-live .gauge .gk{font-family:var(--sans);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
 .t365-live .gauge .bars{display:flex;gap:5px}
 .t365-live .gauge .bars i{width:24px;height:10px;border-radius:2px;background:#2a313c;display:block}
-.t365-live .gauge .bars i.on{background:var(--ctx);box-shadow:0 0 9px rgba(125,162,201,.45)}
+.t365-live .gauge .bars i.on{background:var(--ctx);box-shadow:0 0 8px rgba(125,138,160,.4)}
 .t365-live .gauge .gv{font-family:var(--mono);font-size:13px;color:var(--muted);margin-top:6px}
 @keyframes t365breathe{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.12);opacity:1}}
 @keyframes t365glow{0%,100%{text-shadow:0 0 32px var(--reg-hglow,rgba(255,157,46,.2))}50%{text-shadow:0 0 52px var(--reg-hglow,rgba(255,157,46,.42))}}
@@ -189,7 +189,41 @@
 .t365-live .qrcard .qt{display:flex;flex-direction:column;gap:3px}
 .t365-live .qrcard .qt .h{font-family:var(--cond);font-weight:700;font-size:24px;letter-spacing:.04em;color:var(--gold);line-height:1}
 .t365-live .qrcard .qt .p{font-family:var(--sans);font-size:14px;color:var(--muted);letter-spacing:.02em}
+.t365-live .qrcard .qt .pr{font-family:var(--mono);font-size:15px;color:var(--text);margin-top:2px}
+
+/* ── Persistent website presence (TV-ad style, always on screen) ── */
+.t365-live .brand .url{font-family:var(--mono);font-weight:500;font-size:16px;letter-spacing:.08em;
+  color:var(--gold);opacity:.92;white-space:nowrap}
+
+/* ── Three-state segment idle pulse (ported from v3) ── */
+.t365-live .tri .seg.long.on,.t365-live .tri .seg.neutral.on,.t365-live .tri .seg.short.on{
+  animation:t365segpulse 3.4s ease-in-out infinite}
+.t365-live .tri .seg.long.on{box-shadow:0 0 24px rgba(55,217,138,.3)}
+.t365-live .tri .seg.neutral.on{box-shadow:0 0 24px rgba(255,157,46,.3)}
+.t365-live .tri .seg.short.on{box-shadow:0 0 24px rgba(255,77,94,.3)}
+@keyframes t365segpulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.18)}}
+
+/* ── FIRE MOMENT (ported from trading365-live-scene-v3.html) ── */
+/* --acc/--acc-glow are set per-verdict on .regime by the scene at fire time. */
+.t365-live .regime > *{position:relative;z-index:10}
+.t365-live .fireflash{position:absolute;inset:0;z-index:8;pointer-events:none;opacity:0;
+  background:radial-gradient(120% 100% at 50% 45%, var(--acc,var(--amber)) 0%, transparent 60%)}
+.t365-live .fireflash.go{animation:t365ff .9s ease-out}
+@keyframes t365ff{0%{opacity:0}22%{opacity:.5}100%{opacity:0}}
+.t365-live .firebanner{position:absolute;top:38%;left:0;right:0;text-align:center;z-index:20;pointer-events:none;opacity:0;
+  font-family:var(--cond);font-weight:700;font-size:62px;letter-spacing:.06em;color:var(--acc,var(--amber));
+  text-shadow:0 0 40px var(--acc-glow,rgba(255,157,46,.45))}
+.t365-live .firebanner.go{animation:t365banner 2.2s ease forwards}
+@keyframes t365banner{0%{opacity:0;transform:scale(.6)}14%{opacity:1;transform:scale(1.06)}26%{transform:scale(1)}74%{opacity:1}100%{opacity:0;transform:scale(1.03)}}
+.t365-live .frow.firerow{animation:t365slidein .5s cubic-bezier(.2,.7,.2,1)}
+@keyframes t365slidein{from{transform:translateY(-118%);opacity:0}to{transform:none;opacity:1}}
+.t365-live .frow.held{border-left:3px solid var(--lv-c);background:linear-gradient(90deg,var(--lv-tint) 0%, transparent 55%)}
+.t365-live .qrcard{transition:box-shadow .3s,border-color .3s}
+.t365-live .qrcard.pulse{animation:t365qrp 1.1s ease-out 2}
+@keyframes t365qrp{0%,100%{box-shadow:0 0 0 0 transparent;border-color:var(--line)}50%{box-shadow:0 0 28px var(--gold);border-color:var(--gold)}}
 
 @media (prefers-reduced-motion:reduce){
-  .t365-live .regime .state .orb,.t365-live .regime h2,.t365-live .live .dot,.t365-live .frow.liverow{animation:none}
+  .t365-live .regime .state .orb,.t365-live .regime h2,.t365-live .live .dot,.t365-live .frow.liverow,
+  .t365-live .tri .seg.long.on,.t365-live .tri .seg.neutral.on,.t365-live .tri .seg.short.on,
+  .t365-live .fireflash.go,.t365-live .firebanner.go,.t365-live .frow.firerow,.t365-live .qrcard.pulse{animation:none}
 }
