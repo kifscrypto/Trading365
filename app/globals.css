@@ -162,3 +162,20 @@
 .tiptap a { color: #60a5fa; text-decoration: underline; }
 .tiptap strong { font-weight: 700; }
 .tiptap p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #52525b; pointer-events: none; float: left; height: 0; }
+
+/* ── Scanner ticker marquee (homepage hero) ── */
+@keyframes scanner-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.scanner-marquee-track {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  animation: scanner-marquee 40s linear infinite;
+  will-change: transform;
+}
+.scanner-marquee:hover .scanner-marquee-track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .scanner-marquee-track { animation: none; }
+}

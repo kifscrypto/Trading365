@@ -14,6 +14,9 @@ import { TrustBar } from "@/components/trust-bar"
 import { FeaturedAdvertisers } from "@/components/featured-advertisers"
 import { PromoBanner } from "@/components/promo-banner"
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
+import { getScannerStats, getScannerRecentWins } from "@/lib/scanner-stats"
+import { ScannerSpotlight } from "@/components/scanner-spotlight"
+import { ScannerTicker } from "@/components/scanner-ticker"
 import { exchanges } from "@/lib/data/exchanges"
 import { generateWebsiteSchema, generateOrganizationStandaloneSchema } from "@/lib/schema"
 import { LOCALE_CODES } from "@/lib/i18n/config"
@@ -42,6 +45,18 @@ const bonusDeals = topExchanges.map((ex, i) => ({
 
 export default async function HomePage() {
   const allArticles = await getAllArticlesFromDB()
+  // Live scanner data for the hero ticker + spotlight band (shared with the
+  // scanner pages so the advertised numbers can never diverge).
+  const [shortStats, longStats, shortWins, longWins] = await Promise.all([
+    getScannerStats("short"),
+    getScannerStats("long"),
+    getScannerRecentWins("short", 10),
+    getScannerRecentWins("long", 10),
+  ])
+  // Interleave short/long wins so the ticker shows both, newest-ish first.
+  const tickerWins = [...shortWins, ...longWins]
+    .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime())
+    .slice(0, 16)
   const featuredArticles = allArticles.slice(0, 6)
   const reviewCount = allArticles.filter((a) => a.categorySlug === "reviews").length
   const comparisonCount = allArticles.filter((a) => a.categorySlug === "comparisons").length
@@ -93,6 +108,9 @@ export default async function HomePage() {
           __html: JSON.stringify(generateOrganizationStandaloneSchema()),
         }}
       />
+      {/* Live scanner wins ticker */}
+      <ScannerTicker wins={tickerWins} />
+
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,oklch(0.8_0.15_85/0.06),transparent_60%)]" />
@@ -157,6 +175,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Scanner spotlight — live performance */}
+      <ScannerSpotlight short={shortStats} long={longStats} />
 
       {/* Featured Advertisers */}
       <FeaturedAdvertisers />
