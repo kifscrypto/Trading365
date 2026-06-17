@@ -39,6 +39,11 @@ export default function AdminPage() {
   const [htmlCopied, setHtmlCopied] = useState(false)
   const [selectedLocales, setSelectedLocales] = useState<string[]>(['es', 'pt', 'de', 'fr'])
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([])
+  // Article-list finding tools (all client-side over the already-loaded list)
+  const [articleSearch, setArticleSearch] = useState('')
+  const [articleCategory, setArticleCategory] = useState('all')
+  const [articleStatus, setArticleStatus] = useState<'all' | 'published' | 'draft'>('all')
+  const [articleSort, setArticleSort] = useState<'newest' | 'az'>('newest')
   const [translatedLocales, setTranslatedLocales] = useState<Record<string, string[]>>({})
 
   const [healthScanning, setHealthScanning] = useState(false)
@@ -538,6 +543,20 @@ export default function AdminPage() {
       </div>
     )
   }
+
+  const q = articleSearch.trim().toLowerCase()
+  const filteredArticles = (articles as any[])
+    .filter((a) => {
+      if (articleStatus === 'published' && !a.published) return false
+      if (articleStatus === 'draft' && a.published) return false
+      if (articleCategory !== 'all' && a.category_slug !== articleCategory) return false
+      if (q && !(`${a.title} ${a.slug}`.toLowerCase().includes(q))) return false
+      return true
+    })
+    .sort((a, b) => {
+      if (articleSort === 'az') return String(a.title).localeCompare(String(b.title))
+      return new Date(b.date).getTime() - new Date(a.date).getTime() // newest
+    })
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
@@ -1129,8 +1148,62 @@ export default function AdminPage() {
             )}
           </div>
 
+          {/* Find-an-article toolbar */}
+          <div className="sticky top-0 z-10 mb-3 -mx-1 px-1 py-3 bg-zinc-950/95 backdrop-blur border-b border-zinc-800">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={articleSearch}
+                onChange={(e) => setArticleSearch(e.target.value)}
+                placeholder="Search title or slug…"
+                className="flex-1 min-w-[200px] px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-zinc-100 placeholder-zinc-500 focus:border-zinc-500 outline-none"
+              />
+              <select
+                value={articleCategory}
+                onChange={(e) => setArticleCategory(e.target.value)}
+                className="px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-zinc-100"
+              >
+                <option value="all">All categories</option>
+                {categories.map((c) => (
+                  <option key={c.slug} value={c.slug}>{c.title}</option>
+                ))}
+              </select>
+              <select
+                value={articleStatus}
+                onChange={(e) => setArticleStatus(e.target.value as 'all' | 'published' | 'draft')}
+                className="px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-zinc-100"
+              >
+                <option value="all">All status</option>
+                <option value="published">Published</option>
+                <option value="draft">Drafts</option>
+              </select>
+              <select
+                value={articleSort}
+                onChange={(e) => setArticleSort(e.target.value as 'newest' | 'az')}
+                className="px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-zinc-100"
+              >
+                <option value="newest">Newest</option>
+                <option value="az">A–Z</option>
+              </select>
+              {(q || articleCategory !== 'all' || articleStatus !== 'all') && (
+                <button
+                  onClick={() => { setArticleSearch(''); setArticleCategory('all'); setArticleStatus('all') }}
+                  className="px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200"
+                >
+                  Clear
+                </button>
+              )}
+              <span className="text-xs text-zinc-500 whitespace-nowrap">
+                {filteredArticles.length} of {(articles as any[]).length}
+              </span>
+            </div>
+          </div>
+
           <div className="space-y-3">
-            {(articles as any[]).map((article) => {
+            {filteredArticles.length === 0 && (
+              <p className="text-sm text-zinc-500 py-8 text-center">No articles match your filters.</p>
+            )}
+            {filteredArticles.map((article) => {
               const isSelected = selectedSlugs.includes(article.slug)
               return (
                 <div
