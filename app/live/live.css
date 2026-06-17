@@ -1,0 +1,195 @@
+/* Ported verbatim from trading365-live-scene-v2.html, with two deviations:
+   (1) sliding bias meter → three-state LONG/NEUTRAL/SHORT indicator (.tri)
+   (2) "MARKET CONTEXT" eyebrow added; gauge bars use a fixed neutral colour
+       (--ctx) so they read as ambient instruments, decoupled from the verdict.
+   All variables are scoped to .t365-live (not :root) so nothing leaks into the
+   rest of the site. Fonts (--mono/--cond/--sans) come from next/font. */
+
+.t365-live {
+  --void:#060708;--bg:#0d0f13;--panel:#14171d;--panel-2:#1a1f28;
+  --line:#272d38;--line-soft:#1d222b;
+  --gold:#f0b94a;--gold-deep:#c8922e;
+  --long:#37d98a;--short:#ff4d5e;--tp:#37d98a;
+  --amber:#ff9d2e;--hostile:#ff7a47;
+  --ctx:#7da2c9; /* market-context gauge colour — fixed, decoupled from verdict */
+  --text:#e9ecf1;--muted:#8a929e;--dim:#586170;
+
+  position:fixed;inset:0;z-index:2147483000;
+  background:var(--void);color:var(--text);font-family:var(--sans);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+}
+.t365-live *{box-sizing:border-box;margin:0;padding:0}
+
+.t365-live .stage{width:1920px;height:1080px;flex:none;transform-origin:center center;position:relative;
+  background:radial-gradient(120% 90% at 50% -10%, #15191f 0%, var(--bg) 55%, #090b0e 100%);
+  display:grid;grid-template-rows:88px 1fr 112px;gap:16px;padding:20px 22px;overflow:hidden}
+.t365-live .stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:50;
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,.014) 0 1px, transparent 1px 3px),
+    radial-gradient(130% 120% at 50% 50%, transparent 60%, rgba(0,0,0,.55) 100%);
+  mix-blend-mode:overlay;opacity:.7}
+
+.t365-live .panel{background:linear-gradient(180deg,var(--panel) 0%, #111419 100%);
+  border:1px solid var(--line);border-radius:12px;position:relative;overflow:hidden}
+.t365-live .eyebrow{font-family:var(--sans);font-weight:600;font-size:13px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:9px}
+.t365-live .eyebrow::before{content:"";width:7px;height:7px;background:var(--gold);border-radius:1px;
+  transform:rotate(45deg);box-shadow:0 0 8px rgba(240,185,74,.6)}
+
+/* HEADER */
+.t365-live .head{display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+  background:linear-gradient(90deg,#15140f 0%, #121319 40%, #121319 100%);
+  border:1px solid var(--line);border-radius:12px;position:relative}
+.t365-live .head::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+  background:linear-gradient(180deg,var(--gold),var(--gold-deep))}
+.t365-live .brand{display:flex;align-items:baseline;gap:16px}
+.t365-live .brand h1{font-family:var(--cond);font-weight:700;font-size:38px;letter-spacing:.04em;
+  color:var(--gold);line-height:1;text-shadow:0 0 22px rgba(240,185,74,.25)}
+.t365-live .brand .sub{font-family:var(--cond);font-weight:600;font-size:21px;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--muted)}
+.t365-live .head-right{display:flex;align-items:center;gap:30px}
+.t365-live .live{display:flex;align-items:center;gap:10px;font-family:var(--sans);font-weight:600;
+  font-size:16px;letter-spacing:.22em;color:#ff5563}
+.t365-live .live .dot{width:12px;height:12px;border-radius:50%;background:#ff3b49;animation:t365ping 1.8s ease-out infinite}
+@keyframes t365ping{0%{box-shadow:0 0 0 0 rgba(255,59,73,.6)}70%,100%{box-shadow:0 0 0 14px rgba(255,59,73,0)}}
+.t365-live .clock{text-align:right}
+.t365-live .clock .t{font-family:var(--mono);font-weight:500;font-size:34px;letter-spacing:.04em;line-height:1;font-variant-numeric:tabular-nums}
+.t365-live .clock .d{font-family:var(--mono);font-size:13px;color:var(--dim);letter-spacing:.16em;margin-top:4px}
+.t365-live .clock .t .z{color:var(--gold);font-size:20px;margin-left:6px}
+
+.t365-live .main{display:grid;grid-template-columns:476px 1fr;gap:16px;min-height:0}
+.t365-live .col{display:flex;flex-direction:column;gap:16px;min-height:0}
+
+/* price board */
+.t365-live .market{flex:1.15;display:flex;flex-direction:column;padding:20px 22px;min-height:0}
+.t365-live .market .rows{margin-top:12px;display:flex;flex-direction:column;flex:1;justify-content:space-between}
+.t365-live .mrow{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:14px;
+  padding:8px 6px;border-bottom:1px solid var(--line-soft)}
+.t365-live .mrow:last-child{border-bottom:none}
+.t365-live .mrow .sym{font-family:var(--cond);font-weight:600;font-size:24px;letter-spacing:.05em}
+.t365-live .mrow .px{font-family:var(--mono);font-weight:500;font-size:22px;text-align:right;
+  font-variant-numeric:tabular-nums;transition:color .25s,background .25s;padding:2px 8px;border-radius:5px}
+.t365-live .mrow .chg{font-family:var(--mono);font-size:17px;text-align:right;width:88px;font-variant-numeric:tabular-nums}
+.t365-live .up{color:var(--tp)} .t365-live .down{color:var(--short)}
+.t365-live .flash-up{background:rgba(55,217,138,.16)} .t365-live .flash-down{background:rgba(255,77,94,.16)}
+
+/* scoreboard */
+.t365-live .score{flex:1;padding:20px 22px;display:flex;flex-direction:column;min-height:0}
+.t365-live .score .hero-stat{display:flex;align-items:baseline;gap:14px;margin-top:10px}
+.t365-live .score .hero-stat .big{font-family:var(--cond);font-weight:700;font-size:64px;line-height:.9;color:var(--gold)}
+.t365-live .score .hero-stat .lbl{font-family:var(--sans);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);max-width:130px}
+.t365-live .split{display:flex;gap:10px;margin-top:14px}
+.t365-live .split .b{flex:1;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:9px 12px;
+  display:flex;align-items:baseline;justify-content:space-between}
+.t365-live .split .b .lk{font-family:var(--sans);font-weight:600;font-size:13px;letter-spacing:.12em;text-transform:uppercase}
+.t365-live .split .b .lk.l{color:var(--long)} .t365-live .split .b .lk.s{color:var(--short)}
+.t365-live .split .b .lv{font-family:var(--mono);font-weight:600;font-size:20px;font-variant-numeric:tabular-nums}
+.t365-live .split .b .lv small{color:var(--dim);font-size:13px;font-weight:400}
+.t365-live .pnl-row{display:flex;align-items:baseline;justify-content:space-between;margin-top:auto;
+  padding-top:14px;border-top:1px solid var(--line)}
+.t365-live .pnl-row .k{font-family:var(--sans);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.t365-live .pnl-row .v{font-family:var(--mono);font-weight:600;font-size:30px;color:var(--tp);font-variant-numeric:tabular-nums}
+
+.t365-live .rcol{display:grid;grid-template-rows:1.12fr 1fr;gap:16px;min-height:0}
+
+/* regime hero */
+.t365-live .regime{padding:24px 30px;display:flex;flex-direction:column;min-height:0;
+  background:radial-gradient(90% 120% at 18% 0%, var(--reg-tint,rgba(255,157,46,.10)) 0%, transparent 55%),
+    linear-gradient(180deg,var(--panel) 0%, #121318 100%);border-color:var(--reg-border,#3a2f1c)}
+.t365-live .regime .top{display:flex;align-items:flex-start;justify-content:space-between}
+.t365-live .regime .timers{text-align:right;font-family:var(--mono);font-size:14px;color:var(--dim);line-height:1.7}
+.t365-live .regime .timers b{font-weight:500;color:var(--amber)}
+.t365-live .regime .timers .nx b{color:var(--gold)}
+.t365-live .regime .state{display:flex;align-items:center;gap:13px;margin-top:12px}
+.t365-live .regime .state .orb{width:19px;height:19px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #fff6, var(--reg-c,var(--amber)));
+  box-shadow:0 0 22px var(--reg-glow,rgba(255,157,46,.8));animation:t365breathe 3.6s ease-in-out infinite}
+.t365-live .regime .state .txt{font-family:var(--cond);font-weight:700;font-size:27px;letter-spacing:.14em;color:var(--reg-c,var(--amber))}
+.t365-live .regime h2{font-family:var(--cond);font-weight:700;font-size:80px;line-height:.92;letter-spacing:.01em;
+  color:var(--reg-h,var(--amber));margin-top:4px;text-shadow:0 0 40px var(--reg-hglow,rgba(255,157,46,.28));animation:t365glow 3.6s ease-in-out infinite}
+.t365-live .regime .desc{font-family:var(--sans);font-size:18px;line-height:1.4;color:#b9c0cb;max-width:820px;margin-top:12px}
+.t365-live .regime .desc b{color:var(--text);font-weight:600}
+
+/* DEVIATION 1: three-state verdict indicator */
+.t365-live .tri{display:flex;gap:10px;margin-top:18px}
+.t365-live .tri .seg{flex:1;display:flex;align-items:center;justify-content:center;gap:9px;
+  padding:11px 0;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);
+  font-family:var(--cond);font-weight:700;font-size:19px;letter-spacing:.16em;color:var(--dim);
+  transition:color .4s ease,border-color .4s ease,background .4s ease}
+.t365-live .tri .seg .d{width:11px;height:11px;border-radius:50%;background:#2a313c;transition:all .4s ease}
+.t365-live .tri .seg.long.on{color:var(--long);border-color:rgba(55,217,138,.55);background:rgba(55,217,138,.08)}
+.t365-live .tri .seg.long.on .d{background:var(--long);box-shadow:0 0 13px var(--long)}
+.t365-live .tri .seg.neutral.on{color:var(--amber);border-color:rgba(255,157,46,.55);background:rgba(255,157,46,.08)}
+.t365-live .tri .seg.neutral.on .d{background:var(--amber);box-shadow:0 0 13px var(--amber)}
+.t365-live .tri .seg.short.on{color:var(--short);border-color:rgba(255,77,94,.55);background:rgba(255,77,94,.08)}
+.t365-live .tri .seg.short.on .d{background:var(--short);box-shadow:0 0 13px var(--short)}
+
+/* DEVIATION 2: market-context gauges (ambient, fixed colour) */
+.t365-live .ctx{margin-top:auto;padding-top:16px}
+.t365-live .ctx .ctx-eyebrow{font-family:var(--sans);font-weight:600;font-size:11px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--dim);margin-bottom:10px}
+.t365-live .gauges{display:flex;gap:28px}
+.t365-live .gauge .gk{font-family:var(--sans);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+.t365-live .gauge .bars{display:flex;gap:5px}
+.t365-live .gauge .bars i{width:24px;height:10px;border-radius:2px;background:#2a313c;display:block}
+.t365-live .gauge .bars i.on{background:var(--ctx);box-shadow:0 0 9px rgba(125,162,201,.45)}
+.t365-live .gauge .gv{font-family:var(--mono);font-size:13px;color:var(--muted);margin-top:6px}
+@keyframes t365breathe{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.12);opacity:1}}
+@keyframes t365glow{0%,100%{text-shadow:0 0 32px var(--reg-hglow,rgba(255,157,46,.2))}50%{text-shadow:0 0 52px var(--reg-hglow,rgba(255,157,46,.42))}}
+
+/* feed */
+.t365-live .feed{padding:16px 22px 12px;display:flex;flex-direction:column;min-height:0}
+.t365-live .fhead,.t365-live .frow{display:grid;grid-template-columns:118px 78px 124px 158px 132px 56px 70px;align-items:center;gap:10px}
+.t365-live .fhead{padding:8px 8px 9px;border-bottom:1px solid var(--line);font-family:var(--sans);font-size:11px;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
+.t365-live .fhead .r,.t365-live .frow .r{text-align:right}
+.t365-live .feed .rows{overflow:hidden;flex:1;display:flex;flex-direction:column}
+.t365-live .frow{padding:0 8px;height:100%;border-bottom:1px solid var(--line-soft);min-height:0;position:relative}
+.t365-live .frow:last-child{border-bottom:none}
+.t365-live .frow.liverow{background:linear-gradient(90deg,var(--lv-tint) 0%, transparent 70%);
+  border:1px solid var(--lv-bd);border-radius:7px;animation:t365liverow 1.6s ease-in-out infinite}
+@keyframes t365liverow{0%,100%{box-shadow:inset 0 0 0 0 transparent}50%{box-shadow:inset 0 0 22px var(--lv-tint)}}
+.t365-live .frow .pair{font-family:var(--cond);font-weight:600;font-size:22px;letter-spacing:.04em;display:flex;align-items:center;gap:8px}
+.t365-live .frow .pair .lflag{font-family:var(--sans);font-size:10px;font-weight:700;letter-spacing:.14em;
+  color:var(--lv-c);border:1px solid var(--lv-c);border-radius:3px;padding:1px 5px}
+.t365-live .dir{font-family:var(--sans);font-weight:600;font-size:13px;letter-spacing:.1em;text-align:center;
+  border-radius:4px;padding:3px 8px}
+.t365-live .dir.S{color:var(--short);border:1px solid rgba(255,77,94,.4);background:rgba(255,77,94,.08)}
+.t365-live .dir.L{color:var(--long);border:1px solid rgba(55,217,138,.4);background:rgba(55,217,138,.08)}
+.t365-live .entry{font-family:var(--mono);font-size:17px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.t365-live .tps{display:flex;gap:6px}
+.t365-live .tp{width:44px;height:25px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:12px;font-weight:500;border:1px solid var(--line)}
+.t365-live .tp.hit{background:rgba(55,217,138,.14);border-color:rgba(55,217,138,.45);color:var(--tp)}
+.t365-live .tp.miss{color:var(--dim);background:#171b22}
+.t365-live .tp.pend{color:var(--gold);border-color:rgba(240,185,74,.35);background:rgba(240,185,74,.06)}
+.t365-live .closed{font-family:var(--mono);font-size:15px;text-align:right;font-variant-numeric:tabular-nums}
+.t365-live .closed.win{color:var(--tp)} .t365-live .closed.loss{color:var(--short)} .t365-live .closed.open{color:var(--gold)}
+.t365-live .frow .sc{font-family:var(--mono);font-weight:600;font-size:18px;text-align:right;color:var(--gold)}
+.t365-live .frow .ago{font-family:var(--mono);font-size:14px;text-align:right;color:var(--dim)}
+
+/* bottom band: CTA + QR */
+.t365-live .bottom{display:flex;gap:16px;min-height:0}
+.t365-live .cta{flex:1;display:flex;align-items:center;gap:22px;padding:0 28px;
+  background:linear-gradient(90deg,#1a1407 0%, #14110a 60%, #121319 100%);
+  border:1px solid #3a2c12;border-radius:12px;position:relative;overflow:hidden}
+.t365-live .cta::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;
+  background:linear-gradient(180deg,var(--gold),var(--gold-deep))}
+.t365-live .cta .tag{font-family:var(--cond);font-weight:700;font-size:18px;letter-spacing:.18em;color:var(--gold);
+  text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;gap:10px}
+.t365-live .cta .tag::before{content:"▸";color:var(--gold)}
+.t365-live .cta .msgwrap{position:relative;flex:1;height:100%}
+.t365-live .cta .msg{position:absolute;inset:0;display:flex;align-items:center;font-family:var(--sans);
+  font-weight:500;font-size:24px;color:var(--text);opacity:0;transition:opacity .6s ease}
+.t365-live .cta .msg.show{opacity:1}
+.t365-live .cta .msg b{color:var(--gold);font-weight:600}
+.t365-live .qrcard{width:300px;display:flex;align-items:center;gap:18px;padding:0 20px;
+  background:linear-gradient(180deg,#15171d,#101218);border:1px solid var(--line);border-radius:12px}
+.t365-live .qrcard .qbox{background:#f7f1e3;padding:7px;border-radius:8px;line-height:0;box-shadow:0 0 0 1px var(--gold-deep)}
+.t365-live .qrcard .qbox img,.t365-live .qrcard .qbox canvas{display:block;width:84px;height:84px}
+.t365-live .qrcard .qt{display:flex;flex-direction:column;gap:3px}
+.t365-live .qrcard .qt .h{font-family:var(--cond);font-weight:700;font-size:24px;letter-spacing:.04em;color:var(--gold);line-height:1}
+.t365-live .qrcard .qt .p{font-family:var(--sans);font-size:14px;color:var(--muted);letter-spacing:.02em}
+
+@media (prefers-reduced-motion:reduce){
+  .t365-live .regime .state .orb,.t365-live .regime h2,.t365-live .live .dot,.t365-live .frow.liverow{animation:none}
+}

@@ -1,0 +1,347 @@
+"use client"
+
+import { useCallback, useEffect, useRef, useState } from "react"
+import Script from "next/script"
+import type { LiveData, LivePrice, Verdict } from "@/lib/live-types"
+
+const TELEGRAM_URL = "https://t.me/trading365Sub"
+
+// Non-revealing per-verdict presentation. Never states WHY (no gate inputs).
+const REG: Record<Verdict, { state: string; head: string; desc: string; c: string; tint: string; border: string }> = {
+  long: {
+    state: "LONG BOOK · LIVE", head: "LONG SCANNER ENGAGED",
+    desc: "Long book engaged. Setups that clear the bar are firing live to members.",
+    c: "#37d98a", tint: "rgba(55,217,138,.10)", border: "#1f3a2c",
+  },
+  short: {
+    state: "SHORT BOOK · LIVE", head: "SHORT SCANNER ENGAGED",
+    desc: "Conditions favour the short book. Setups that clear the bar are firing live to members.",
+    c: "#ff4d5e", tint: "rgba(255,77,94,.10)", border: "#3a2024",
+  },
+  neutral: {
+    state: "STANDING DOWN", head: "SCANNERS HOLDING FIRE",
+    desc: "No book engaged — standing down. The scanner stays silent until conditions align.",
+    c: "#ff9d2e", tint: "rgba(255,157,46,.10)", border: "#3a2f1c",
+  },
+}
+
+const CTA_MSGS = [
+  "The instant a book engages, members get the <b>entry, TPs and stop</b> — live.",
+  "Premium signals · <b>$29/mo</b> · <b>$69/quarter</b> · paid in USDT.",
+  "You’re watching the discipline. <b>Subscribers trade the signal.</b>",
+  "Long or short, every fire is pushed to the <b>premium group</b> in real time.",
+]
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+const pad = (n: number) => String(n).padStart(2, "0")
+
+function decPrice(p: number): string {
+  if (!Number.isFinite(p)) return "—"
+  if (p >= 1000) return p.toLocaleString("en-US", { maximumFractionDigits: 0 })
+  if (p >= 1) return p.toFixed(2)
+  return p.toFixed(p < 0.01 ? 5 : 4)
+}
+function fmtEntry(p: number): string {
+  if (!Number.isFinite(p)) return "—"
+  if (p >= 1000) return p.toLocaleString("en-US", { maximumFractionDigits: 2 })
+  if (p >= 1) return p.toFixed(4)
+  return p.toPrecision(4)
+}
+function fmtAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 60) return `${Math.max(0, mins)}m`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h`
+  return `${Math.floor(hrs / 24)}d`
+}
+function fmtPct(n: number | null, digits = 0): string {
+  return n === null || !Number.isFinite(n) ? "—" : `${n.toFixed(digits)}%`
+}
+// Map a public metric to a 0–5 ambient bar level (NOT a gate threshold).
+function momentumLevel(p: number | null) { if (p == null) return 0; const a = Math.abs(p); return a < 0.5 ? 1 : a < 1 ? 2 : a < 2 ? 3 : a < 3.5 ? 4 : 5 }
+function volLevel(v: number | null) { if (v == null) return 0; return v < 2 ? 1 : v < 3.5 ? 2 : v < 5 ? 3 : v < 7 ? 4 : 5 }
+function breadthLevel(b: number | null) { if (b == null) return 0; return Math.max(1, Math.min(5, Math.round(b / 20))) }
+
+export function LiveScene() {
+  const stageRef = useRef<HTMLDivElement>(null)
+  const tokenRef = useRef<string | null>(null)
+  const prevPrices = useRef<Record<string, number>>({})
+
+  const [data, setData] = useState<LiveData | null>(null)
+  const [prices, setPrices] = useState<LivePrice[]>([])
+  const [flash, setFlash] = useState<Record<string, "up" | "down">>({})
+  const [clock, setClock] = useState("00:00:00")
+  const [dateStr, setDateStr] = useState("—")
+  const [since, setSince] = useState("—")
+  const [nextScan, setNextScan] = useState("--:--")
+  const [ctaIdx, setCtaIdx] = useState(0)
+
+  // ── scale-to-fit 1920×1080 ──
+  useEffect(() => {
+    const fit = () => {
+      const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080)
+      if (stageRef.current) stageRef.current.style.transform = `scale(${s})`
+    }
+    fit()
+    window.addEventListener("resize", fit)
+    return () => window.removeEventListener("resize", fit)
+  }, [])
+
+  // ── token from this page's own URL ──
+  useEffect(() => {
+    tokenRef.current = new URLSearchParams(window.location.search).get("k")
+  }, [])
+
+  const applyPrices = useCallback((next: LivePrice[]) => {
+    if (!next.length) return
+    const f: Record<string, "up" | "down"> = {}
+    for (const p of next) {
+      const prev = prevPrices.current[p.symbol]
+      if (prev != null && p.price !== prev) f[p.symbol] = p.price >= prev ? "up" : "down"
+      prevPrices.current[p.symbol] = p.price
+    }
+    setPrices(next)
+    setFlash(f)
+    window.setTimeout(() => setFlash({}), 260)
+  }, [])
+
+  // ── full data poll (5s) ──
+  useEffect(() => {
+    let alive = true
+    const pull = async () => {
+      const k = tokenRef.current
+      if (!k) return
+      try {
+        const r = await fetch(`/api/live?k=${encodeURIComponent(k)}`, { cache: "no-store" })
+        if (!r.ok) return
+        const d: LiveData = await r.json()
+        if (!alive) return
+        setData(d)
+        applyPrices(d.prices)
+      } catch { /* keep previous */ }
+    }
+    pull()
+    const id = window.setInterval(pull, 5000)
+    return () => { alive = false; window.clearInterval(id) }
+  }, [applyPrices])
+
+  // ── fast prices poll (3s) ──
+  useEffect(() => {
+    let alive = true
+    const pull = async () => {
+      const k = tokenRef.current
+      if (!k) return
+      try {
+        const r = await fetch(`/api/live?k=${encodeURIComponent(k)}&mode=prices`, { cache: "no-store" })
+        if (!r.ok) return
+        const d = await r.json()
+        if (!alive) return
+        if (Array.isArray(d.prices)) applyPrices(d.prices)
+        if (d.context) setData((prev) => (prev ? { ...prev, context: d.context } : prev))
+      } catch { /* keep previous */ }
+    }
+    const id = window.setInterval(pull, 3000)
+    return () => { alive = false; window.clearInterval(id) }
+  }, [applyPrices])
+
+  // keep latest data accessible inside the 1s tick without resetting the interval
+  const dataRef = useRef<LiveData | null>(null)
+  useEffect(() => { dataRef.current = data }, [data])
+
+  // ── 1s ticks: clock, since, next-scan (next 15-min boundary) ──
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date()
+      setClock(`${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`)
+      setDateStr(`${pad(d.getUTCDate())} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`.toUpperCase())
+      const into = (d.getUTCMinutes() % 15) * 60 + d.getUTCSeconds()
+      const remain = 900 - into
+      setNextScan(`${pad(Math.floor(remain / 60))}:${pad(remain % 60)}`)
+      const last = dataRef.current?.regime.lastSignalAt
+      if (last) {
+        const s = Math.max(0, Math.floor((Date.now() - new Date(last).getTime()) / 1000))
+        setSince(s < 3600 ? `${Math.floor(s / 60)}m ${pad(s % 60)}s` : `${Math.floor(s / 3600)}h ${pad(Math.floor((s % 3600) / 60))}m ${pad(s % 60)}s`)
+      } else setSince("—")
+    }
+    tick()
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  // ── CTA rotation ──
+  useEffect(() => {
+    const id = window.setInterval(() => setCtaIdx((i) => (i + 1) % CTA_MSGS.length), 6500)
+    return () => window.clearInterval(id)
+  }, [])
+
+  // ── QR (public telegram link) via qrcodejs once loaded ──
+  const [qrReady, setQrReady] = useState(false)
+  useEffect(() => {
+    if (!qrReady) return
+    const el = document.getElementById("t365qr")
+    const QR = (window as unknown as { QRCode?: new (e: HTMLElement, o: object) => void }).QRCode
+    if (!el || !QR) return
+    el.innerHTML = ""
+    try {
+      new QR(el, { text: TELEGRAM_URL, width: 84, height: 84, colorDark: "#0a0a0a", colorLight: "#f7f1e3", correctLevel: 1 })
+    } catch { /* leave empty */ }
+  }, [qrReady])
+
+  const verdict: Verdict = data?.regime.verdict ?? "neutral"
+  const reg = REG[verdict]
+  const ctx = data?.context ?? { btcMomentum: null, volatility: null, altBreadth: null }
+  const rec = data?.record
+  const signals = data?.signals ?? []
+
+  const regVars: React.CSSProperties & Record<string, string> = {
+    "--reg-c": reg.c, "--reg-h": reg.c,
+    "--reg-glow": reg.c + "cc", "--reg-hglow": reg.c + "47",
+    "--reg-tint": reg.tint, "--reg-border": reg.border,
+    "--lv-c": reg.c, "--lv-tint": reg.c + "1f", "--lv-bd": reg.c + "66",
+  }
+
+  const gauges: Array<{ k: string; level: number; v: string }> = [
+    { k: "BTC Momentum", level: momentumLevel(ctx.btcMomentum), v: ctx.btcMomentum == null ? "—" : `${ctx.btcMomentum >= 0 ? "+" : ""}${ctx.btcMomentum.toFixed(1)}% 24h` },
+    { k: "Volatility", level: volLevel(ctx.volatility), v: ctx.volatility == null ? "—" : `${ctx.volatility.toFixed(1)}% range` },
+    { k: "Alt Breadth", level: breadthLevel(ctx.altBreadth), v: ctx.altBreadth == null ? "—" : `${Math.round(ctx.altBreadth)}% green` },
+  ]
+
+  return (
+    <div className="t365-live">
+      <Script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" strategy="afterInteractive" onLoad={() => setQrReady(true)} />
+      <div className="stage" ref={stageRef}>
+        {/* HEADER */}
+        <header className="head">
+          <div className="brand">
+            <h1>TRADING365</h1>
+            <span className="sub">Live Altcoin Scanner · Longs &amp; Shorts</span>
+          </div>
+          <div className="head-right">
+            <div className="live"><span className="dot" /> ON AIR</div>
+            <div className="clock">
+              <div className="t"><span>{clock}</span><span className="z">UTC</span></div>
+              <div className="d">{dateStr}</div>
+            </div>
+          </div>
+        </header>
+
+        <div className="main">
+          {/* LEFT COLUMN: market + scoreboard */}
+          <div className="col">
+            <section className="panel market">
+              <div className="eyebrow">Market</div>
+              <div className="rows">
+                {prices.map((p) => (
+                  <div className="mrow" key={p.symbol}>
+                    <span className="sym">{p.symbol}</span>
+                    <span className={`px${flash[p.symbol] ? " flash-" + flash[p.symbol] : ""}`}>${decPrice(p.price)}</span>
+                    <span className={`chg ${p.change24h >= 0 ? "up" : "down"}`}>{p.change24h >= 0 ? "+" : ""}{p.change24h.toFixed(1)}%</span>
+                  </div>
+                ))}
+                {prices.length === 0 && <div className="mrow"><span className="sym" style={{ color: "var(--dim)" }}>Loading…</span><span /><span /></div>}
+              </div>
+            </section>
+
+            <section className="panel score">
+              <div className="eyebrow">Track Record · Last 30 Days</div>
+              <div className="hero-stat">
+                <div className="big">{rec?.combinedHitRate == null ? "—" : Math.round(rec.combinedHitRate)}<span style={{ fontSize: 34 }}>%</span></div>
+                <div className="lbl">Combined hit rate (TP1+)</div>
+              </div>
+              <div className="split">
+                <div className="b"><span className="lk l">Longs</span><span className="lv">{fmtPct(rec?.long.hitRate ?? null)} <small>/ {rec?.long.count ?? 0}</small></span></div>
+                <div className="b"><span className="lk s">Shorts</span><span className="lv">{fmtPct(rec?.short.hitRate ?? null)} <small>/ {rec?.short.count ?? 0}</small></span></div>
+              </div>
+              <div className="pnl-row"><span className="k">Cumulative move captured</span><span className="v">+{(rec?.capturedPct ?? 0).toFixed(1)}%</span></div>
+            </section>
+          </div>
+
+          {/* RIGHT COLUMN: regime + feed */}
+          <div className="rcol">
+            <section className="panel regime" style={regVars}>
+              <div className="top">
+                <div className="eyebrow">Market Regime</div>
+                <div className="timers">
+                  <div className="ls">last signal fired <b>{since}</b> ago</div>
+                  <div className="nx">next scan in <b>{nextScan}</b></div>
+                </div>
+              </div>
+              <div className="state"><span className="orb" /><span className="txt">{reg.state}</span></div>
+              <h2>{reg.head}</h2>
+              <p className="desc">{reg.desc}</p>
+
+              {/* DEVIATION 1: three-state verdict indicator */}
+              <div className="tri">
+                <div className={`seg long${verdict === "long" ? " on" : ""}`}><span className="d" />LONG</div>
+                <div className={`seg neutral${verdict === "neutral" ? " on" : ""}`}><span className="d" />NEUTRAL</div>
+                <div className={`seg short${verdict === "short" ? " on" : ""}`}><span className="d" />SHORT</div>
+              </div>
+
+              {/* DEVIATION 2: market-context gauges (ambient, decoupled from verdict) */}
+              <div className="ctx">
+                <div className="ctx-eyebrow">Market Context</div>
+                <div className="gauges">
+                  {gauges.map((g) => (
+                    <div className="gauge" key={g.k}>
+                      <div className="gk">{g.k}</div>
+                      <div className="bars">{Array.from({ length: 5 }, (_, i) => <i key={i} className={i < g.level ? "on" : ""} />)}</div>
+                      <div className="gv">{g.v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="panel feed">
+              <div className="eyebrow" style={{ marginBottom: 4 }}>Recent Signals · Last 10</div>
+              <div className="fhead">
+                <span>Pair</span><span>Side</span><span className="r">Entry</span>
+                <span>TP1 / TP2 / TP3</span><span className="r">Closed</span><span className="r">Score</span><span className="r">Ago</span>
+              </div>
+              <div className="rows">
+                {signals.map((s, idx) => {
+                  const open = s.closeResult === null
+                  const tps = [s.tp1, s.tp2, s.tp3]
+                  return (
+                    <div className={`frow${s.live ? " liverow" : ""}`} key={`${s.pair}-${s.time}-${idx}`}>
+                      <span className="pair">{s.pair}{s.live && <span className="lflag">● LIVE</span>}</span>
+                      <span className={`dir ${s.direction === "long" ? "L" : "S"}`}>{s.direction === "long" ? "LONG" : "SHORT"}</span>
+                      <span className="entry">{fmtEntry(s.entry)}</span>
+                      <span className="tps">{tps.map((h, i) => <span key={i} className={`tp ${h ? "hit" : open ? "pend" : "miss"}`}>TP{i + 1}</span>)}</span>
+                      <span className={`closed ${open ? "open" : s.closeResult! >= 0 ? "win" : "loss"}`}>
+                        {open ? "OPEN" : `${s.closeResult! >= 0 ? "+" : "−"}${Math.abs(s.closeResult!).toFixed(1)}%`}
+                      </span>
+                      <span className="sc">{s.score}</span>
+                      <span className="ago">{fmtAgo(s.time)}</span>
+                    </div>
+                  )
+                })}
+                {signals.length === 0 && <div className="frow"><span className="pair" style={{ color: "var(--dim)" }}>Awaiting signals…</span></div>}
+              </div>
+            </section>
+          </div>
+        </div>
+
+        {/* BOTTOM: CTA + QR */}
+        <div className="bottom">
+          <footer className="cta">
+            <div className="tag">Premium</div>
+            <div className="msgwrap">
+              {CTA_MSGS.map((m, i) => (
+                <div key={i} className={`msg${i === ctaIdx ? " show" : ""}`} dangerouslySetInnerHTML={{ __html: m }} />
+              ))}
+            </div>
+          </footer>
+          <div className="qrcard">
+            <div className="qbox"><div id="t365qr" /></div>
+            <div className="qt">
+              <span className="h">SCAN TO JOIN</span>
+              <span className="p">Live alerts the instant a book engages</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
