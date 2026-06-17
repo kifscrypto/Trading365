@@ -43,9 +43,20 @@ export interface LivePrice {
   change24h: number
 }
 
+// A signal that has reached its 24h outcome — shown in the "Closed" panel.
+export interface LiveClosed {
+  id: number
+  pair: string
+  direction: "long" | "short"
+  result: string // e.g. "TP2 +2.5%" or "−1.1%"
+  win: boolean
+  time: string
+}
+
 export interface LiveData {
   regime: { verdict: Verdict; lastSignalAt: string | null }
-  signals: LiveSignal[]
+  signals: LiveSignal[] // Recent panel: currently-open fires, newest first
+  closed: LiveClosed[] // Closed panel: most recent matured results, newest first
   latestSignalId: number | null // newest score>=7 crypto signal id — drives the fire trigger
   record: LiveRecord
   context: LiveContext

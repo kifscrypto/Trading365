@@ -2,7 +2,7 @@ import { neon } from "@neondatabase/serverless"
 import { NextResponse } from "next/server"
 import { HEADERS, type SqlClient } from "@/app/api/scanner/_core"
 import type {
-  LiveData, LiveSignal, LiveRecord, LiveContext, LivePrice, Verdict,
+  LiveData, LiveSignal, LiveClosed, LiveRecord, LiveContext, LivePrice, Verdict,
 } from "@/lib/live-types"
 
 export const dynamic = "force-dynamic"
@@ -86,23 +86,61 @@ function mapSignal(r: Row): LiveSignal {
   }
 }
 
-// ── Feed: the last 10 REAL signals by timestamp (newest first), both books.
-// LEFT JOIN outcomes so each row shows real TP hits + close % (or OPEN), real
-// age. Same scanner_signals/scanner_outcomes the Track Record aggregates from. ─
+// ── Recent panel: currently-OPEN fires (no 24h outcome yet), newest first ────
 async function getSignals(sql: SqlClient): Promise<{ signals: LiveSignal[]; latestSignalId: number | null }> {
   try {
     const rows = (await sql`
-      SELECT s.id, s.symbol, s.direction, s.price_at_signal, s.score, s.scanned_at, o.pct_change
+      SELECT s.id, s.symbol, s.direction, s.price_at_signal, s.score, s.scanned_at, NULL AS pct_change
       FROM scanner_signals s
       LEFT JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
+      WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE}) AND o.id IS NULL
+      ORDER BY s.scanned_at DESC
+      LIMIT 10
+    `) as Row[]
+    const [maxRow] = (await sql`
+      SELECT MAX(id)::int AS m FROM scanner_signals WHERE score >= 7 AND symbol <> ALL(${EXCLUDE})
+    `) as Row[]
+    const signals = rows.map(mapSignal)
+    return { signals, latestSignalId: maxRow?.m != null ? num(maxRow.m) : (signals[0]?.id ?? null) }
+  } catch {
+    return { signals: [], latestSignalId: null }
+  }
+}
+
+// ── Closed panel: most recent signals that HAVE a matured 24h outcome ────────
+function closedResult(direction: "long" | "short", pct: number): { result: string; win: boolean } {
+  const captured = direction === "short" ? -pct : pct // favourable move
+  if (captured >= 1.5) {
+    const tier = captured >= 4 ? 3 : captured >= 2.5 ? 2 : 1
+    return { result: `TP${tier} +${captured.toFixed(1)}%`, win: true }
+  }
+  return { result: `${captured >= 0 ? "+" : "−"}${Math.abs(captured).toFixed(1)}%`, win: false }
+}
+
+async function getClosed(sql: SqlClient): Promise<LiveClosed[]> {
+  try {
+    const rows = (await sql`
+      SELECT s.id, s.symbol, s.direction, s.scanned_at, o.pct_change
+      FROM scanner_signals s
+      JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
       WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE})
       ORDER BY s.scanned_at DESC
       LIMIT 10
     `) as Row[]
-    const signals = rows.map(mapSignal)
-    return { signals, latestSignalId: signals[0]?.id ?? null }
+    return rows.map((r) => {
+      const direction = (r.direction as string) === "long" ? "long" : "short"
+      const { result, win } = closedResult(direction, num(r.pct_change))
+      return {
+        id: num(r.id),
+        pair: String(r.symbol).replace("USDT", ""),
+        direction,
+        result,
+        win,
+        time: new Date(r.scanned_at as string).toISOString(),
+      }
+    })
   } catch {
-    return { signals: [], latestSignalId: null }
+    return []
   }
 }
 
@@ -197,9 +235,10 @@ export async function GET(request: Request) {
   let prices: LivePrice[] = []
   let context: LiveContext = { btcMomentum: null, volatility: null, altBreadth: null }
   let feedOk = false
-  const [regime, sig, record, tickers] = await Promise.all([
+  const [regime, sig, closed, record, tickers] = await Promise.all([
     getRegime(sql),
     getSignals(sql),
+    getClosed(sql),
     getRecord(sql),
     fetchTickers().catch((e) => { console.error("[live] price source failed:", e instanceof Error ? e.message : e); return null }),
   ])
@@ -208,6 +247,7 @@ export async function GET(request: Request) {
   const data: LiveData = {
     regime,
     signals: sig.signals,
+    closed,
     latestSignalId: sig.latestSignalId,
     record,
     context,

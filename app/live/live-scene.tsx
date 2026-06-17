@@ -107,6 +107,7 @@ export function LiveScene() {
   const settleTimerRef = useRef<number | null>(null)
   const fireflashRef = useRef<HTMLDivElement>(null)
   const firebannerRef = useRef<HTMLDivElement>(null)
+  const fbTxtRef = useRef<HTMLSpanElement>(null)
   const qrcardRef = useRef<HTMLDivElement>(null)
   const actxRef = useRef<AudioContext | null>(null)
   const reducedRef = useRef(false)
@@ -181,7 +182,7 @@ export function LiveScene() {
       const ff = fireflashRef.current
       if (ff) { ff.classList.remove("go"); void ff.offsetWidth; ff.classList.add("go") }
       const bn = firebannerRef.current
-      if (bn) { bn.textContent = `⚡ SIGNAL FIRED · ${sig.direction === "long" ? "LONG" : "SHORT"}`; bn.classList.remove("go"); void bn.offsetWidth; bn.classList.add("go") }
+      if (bn && fbTxtRef.current) { fbTxtRef.current.textContent = `⚡ SIGNAL FIRED · ${sig.direction === "long" ? "LONG" : "SHORT"}`; bn.classList.remove("go"); void bn.offsetWidth; bn.classList.add("go") }
       const qc = qrcardRef.current
       if (qc) { qc.classList.remove("pulse"); void qc.offsetWidth; qc.classList.add("pulse") }
       chime()
@@ -325,6 +326,7 @@ export function LiveScene() {
   const ctx = data?.context ?? { btcMomentum: null, volatility: null, altBreadth: null }
   const rec = data?.record
   const signals = data?.signals ?? []
+  const closed = data?.closed ?? []
   const totalClosed = (rec?.long.count ?? 0) + (rec?.short.count ?? 0)
 
   const regVars: React.CSSProperties & Record<string, string> = {
@@ -421,7 +423,6 @@ export function LiveScene() {
           <div className="rcol">
             <section className="panel regime" style={regVars}>
               <div className="fireflash" ref={fireflashRef} />
-              <div className="firebanner" ref={firebannerRef} />
               <div className="top">
                 <div className="eyebrow">Market Regime</div>
                 <div className="timers">
@@ -429,7 +430,10 @@ export function LiveScene() {
                   <div className="nx">next scan in <b>{nextScan}</b></div>
                 </div>
               </div>
-              <div className="state"><span className="orb" /><span className="txt">{reg.state}</span>{previewing && <span className="preview-badge">Preview</span>}</div>
+              <div className="stateline-row">
+                <div className="state"><span className="orb" /><span className="txt">{reg.state}</span>{previewing && <span className="preview-badge">Preview</span>}</div>
+                <div className="firebanner" ref={firebannerRef}><span className="fb-txt" ref={fbTxtRef} /></div>
+              </div>
               <h2>{reg.head}</h2>
               <p className="desc">{reg.desc}</p>
 
@@ -453,36 +457,53 @@ export function LiveScene() {
               </div>
             </section>
 
-            <section className="panel feed">
-              <div className="eyebrow" style={{ marginBottom: 4 }}>Recent Signals · Last 10</div>
-              <div className="fhead">
-                <span>Pair</span><span>Side</span><span className="r">Entry</span>
-                <span>TP1 / TP2 / TP3</span><span className="r">Closed</span><span className="r">Score</span><span className="r">Ago</span>
-              </div>
-              <div className="rows">
-                {signals.map((s) => {
-                  const open = s.closeResult === null
-                  const tps = [s.tp1, s.tp2, s.tp3]
-                  const firing = firingId === s.id
-                  const held = heldId === s.id
-                  const cls = firing ? "frow firerow live" : held ? "frow held" : `frow${s.live ? " live" : ""}`
-                  return (
-                    <div className={cls} key={s.id}>
-                      <span className="pair">{s.pair}{(s.live || firing) && <span className="lflag">● LIVE</span>}</span>
-                      <span className={`dir ${s.direction === "long" ? "L" : "S"}`}>{s.direction === "long" ? "LONG" : "SHORT"}</span>
-                      <span className="entry">{fmtEntry(s.entry)}</span>
-                      <span className="tps">{tps.map((h, i) => <span key={i} className={`tp ${h ? "hit" : open ? "pend" : "miss"}`}>TP{i + 1}</span>)}</span>
-                      <span className={`closed ${open ? "open" : s.closeResult! >= 0 ? "win" : "loss"}`}>
-                        {open ? "OPEN" : `${s.closeResult! >= 0 ? "+" : "−"}${Math.abs(s.closeResult!).toFixed(1)}%`}
-                      </span>
-                      <span className="sc">{s.score}</span>
-                      <span className="ago">{fmtAgo(s.time)}</span>
+            <div className="feeds">
+              {/* LEFT — Recent open/live fires */}
+              <section className="panel feed recent">
+                <div className="eyebrow" style={{ marginBottom: 4 }}>Recent Signals · Live</div>
+                <div className="fhead">
+                  <span>Pair</span><span>Side</span><span className="r">Entry</span>
+                  <span>TP1 / TP2 / TP3</span><span className="r">Sc</span><span className="r">Ago</span>
+                </div>
+                <div className="rows">
+                  {signals.map((s) => {
+                    const firing = firingId === s.id
+                    const held = heldId === s.id
+                    const cls = firing ? "frow firerow live" : held ? "frow held" : `frow${s.live ? " live" : ""}`
+                    return (
+                      <div className={cls} key={s.id}>
+                        <span className="pair">{s.pair}{(s.live || firing) && <span className="lflag">● LIVE</span>}</span>
+                        <span className={`dir ${s.direction === "long" ? "L" : "S"}`}>{s.direction === "long" ? "LONG" : "SHORT"}</span>
+                        <span className="entry">{fmtEntry(s.entry)}</span>
+                        <span className="tps">{[s.tp1, s.tp2, s.tp3].map((h, i) => <span key={i} className={`tp ${h ? "hit" : "pend"}`}>TP{i + 1}</span>)}</span>
+                        <span className="sc">{s.score}</span>
+                        <span className="ago">{fmtAgo(s.time)}</span>
+                      </div>
+                    )
+                  })}
+                  {signals.length === 0 && <div className="frow"><span className="pair" style={{ color: "var(--dim)" }}>No open signals</span></div>}
+                </div>
+              </section>
+
+              {/* RIGHT — most recent matured results */}
+              <section className="panel feed closed">
+                <div className="eyebrow" style={{ marginBottom: 4 }}>Closed · Last Results</div>
+                <div className="fhead">
+                  <span>Pair</span><span>Side</span><span className="r">Result</span><span className="r">Ago</span>
+                </div>
+                <div className="rows">
+                  {closed.map((c) => (
+                    <div className="frow" key={c.id}>
+                      <span className="pair">{c.pair}</span>
+                      <span className={`dir ${c.direction === "long" ? "L" : "S"}`}>{c.direction === "long" ? "LONG" : "SHORT"}</span>
+                      <span className={`res ${c.win ? "win" : "loss"}`}>{c.result}</span>
+                      <span className="ago">{fmtAgo(c.time)}</span>
                     </div>
-                  )
-                })}
-                {signals.length === 0 && <div className="frow"><span className="pair" style={{ color: "var(--dim)" }}>Awaiting signals…</span></div>}
-              </div>
-            </section>
+                  ))}
+                  {closed.length === 0 && <div className="frow"><span className="pair" style={{ color: "var(--dim)" }}>No closed results yet</span></div>}
+                </div>
+              </section>
+            </div>
           </div>
         </div>
 
