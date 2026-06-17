@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Script from "next/script"
-import type { LiveData, LivePrice, Verdict } from "@/lib/live-types"
+import type { LiveData, LivePrice, LiveSideRecord, Verdict } from "@/lib/live-types"
+
+// A book needs at least this many closed signals before we show a hit-rate %.
+const MIN_SAMPLE = 20
 
 // Destinations are env-configurable (no hardcoded literals). The website is the
 // primary hub; the QR encodes NEXT_PUBLIC_QR_TARGET_URL (defaults to the site).
@@ -68,6 +71,13 @@ function momentumLevel(p: number | null) { if (p == null) return 0; const a = Ma
 function volLevel(v: number | null) { if (v == null) return 0; return v < 2 ? 1 : v < 3.5 ? 2 : v < 5 ? 3 : v < 7 ? 4 : 5 }
 function breadthLevel(b: number | null) { if (b == null) return 0; return Math.max(1, Math.min(5, Math.round(b / 20))) }
 
+// Per-book scoreboard cell: hide the rate until the sample is big enough.
+function sideContent(side?: LiveSideRecord) {
+  const count = side?.count ?? 0
+  if (count < MIN_SAMPLE) return <>building ({count})</>
+  return <>{fmtPct(side!.hitRate)} <small>/ {count}</small></>
+}
+
 export function LiveScene() {
   const stageRef = useRef<HTMLDivElement>(null)
   const tokenRef = useRef<string | null>(null)
@@ -81,6 +91,7 @@ export function LiveScene() {
   const [since, setSince] = useState("—")
   const [nextScan, setNextScan] = useState("--:--")
   const [ctaIdx, setCtaIdx] = useState(0)
+  const [feedTried, setFeedTried] = useState(false)
 
   // Fire-moment state (purely client-side reaction to a newer signal id)
   const [firingId, setFiringId] = useState<number | null>(null)
@@ -194,17 +205,18 @@ export function LiveScene() {
         const d: LiveData = await r.json()
         if (!alive) return
 
-        const newest = d.signals[0]
-        const newestId = newest?.id ?? null
+        const latest = d.latestSignalId
+        const newestSig = d.signals.find((s) => s.id === latest) ?? d.signals[0]
         const verdictChanged = prevVerdictRef.current !== null && prevVerdictRef.current !== d.regime.verdict
 
         if (!firstPollDoneRef.current) {
           // First successful poll: record baseline, never fire (no pop on load/restart).
           firstPollDoneRef.current = true
-          seenIdRef.current = newestId
-        } else if (newestId != null && (seenIdRef.current == null || newestId > seenIdRef.current)) {
-          seenIdRef.current = newestId
-          triggerFire({ id: newestId, direction: newest.direction })
+          seenIdRef.current = latest
+        } else if (latest != null && (seenIdRef.current == null || latest > seenIdRef.current)) {
+          seenIdRef.current = latest
+          const dir = newestSig?.direction ?? (d.regime.verdict === "long" ? "long" : "short")
+          triggerFire({ id: latest, direction: dir })
         } else if (verdictChanged) {
           // State moved on without a new signal → clear any lingering fire.
           clearFire()
@@ -212,6 +224,7 @@ export function LiveScene() {
         prevVerdictRef.current = d.regime.verdict
 
         setData(d)
+        setFeedTried(true)
         applyPrices(d.prices)
       } catch { /* keep previous */ }
     }
@@ -231,6 +244,7 @@ export function LiveScene() {
         if (!r.ok) return
         const d = await r.json()
         if (!alive) return
+        setFeedTried(true)
         if (Array.isArray(d.prices)) applyPrices(d.prices)
         if (d.context) setData((prev) => (prev ? { ...prev, context: d.context } : prev))
       } catch { /* keep previous */ }
@@ -290,6 +304,7 @@ export function LiveScene() {
   const ctx = data?.context ?? { btcMomentum: null, volatility: null, altBreadth: null }
   const rec = data?.record
   const signals = data?.signals ?? []
+  const totalClosed = (rec?.long.count ?? 0) + (rec?.short.count ?? 0)
 
   const regVars: React.CSSProperties & Record<string, string> = {
     "--reg-c": reg.c, "--reg-h": reg.c,
@@ -338,21 +353,35 @@ export function LiveScene() {
                     <span className={`chg ${p.change24h >= 0 ? "up" : "down"}`}>{p.change24h >= 0 ? "+" : ""}{p.change24h.toFixed(1)}%</span>
                   </div>
                 ))}
-                {prices.length === 0 && <div className="mrow"><span className="sym" style={{ color: "var(--dim)" }}>Loading…</span><span /><span /></div>}
+                {prices.length === 0 && (
+                  <div className="mrow"><span className="sym" style={{ color: "var(--dim)" }}>{feedTried ? "Feed unavailable" : "Loading…"}</span><span /><span /></div>
+                )}
               </div>
             </section>
 
             <section className="panel score">
               <div className="eyebrow">Track Record · Last 30 Days</div>
               <div className="hero-stat">
-                <div className="big">{rec?.combinedHitRate == null ? "—" : Math.round(rec.combinedHitRate)}<span style={{ fontSize: 34 }}>%</span></div>
-                <div className="lbl">Combined hit rate (TP1+)</div>
+                {totalClosed < MIN_SAMPLE ? (
+                  <>
+                    <div className="big" style={{ fontSize: 44 }}>building</div>
+                    <div className="lbl">{totalClosed} closed signal{totalClosed === 1 ? "" : "s"} so far</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="big">{Math.round(rec!.combinedHitRate!)}<span style={{ fontSize: 34 }}>%</span></div>
+                    <div className="lbl">Combined hit rate (TP1+)</div>
+                  </>
+                )}
               </div>
               <div className="split">
-                <div className="b"><span className="lk l">Longs</span><span className="lv">{fmtPct(rec?.long.hitRate ?? null)} <small>/ {rec?.long.count ?? 0}</small></span></div>
-                <div className="b"><span className="lk s">Shorts</span><span className="lv">{fmtPct(rec?.short.hitRate ?? null)} <small>/ {rec?.short.count ?? 0}</small></span></div>
+                <div className="b"><span className="lk l">Longs</span><span className="lv">{sideContent(rec?.long)}</span></div>
+                <div className="b"><span className="lk s">Shorts</span><span className="lv">{sideContent(rec?.short)}</span></div>
               </div>
-              <div className="pnl-row"><span className="k">Cumulative move captured</span><span className="v">+{(rec?.capturedPct ?? 0).toFixed(1)}%</span></div>
+              <div className="pnl-row">
+                <span className="k">Avg move / signal</span>
+                <span className="v">{rec?.avgMove == null ? "—" : `${rec.avgMove >= 0 ? "+" : "−"}${Math.abs(rec.avgMove).toFixed(1)}%`}</span>
+              </div>
             </section>
           </div>
 

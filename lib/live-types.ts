@@ -27,7 +27,7 @@ export interface LiveRecord {
   combinedHitRate: number | null
   long: LiveSideRecord
   short: LiveSideRecord
-  capturedPct: number // cumulative favourable move captured, %
+  avgMove: number | null // honest average favourable move per CLOSED signal, %
 }
 
 // MARKET CONTEXT gauges — public market data computed independently of the gate.
@@ -46,8 +46,10 @@ export interface LivePrice {
 export interface LiveData {
   regime: { verdict: Verdict; lastSignalAt: string | null }
   signals: LiveSignal[]
+  latestSignalId: number | null // newest score>=7 crypto signal id — drives the fire trigger
   record: LiveRecord
   context: LiveContext
   prices: LivePrice[]
+  feedOk: boolean // price source returned data this request
   ts: number
 }

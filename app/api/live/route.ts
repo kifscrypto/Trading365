@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless"
 import { NextResponse } from "next/server"
-import type { SqlClient } from "@/app/api/scanner/_core"
+import { HEADERS, type SqlClient } from "@/app/api/scanner/_core"
 import type {
   LiveData, LiveSignal, LiveRecord, LiveContext, LivePrice, Verdict,
 } from "@/lib/live-types"
@@ -15,7 +15,17 @@ const ALT_BREADTH = [
   "BCH", "NEAR", "APT", "ARB", "OP", "INJ", "SUI", "TIA", "SEI", "RUNE",
 ]
 
-// market_condition (gate OUTPUT category) → broadcast verdict. This is the only
+// Tokenized stock / commodity / FX perps the multi-exchange scanner can pick up
+// (e.g. INTCUSDT, XAUUSDT, BZUSDT). Real, but off-brand for an ALTCOIN broadcast
+// — excluded from the public feed AND the track record so both stay consistent.
+const NON_CRYPTO_BASES = [
+  "INTC", "MU", "NVDA", "AAPL", "TSLA", "AMZN", "GOOGL", "GOOG", "META", "MSFT",
+  "AMD", "NFLX", "PLTR", "HOOD", "COIN", "MSTR", "BABA", "SPY", "QQQ", "SPX", "NDX",
+  "XAU", "XAG", "XPT", "XPD", "BZ", "WTI", "CL", "GOLD", "OIL", "GAS", "NG",
+]
+const EXCLUDE = NON_CRYPTO_BASES.map((b) => b + "USDT")
+
+// market_condition (gate OUTPUT category) → broadcast verdict. The only
 // gate-derived value allowed out; gate INPUTS are never read.
 function toVerdict(mc: string | null | undefined): Verdict {
   if (mc === "favourable") return "short"
@@ -41,127 +51,150 @@ async function getRegime(sql: SqlClient) {
     verdict = toVerdict(rows[0]?.market_condition as string | undefined)
   } catch { /* default neutral */ }
   try {
-    const r = (await sql`SELECT MAX(scanned_at) AS t FROM scanner_signals`) as Row[]
+    const r = (await sql`
+      SELECT MAX(scanned_at) AS t FROM scanner_signals
+      WHERE score >= 7 AND symbol <> ALL(${EXCLUDE})
+    `) as Row[]
     lastSignalAt = r[0]?.t ? new Date(r[0].t as string).toISOString() : null
   } catch { /* null */ }
   return { verdict, lastSignalAt }
 }
 
-// ── Recent signals feed (both books), TP tiers derived from 24h outcome ─────
-async function getSignals(sql: SqlClient): Promise<LiveSignal[]> {
-  try {
-    const rows = (await sql`
-      SELECT s.id, s.symbol, s.direction, s.price_at_signal, s.score, s.scanned_at,
-             o.pct_change
-      FROM scanner_signals s
-      LEFT JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
-      WHERE s.score >= 7
-      ORDER BY s.scanned_at DESC
-      LIMIT 10
-    `) as Row[]
-
-    const now = Date.now()
-    return rows.map((r) => {
-      const direction = (r.direction as string) === "long" ? "long" : "short"
-      const pct = r.pct_change == null ? null : num(r.pct_change)
-      const hasOutcome = pct != null && Number.isFinite(pct)
-      // short wins on a drop (≤ −1.5/−2.5/−4); long wins on a rise (≥ +1.5/+2.5/+4)
-      const tier = (t1: number, t2: number, t3: number) =>
-        direction === "short"
-          ? { tp1: pct! <= -t1, tp2: pct! <= -t2, tp3: pct! <= -t3 }
-          : { tp1: pct! >= t1, tp2: pct! >= t2, tp3: pct! >= t3 }
-      const tps = hasOutcome ? tier(1.5, 2.5, 4) : { tp1: false, tp2: false, tp3: false }
-      // signed favourable move: short captures the negative of pct, long the pct
-      const closeResult = hasOutcome ? (direction === "short" ? -pct! : pct!) : null
-      const scannedMs = new Date(r.scanned_at as string).getTime()
-      return {
-        id: num(r.id),
-        pair: String(r.symbol).replace("USDT", ""),
-        direction,
-        entry: num(r.price_at_signal),
-        tp1: tps.tp1, tp2: tps.tp2, tp3: tps.tp3,
-        closeResult,
-        score: num(r.score),
-        time: new Date(scannedMs).toISOString(),
-        live: !hasOutcome && now - scannedMs < 25 * 60 * 1000,
-      }
-    })
-  } catch {
-    return []
+function mapSignal(r: Row): LiveSignal {
+  const direction = (r.direction as string) === "long" ? "long" : "short"
+  const pct = r.pct_change == null ? null : num(r.pct_change)
+  const hasOutcome = pct != null && Number.isFinite(pct)
+  // short wins on a drop (≤ −1.5/−2.5/−4); long wins on a rise (≥ +1.5/+2.5/+4)
+  const tps = hasOutcome
+    ? (direction === "short"
+        ? { tp1: pct! <= -1.5, tp2: pct! <= -2.5, tp3: pct! <= -4 }
+        : { tp1: pct! >= 1.5, tp2: pct! >= 2.5, tp3: pct! >= 4 })
+    : { tp1: false, tp2: false, tp3: false }
+  // signed favourable move: short captures the negative of pct, long the pct
+  const closeResult = hasOutcome ? (direction === "short" ? -pct! : pct!) : null
+  const scannedMs = new Date(r.scanned_at as string).getTime()
+  return {
+    id: num(r.id),
+    pair: String(r.symbol).replace("USDT", ""),
+    direction,
+    entry: num(r.price_at_signal),
+    ...tps,
+    closeResult,
+    score: num(r.score),
+    time: new Date(scannedMs).toISOString(),
+    live: !hasOutcome && Date.now() - scannedMs < 30 * 60 * 1000,
   }
 }
 
-// ── 30-day track record (mirrors each scanner page's win definition) ────────
-async function getRecord(sql: SqlClient): Promise<LiveRecord> {
-  const empty: LiveRecord = {
-    combinedHitRate: null,
-    long: { hitRate: null, count: 0 },
-    short: { hitRate: null, count: 0 },
-    capturedPct: 0,
-  }
+// ── Feed: recent CLOSED signals (real outcomes) + a fresh live one if firing ─
+async function getSignals(sql: SqlClient): Promise<{ signals: LiveSignal[]; latestSignalId: number | null }> {
   try {
-    const [shortRow] = (await sql`
-      SELECT
-        COUNT(*) FILTER (WHERE o.pct_change IS NOT NULL)::int AS cnt,
-        COUNT(*) FILTER (WHERE o.pct_change <= -1.5)::int      AS hits,
-        COALESCE(SUM(ABS(o.pct_change)) FILTER (WHERE o.pct_change <= -1.5),0)::float AS captured
+    const closed = (await sql`
+      SELECT s.id, s.symbol, s.direction, s.price_at_signal, s.score, s.scanned_at, o.pct_change
       FROM scanner_signals s
       JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
-      WHERE s.market_condition = 'favourable' AND s.score >= 7
+      WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE})
+      ORDER BY s.scanned_at DESC
+      LIMIT 9
+    `) as Row[]
+
+    // The freshest still-open signal (≤6h) becomes the live row at the top.
+    const live = (await sql`
+      SELECT s.id, s.symbol, s.direction, s.price_at_signal, s.score, s.scanned_at, NULL AS pct_change
+      FROM scanner_signals s
+      LEFT JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
+      WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE}) AND o.id IS NULL
+        AND s.scanned_at > NOW() - INTERVAL '6 hours'
+      ORDER BY s.scanned_at DESC
+      LIMIT 1
+    `) as Row[]
+
+    const [maxRow] = (await sql`
+      SELECT MAX(id)::int AS m FROM scanner_signals
+      WHERE score >= 7 AND symbol <> ALL(${EXCLUDE})
+    `) as Row[]
+
+    const closedSignals = closed.map(mapSignal)
+    const liveSignal = live[0] ? mapSignal(live[0]) : null
+    const signals = (liveSignal && liveSignal.id !== closedSignals[0]?.id
+      ? [liveSignal, ...closedSignals]
+      : closedSignals).slice(0, 10)
+
+    const latestSignalId = maxRow?.m != null ? num(maxRow.m) : (signals[0]?.id ?? null)
+    return { signals, latestSignalId }
+  } catch {
+    return { signals: [], latestSignalId: null }
+  }
+}
+
+// ── 30-day track record: per-book hit rate + counts + AVERAGE move/signal ────
+async function getRecord(sql: SqlClient): Promise<LiveRecord> {
+  const empty: LiveRecord = { combinedHitRate: null, long: { hitRate: null, count: 0 }, short: { hitRate: null, count: 0 }, avgMove: null }
+  try {
+    const [shortRow] = (await sql`
+      SELECT COUNT(*)::int AS cnt,
+             COUNT(*) FILTER (WHERE o.pct_change <= -1.5)::int AS hits,
+             COALESCE(SUM(-o.pct_change), 0)::float AS summove
+      FROM scanner_signals s
+      JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
+      WHERE s.market_condition = 'favourable' AND s.score >= 7 AND s.symbol <> ALL(${EXCLUDE})
         AND s.scanned_at > NOW() - INTERVAL '30 days'
     `) as Row[]
     const [longRow] = (await sql`
-      SELECT
-        COUNT(*) FILTER (WHERE o.pct_change IS NOT NULL)::int AS cnt,
-        COUNT(*) FILTER (WHERE o.pct_change >= 1.5)::int       AS hits,
-        COALESCE(SUM(ABS(o.pct_change)) FILTER (WHERE o.pct_change >= 1.5),0)::float AS captured
+      SELECT COUNT(*)::int AS cnt,
+             COUNT(*) FILTER (WHERE o.pct_change >= 1.5)::int AS hits,
+             COALESCE(SUM(o.pct_change), 0)::float AS summove
       FROM scanner_signals s
       JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
-      WHERE s.direction = 'long' AND s.market_condition = 'hostile' AND s.score >= 7
+      WHERE s.direction = 'long' AND s.market_condition = 'hostile' AND s.score >= 7 AND s.symbol <> ALL(${EXCLUDE})
         AND s.scanned_at > NOW() - INTERVAL '30 days'
     `) as Row[]
 
-    const sCnt = num(shortRow?.cnt) || 0, sHits = num(shortRow?.hits) || 0
-    const lCnt = num(longRow?.cnt) || 0, lHits = num(longRow?.hits) || 0
+    const sCnt = num(shortRow?.cnt) || 0, sHits = num(shortRow?.hits) || 0, sSum = num(shortRow?.summove) || 0
+    const lCnt = num(longRow?.cnt) || 0, lHits = num(longRow?.hits) || 0, lSum = num(longRow?.summove) || 0
     const totalCnt = sCnt + lCnt, totalHits = sHits + lHits
     return {
       combinedHitRate: totalCnt > 0 ? (totalHits / totalCnt) * 100 : null,
       long: { hitRate: lCnt > 0 ? (lHits / lCnt) * 100 : null, count: lCnt },
       short: { hitRate: sCnt > 0 ? (sHits / sCnt) * 100 : null, count: sCnt },
-      capturedPct: (num(shortRow?.captured) || 0) + (num(longRow?.captured) || 0),
+      avgMove: totalCnt > 0 ? (sSum + lSum) / totalCnt : null,
     }
   } catch {
     return empty
   }
 }
 
-// ── Public market data (Binance public REST), independent of the gate ───────
-type Ticker = { symbol: string; lastPrice: string; priceChangePercent: string; highPrice: string; lowPrice: string; openPrice: string }
+// ── Public market data via OKX SWAP tickers (the source the scanner's own crons
+//    use successfully from Vercel — Binance 403/451s cloud IPs). Cached ~12s so
+//    the source is hit once per interval regardless of client poll rate. ──────
+type Ticker = { instId: string; last: string; open24h: string; high24h: string; low24h: string }
+const inst = (s: string) => `${s}-USDT-SWAP`
 
 async function fetchTickers(): Promise<Map<string, Ticker>> {
-  const symbols = Array.from(new Set([...PRICE_SYMBOLS, ...ALT_BREADTH])).map((s) => s + "USDT")
-  const url = `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbols))}`
-  const res = await fetch(url, { cache: "no-store" })
-  if (!res.ok) throw new Error(`binance ${res.status}`)
-  const arr = (await res.json()) as Ticker[]
-  return new Map(arr.map((t) => [t.symbol, t]))
+  const res = await fetch("https://www.okx.com/api/v5/market/tickers?instType=SWAP", {
+    headers: HEADERS,
+    next: { revalidate: 12 },
+  })
+  if (!res.ok) throw new Error(`okx ${res.status}`)
+  const json = (await res.json()) as { data?: Ticker[] }
+  return new Map((json.data ?? []).map((t) => [t.instId, t]))
 }
 
 function buildPricesAndContext(tk: Map<string, Ticker>): { prices: LivePrice[]; context: LiveContext } {
-  const prices: LivePrice[] = PRICE_SYMBOLS.map((s) => {
-    const t = tk.get(s + "USDT")
-    return { symbol: s, price: t ? parseFloat(t.lastPrice) : NaN, change24h: t ? parseFloat(t.priceChangePercent) : NaN }
-  }).filter((p) => Number.isFinite(p.price))
+  const chg = (t: Ticker) => { const o = parseFloat(t.open24h); return o ? ((parseFloat(t.last) - o) / o) * 100 : 0 }
 
-  const btc = tk.get("BTCUSDT")
-  const btcMomentum = btc ? parseFloat(btc.priceChangePercent) : null
+  const prices: LivePrice[] = PRICE_SYMBOLS.map((s) => {
+    const t = tk.get(inst(s))
+    return t ? { symbol: s, price: parseFloat(t.last), change24h: chg(t) } : null
+  }).filter((p): p is LivePrice => p != null && Number.isFinite(p.price))
+
+  const btc = tk.get(inst("BTC"))
+  const btcMomentum = btc ? chg(btc) : null
   const volatility = btc
-    ? ((parseFloat(btc.highPrice) - parseFloat(btc.lowPrice)) / parseFloat(btc.openPrice)) * 100
+    ? ((parseFloat(btc.high24h) - parseFloat(btc.low24h)) / parseFloat(btc.open24h)) * 100
     : null
-  const altList = ALT_BREADTH.map((s) => tk.get(s + "USDT")).filter(Boolean) as Ticker[]
-  const altBreadth = altList.length
-    ? (altList.filter((t) => parseFloat(t.priceChangePercent) > 0).length / altList.length) * 100
-    : null
+  const alt = ALT_BREADTH.map((s) => tk.get(inst(s))).filter((t): t is Ticker => t != null)
+  const altBreadth = alt.length ? (alt.filter((t) => chg(t) > 0).length / alt.length) * 100 : null
 
   return { prices, context: { btcMomentum, volatility, altBreadth } }
 }
@@ -170,25 +203,38 @@ export async function GET(request: Request) {
   const mode = new URL(request.url).searchParams.get("mode")
   const noStore = { headers: { "Cache-Control": "no-store, max-age=0" } }
 
-  // Lightweight prices-only mode for the fast (~3s) price poll.
+  // Lightweight prices-only mode for the fast (~3s) poll.
   if (mode === "prices") {
     try {
       const { prices, context } = buildPricesAndContext(await fetchTickers())
-      return NextResponse.json({ prices, context }, noStore)
-    } catch {
-      return NextResponse.json({ prices: [], context: { btcMomentum: null, volatility: null, altBreadth: null } }, noStore)
+      return NextResponse.json({ prices, context, feedOk: prices.length > 0 }, noStore)
+    } catch (e) {
+      console.error("[live] price source failed:", e instanceof Error ? e.message : e)
+      return NextResponse.json({ prices: [], context: { btcMomentum: null, volatility: null, altBreadth: null }, feedOk: false }, noStore)
     }
   }
 
   const sql = neon(process.env.DATABASE_URL!) as SqlClient
-  const [regime, signals, record, tickers] = await Promise.all([
+  let prices: LivePrice[] = []
+  let context: LiveContext = { btcMomentum: null, volatility: null, altBreadth: null }
+  let feedOk = false
+  const [regime, sig, record, tickers] = await Promise.all([
     getRegime(sql),
     getSignals(sql),
     getRecord(sql),
-    fetchTickers().catch(() => new Map<string, Ticker>()),
+    fetchTickers().catch((e) => { console.error("[live] price source failed:", e instanceof Error ? e.message : e); return null }),
   ])
-  const { prices, context } = buildPricesAndContext(tickers)
+  if (tickers) { ({ prices, context } = buildPricesAndContext(tickers)); feedOk = prices.length > 0 }
 
-  const data: LiveData = { regime, signals, record, context, prices, ts: Date.now() }
+  const data: LiveData = {
+    regime,
+    signals: sig.signals,
+    latestSignalId: sig.latestSignalId,
+    record,
+    context,
+    prices,
+    feedOk,
+    ts: Date.now(),
+  }
   return NextResponse.json(data, noStore)
 }
