@@ -107,7 +107,9 @@ interface RecentWin {
   scannedAt: string
 }
 
-// Recent long wins — any long signal that closed up at 24h.
+// Recent long wins — drawn from the SAME product as the headline stats
+// (direction='long', hostile regime, score >= 7) so the feed can never contradict
+// the advertised win rate. A win = TP1+ (price rose >= 1.5% within 24h).
 async function getRecentWins(): Promise<RecentWin[]> {
   const sql = neon(process.env.DATABASE_URL!)
   try {
@@ -118,7 +120,9 @@ async function getRecentWins(): Promise<RecentWin[]> {
       FROM scanner_signals s
       JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
       WHERE s.direction = 'long'
-        AND o24.pct_change > 0
+        AND s.market_condition = 'hostile'
+        AND s.score >= 7
+        AND o24.pct_change >= 1.5
         AND s.scanned_at > NOW() - INTERVAL '30 days'
       ORDER BY s.scanned_at DESC
       LIMIT 12
