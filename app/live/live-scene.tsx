@@ -96,6 +96,11 @@ export function LiveScene() {
   // Fire-moment state (purely client-side reaction to a newer signal id)
   const [firingId, setFiringId] = useState<number | null>(null)
   const [heldId, setHeldId] = useState<number | null>(null)
+  // Transient verdict the regime washes to DURING a fire/replay (the fired
+  // signal's side). Cleared on settle → returns to the real/preview verdict.
+  const [fireVerdict, setFireVerdict] = useState<Verdict | null>(null)
+  // Operator "view a book" override (null = follow the real live verdict).
+  const [viewOverride, setViewOverride] = useState<Verdict | null>(null)
   const seenIdRef = useRef<number | null>(null)
   const firstPollDoneRef = useRef(false)
   const prevVerdictRef = useRef<Verdict | null>(null)
@@ -105,6 +110,7 @@ export function LiveScene() {
   const qrcardRef = useRef<HTMLDivElement>(null)
   const actxRef = useRef<AudioContext | null>(null)
   const reducedRef = useRef(false)
+  const dataRef = useRef<LiveData | null>(null) // latest data for event handlers/ticks
 
   // ── scale-to-fit 1920×1080 ──
   useEffect(() => {
@@ -158,7 +164,7 @@ export function LiveScene() {
   // moves on without a fresh fire, so one fire never bleeds into a later state.
   const clearFire = useCallback(() => {
     if (settleTimerRef.current) { window.clearTimeout(settleTimerRef.current); settleTimerRef.current = null }
-    setFiringId(null); setHeldId(null)
+    setFiringId(null); setHeldId(null); setFireVerdict(null)
     fireflashRef.current?.classList.remove("go")
     firebannerRef.current?.classList.remove("go")
     qrcardRef.current?.classList.remove("pulse")
@@ -169,6 +175,7 @@ export function LiveScene() {
     if (settleTimerRef.current) { window.clearTimeout(settleTimerRef.current); settleTimerRef.current = null }
     setHeldId(null)
     setFiringId(sig.id)
+    setFireVerdict(sig.direction) // wash the regime to the fired signal's colour
 
     if (!reducedRef.current) {
       const ff = fireflashRef.current
@@ -186,12 +193,22 @@ export function LiveScene() {
     settleTimerRef.current = window.setTimeout(() => {
       setFiringId(null)
       setHeldId(sig.id)
+      setFireVerdict(null) // calm down → back to the real/preview verdict
       fireflashRef.current?.classList.remove("go")
       firebannerRef.current?.classList.remove("go")
       qrcardRef.current?.classList.remove("pulse")
       settleTimerRef.current = null
     }, 12000)
   }, [chime])
+
+  // FIRE A SIGNAL button: replay the REAL most-recent signal's animation.
+  // Presentation only — reads live data, writes nothing, sends nothing.
+  const fireLatest = useCallback(() => {
+    const d = dataRef.current
+    if (!d) return
+    const s = d.signals.find((x) => x.id === d.latestSignalId) ?? d.signals[0]
+    if (s) triggerFire({ id: s.id, direction: s.direction })
+  }, [triggerFire])
 
   // ── full data poll (5s) — also the fire trigger ──
   useEffect(() => {
@@ -253,8 +270,7 @@ export function LiveScene() {
     return () => { alive = false; window.clearInterval(id) }
   }, [applyPrices])
 
-  // keep latest data accessible inside the 1s tick without resetting the interval
-  const dataRef = useRef<LiveData | null>(null)
+  // keep latest data accessible inside event handlers / the 1s tick
   useEffect(() => { dataRef.current = data }, [data])
 
   // ── 1s ticks: clock, since, next-scan (next 15-min boundary) ──
@@ -299,7 +315,12 @@ export function LiveScene() {
   // clear pending settle timer on unmount
   useEffect(() => () => { if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current) }, [])
 
-  const verdict: Verdict = data?.regime.verdict ?? "neutral"
+  const realVerdict: Verdict = data?.regime.verdict ?? "neutral"
+  // Display precedence: a fire/replay wash > operator preview > the real verdict.
+  const verdict: Verdict = fireVerdict ?? viewOverride ?? realVerdict
+  // Honesty: a sustained manual preview that differs from the real market state
+  // is marked PREVIEW so it's never read as a market-produced verdict.
+  const previewing = !fireVerdict && viewOverride != null && viewOverride !== realVerdict
   const reg = REG[verdict]
   const ctx = data?.context ?? { btcMomentum: null, volatility: null, altBreadth: null }
   const rec = data?.record
@@ -324,6 +345,17 @@ export function LiveScene() {
     <div className="t365-live">
       <Script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" strategy="afterInteractive" onLoad={() => setQrReady(true)} />
       <div className="stage" ref={stageRef}>
+        {/* On-stream operator controls — intentionally visible, never gated */}
+        <div className="controls">
+          <button className={`live-btn${viewOverride === null ? " active" : ""}`} onClick={() => setViewOverride(null)}>● Live</button>
+          <span className="sep" />
+          <button className={viewOverride === "long" ? "active" : ""} onClick={() => setViewOverride("long")}>Long</button>
+          <button className={viewOverride === "neutral" ? "active" : ""} onClick={() => setViewOverride("neutral")}>Neutral</button>
+          <button className={viewOverride === "short" ? "active" : ""} onClick={() => setViewOverride("short")}>Short</button>
+          <span className="sep" />
+          <button className="fire" onClick={fireLatest}>⚡ Fire a signal</button>
+        </div>
+
         {/* HEADER — persistent site URL beside the brand */}
         <header className="head">
           <div className="brand">
@@ -397,7 +429,7 @@ export function LiveScene() {
                   <div className="nx">next scan in <b>{nextScan}</b></div>
                 </div>
               </div>
-              <div className="state"><span className="orb" /><span className="txt">{reg.state}</span></div>
+              <div className="state"><span className="orb" /><span className="txt">{reg.state}</span>{previewing && <span className="preview-badge">Preview</span>}</div>
               <h2>{reg.head}</h2>
               <p className="desc">{reg.desc}</p>
 

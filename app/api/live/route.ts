@@ -86,42 +86,21 @@ function mapSignal(r: Row): LiveSignal {
   }
 }
 
-// ── Feed: recent CLOSED signals (real outcomes) + a fresh live one if firing ─
+// ── Feed: the last 10 REAL signals by timestamp (newest first), both books.
+// LEFT JOIN outcomes so each row shows real TP hits + close % (or OPEN), real
+// age. Same scanner_signals/scanner_outcomes the Track Record aggregates from. ─
 async function getSignals(sql: SqlClient): Promise<{ signals: LiveSignal[]; latestSignalId: number | null }> {
   try {
-    const closed = (await sql`
+    const rows = (await sql`
       SELECT s.id, s.symbol, s.direction, s.price_at_signal, s.score, s.scanned_at, o.pct_change
       FROM scanner_signals s
-      JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
+      LEFT JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
       WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE})
       ORDER BY s.scanned_at DESC
-      LIMIT 9
+      LIMIT 10
     `) as Row[]
-
-    // The freshest still-open signal (≤6h) becomes the live row at the top.
-    const live = (await sql`
-      SELECT s.id, s.symbol, s.direction, s.price_at_signal, s.score, s.scanned_at, NULL AS pct_change
-      FROM scanner_signals s
-      LEFT JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
-      WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE}) AND o.id IS NULL
-        AND s.scanned_at > NOW() - INTERVAL '6 hours'
-      ORDER BY s.scanned_at DESC
-      LIMIT 1
-    `) as Row[]
-
-    const [maxRow] = (await sql`
-      SELECT MAX(id)::int AS m FROM scanner_signals
-      WHERE score >= 7 AND symbol <> ALL(${EXCLUDE})
-    `) as Row[]
-
-    const closedSignals = closed.map(mapSignal)
-    const liveSignal = live[0] ? mapSignal(live[0]) : null
-    const signals = (liveSignal && liveSignal.id !== closedSignals[0]?.id
-      ? [liveSignal, ...closedSignals]
-      : closedSignals).slice(0, 10)
-
-    const latestSignalId = maxRow?.m != null ? num(maxRow.m) : (signals[0]?.id ?? null)
-    return { signals, latestSignalId }
+    const signals = rows.map(mapSignal)
+    return { signals, latestSignalId: signals[0]?.id ?? null }
   } catch {
     return { signals: [], latestSignalId: null }
   }
