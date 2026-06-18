@@ -209,6 +209,8 @@
 .t365-live .controls{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:60;
   display:flex;align-items:center;gap:5px;background:#0c0e12dd;border:1px solid var(--line);
   border-radius:22px;padding:5px 7px;backdrop-filter:blur(4px)}
+.t365-live .controls .ctl-label{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);padding:0 4px}
 .t365-live .controls button{font-family:var(--sans);font-weight:600;font-size:13px;letter-spacing:.07em;
   text-transform:uppercase;color:var(--muted);background:transparent;border:none;cursor:pointer;
   padding:6px 13px;border-radius:14px;transition:background .2s,color .2s}

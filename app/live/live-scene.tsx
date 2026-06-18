@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Script from "next/script"
-import type { LiveData, LivePrice, LiveSideRecord, Verdict } from "@/lib/live-types"
+import type { Book, LiveData, LivePrice, LiveSideRecord, Verdict } from "@/lib/live-types"
 
 // A book needs at least this many closed signals before we show a hit-rate %.
 const MIN_SAMPLE = 20
@@ -97,10 +97,13 @@ export function LiveScene() {
   const [firingId, setFiringId] = useState<number | null>(null)
   const [heldId, setHeldId] = useState<number | null>(null)
   // Transient verdict the regime washes to DURING a fire/replay (the fired
-  // signal's side). Cleared on settle → returns to the real/preview verdict.
+  // signal's side). Cleared on settle → returns to the real verdict.
   const [fireVerdict, setFireVerdict] = useState<Verdict | null>(null)
-  // Operator "view a book" override (null = follow the real live verdict).
-  const [viewOverride, setViewOverride] = useState<Verdict | null>(null)
+  // Which book the operator is broadcasting. Default SHORT (long model is
+  // freshly rewritten and still building a track record). Filters the feed,
+  // closed panel and track record server-side; the regime follows it.
+  const [book, setBookState] = useState<Book>("short")
+  const bookRef = useRef<Book>("short")
   const seenIdRef = useRef<number | null>(null)
   const firstPollDoneRef = useRef(false)
   const prevVerdictRef = useRef<Verdict | null>(null)
@@ -211,6 +214,16 @@ export function LiveScene() {
     if (s) triggerFire({ id: s.id, direction: s.direction })
   }, [triggerFire])
 
+  // Operator switches the broadcast book. Re-baselines the fire detector so the
+  // switch itself never triggers a fire animation, and clears any live fire.
+  const changeBook = useCallback((b: Book) => {
+    if (b === bookRef.current) return
+    bookRef.current = b
+    firstPollDoneRef.current = false
+    clearFire()
+    setBookState(b)
+  }, [clearFire])
+
   // ── full data poll (5s) — also the fire trigger ──
   useEffect(() => {
     let alive = true
@@ -218,7 +231,7 @@ export function LiveScene() {
       const k = tokenRef.current
       if (!k) return
       try {
-        const r = await fetch(`/api/live?k=${encodeURIComponent(k)}`, { cache: "no-store" })
+        const r = await fetch(`/api/live?k=${encodeURIComponent(k)}&book=${bookRef.current}`, { cache: "no-store" })
         if (!r.ok) return
         const d: LiveData = await r.json()
         if (!alive) return
@@ -249,7 +262,7 @@ export function LiveScene() {
     pull()
     const id = window.setInterval(pull, 5000)
     return () => { alive = false; window.clearInterval(id) }
-  }, [applyPrices, triggerFire, clearFire])
+  }, [applyPrices, triggerFire, clearFire, book])
 
   // ── fast prices poll (3s) ──
   useEffect(() => {
@@ -317,17 +330,19 @@ export function LiveScene() {
   useEffect(() => () => { if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current) }, [])
 
   const realVerdict: Verdict = data?.regime.verdict ?? "neutral"
-  // Display precedence: a fire/replay wash > operator preview > the real verdict.
-  const verdict: Verdict = fireVerdict ?? viewOverride ?? realVerdict
-  // Honesty: a sustained manual preview that differs from the real market state
-  // is marked PREVIEW so it's never read as a market-produced verdict.
-  const previewing = !fireVerdict && viewOverride != null && viewOverride !== realVerdict
+  // Display precedence: a fire/replay wash > the real (book-following) verdict.
+  const verdict: Verdict = fireVerdict ?? realVerdict
   const reg = REG[verdict]
   const ctx = data?.context ?? { btcMomentum: null, volatility: null, altBreadth: null }
   const rec = data?.record
   const signals = data?.signals ?? []
   const closed = data?.closed ?? []
-  const totalClosed = (rec?.long.count ?? 0) + (rec?.short.count ?? 0)
+  // Closed-sample count for the displayed book (gates the "building" hero).
+  const totalClosed =
+    book === "short" ? (rec?.short.count ?? 0) :
+    book === "long"  ? (rec?.long.count ?? 0) :
+                       (rec?.long.count ?? 0) + (rec?.short.count ?? 0)
+  const bookLabel = book === "combined" ? "Longs & Shorts" : book === "short" ? "Shorts" : "Longs"
 
   const regVars: React.CSSProperties & Record<string, string> = {
     "--reg-c": reg.c, "--reg-h": reg.c,
@@ -347,13 +362,13 @@ export function LiveScene() {
     <div className="t365-live">
       <Script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" strategy="afterInteractive" onLoad={() => setQrReady(true)} />
       <div className="stage" ref={stageRef}>
-        {/* On-stream operator controls — intentionally visible, never gated */}
+        {/* On-stream operator controls — intentionally visible, never gated.
+            Book switch filters the feed, closed panel + track record. */}
         <div className="controls">
-          <button className={`live-btn${viewOverride === null ? " active" : ""}`} onClick={() => setViewOverride(null)}>● Live</button>
-          <span className="sep" />
-          <button className={viewOverride === "long" ? "active" : ""} onClick={() => setViewOverride("long")}>Long</button>
-          <button className={viewOverride === "neutral" ? "active" : ""} onClick={() => setViewOverride("neutral")}>Neutral</button>
-          <button className={viewOverride === "short" ? "active" : ""} onClick={() => setViewOverride("short")}>Short</button>
+          <span className="ctl-label">Book</span>
+          <button className={book === "short" ? "active" : ""} onClick={() => changeBook("short")}>Shorts</button>
+          <button className={book === "long" ? "active" : ""} onClick={() => changeBook("long")}>Longs</button>
+          <button className={book === "combined" ? "active" : ""} onClick={() => changeBook("combined")}>Combined</button>
           <span className="sep" />
           <button className="fire" onClick={fireLatest}>⚡ Fire a signal</button>
         </div>
@@ -362,7 +377,7 @@ export function LiveScene() {
         <header className="head">
           <div className="brand">
             <h1>TRADING365</h1>
-            <span className="sub">Live Altcoin Scanner · Longs &amp; Shorts</span>
+            <span className="sub">Live Altcoin Scanner · {bookLabel}</span>
             <span className="url">{SITE_HOST}</span>
           </div>
           <div className="head-right">
@@ -404,13 +419,13 @@ export function LiveScene() {
                 ) : (
                   <>
                     <div className="big">{Math.round(rec!.combinedHitRate!)}<span style={{ fontSize: 34 }}>%</span></div>
-                    <div className="lbl">Combined hit rate (TP1+)</div>
+                    <div className="lbl">{book === "combined" ? "Combined" : book === "short" ? "Short" : "Long"} hit rate (TP1+)</div>
                   </>
                 )}
               </div>
               <div className="split">
-                <div className="b"><span className="lk l">Longs</span><span className="lv">{sideContent(rec?.long)}</span></div>
-                <div className="b"><span className="lk s">Shorts</span><span className="lv">{sideContent(rec?.short)}</span></div>
+                {book !== "long" && <div className="b"><span className="lk s">Shorts</span><span className="lv">{sideContent(rec?.short)}</span></div>}
+                {book !== "short" && <div className="b"><span className="lk l">Longs</span><span className="lv">{sideContent(rec?.long)}</span></div>}
               </div>
               <div className="pnl-row">
                 <span className="k">Avg move / signal</span>
@@ -431,7 +446,7 @@ export function LiveScene() {
                 </div>
               </div>
               <div className="stateline-row">
-                <div className="state"><span className="orb" /><span className="txt">{reg.state}</span>{previewing && <span className="preview-badge">Preview</span>}</div>
+                <div className="state"><span className="orb" /><span className="txt">{reg.state}</span></div>
                 <div className="firebanner" ref={firebannerRef}><span className="fb-txt" ref={fbTxtRef} /></div>
               </div>
               <h2>{reg.head}</h2>

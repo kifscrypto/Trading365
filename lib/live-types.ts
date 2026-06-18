@@ -4,6 +4,12 @@
 
 export type Verdict = "long" | "short" | "neutral"
 
+// Which book the broadcast is currently showing. The operator switches this on
+// stream; it filters the feed, closed panel and track record, and the regime
+// banner follows it (a book's regime reads "engaged" only when conditions favour
+// that book, else "standing down").
+export type Book = "combined" | "short" | "long"
+
 export interface LiveSignal {
   id: number // scanner_signals.id — lets the client detect a genuinely new signal
   pair: string
@@ -54,6 +60,7 @@ export interface LiveClosed {
 }
 
 export interface LiveData {
+  book: Book // which book this payload was filtered for
   regime: { verdict: Verdict; lastSignalAt: string | null }
   signals: LiveSignal[] // Recent panel: currently-open fires, newest first
   closed: LiveClosed[] // Closed panel: most recent matured results, newest first

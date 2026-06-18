@@ -2,7 +2,7 @@ import { neon } from "@neondatabase/serverless"
 import { NextResponse } from "next/server"
 import { HEADERS, type SqlClient } from "@/app/api/scanner/_core"
 import type {
-  LiveData, LiveSignal, LiveClosed, LiveRecord, LiveContext, LivePrice, Verdict,
+  LiveData, LiveSignal, LiveClosed, LiveRecord, LiveContext, LivePrice, Verdict, Book,
 } from "@/lib/live-types"
 
 export const dynamic = "force-dynamic"
@@ -37,7 +37,7 @@ type Row = Record<string, unknown>
 const num = (v: unknown): number => (v == null ? NaN : Number(v))
 
 // ── Regime verdict (read-only) ──────────────────────────────────────────────
-async function getRegime(sql: SqlClient) {
+async function getRegime(sql: SqlClient, book: Book) {
   let verdict: Verdict = "neutral"
   let lastSignalAt: string | null = null
   try {
@@ -48,12 +48,20 @@ async function getRegime(sql: SqlClient) {
       ORDER BY created_at DESC
       LIMIT 1
     `) as Row[]
-    verdict = toVerdict(rows[0]?.market_condition as string | undefined)
+    const real = toVerdict(rows[0]?.market_condition as string | undefined)
+    // The regime FOLLOWS the selected book: a single book reads "engaged" only
+    // when the market favours it, otherwise it stands down (neutral). Combined
+    // shows the true market verdict.
+    verdict =
+      book === "combined" ? real :
+      book === "short"    ? (real === "short" ? "short" : "neutral") :
+                            (real === "long"  ? "long"  : "neutral")
   } catch { /* default neutral */ }
   try {
     const r = (await sql`
       SELECT MAX(scanned_at) AS t FROM scanner_signals
       WHERE score >= 7 AND symbol <> ALL(${EXCLUDE})
+        AND (${book} = 'combined' OR direction = ${book})
     `) as Row[]
     lastSignalAt = r[0]?.t ? new Date(r[0].t as string).toISOString() : null
   } catch { /* null */ }
@@ -87,18 +95,21 @@ function mapSignal(r: Row): LiveSignal {
 }
 
 // ── Recent panel: currently-OPEN fires (no 24h outcome yet), newest first ────
-async function getSignals(sql: SqlClient): Promise<{ signals: LiveSignal[]; latestSignalId: number | null }> {
+async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSignal[]; latestSignalId: number | null }> {
   try {
     const rows = (await sql`
       SELECT s.id, s.symbol, s.direction, s.price_at_signal, s.score, s.scanned_at, NULL AS pct_change
       FROM scanner_signals s
       LEFT JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
       WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE}) AND o.id IS NULL
+        AND (${book} = 'combined' OR s.direction = ${book})
       ORDER BY s.scanned_at DESC
       LIMIT 10
     `) as Row[]
     const [maxRow] = (await sql`
-      SELECT MAX(id)::int AS m FROM scanner_signals WHERE score >= 7 AND symbol <> ALL(${EXCLUDE})
+      SELECT MAX(id)::int AS m FROM scanner_signals
+      WHERE score >= 7 AND symbol <> ALL(${EXCLUDE})
+        AND (${book} = 'combined' OR direction = ${book})
     `) as Row[]
     const signals = rows.map(mapSignal)
     return { signals, latestSignalId: maxRow?.m != null ? num(maxRow.m) : (signals[0]?.id ?? null) }
@@ -117,13 +128,14 @@ function closedResult(direction: "long" | "short", pct: number): { result: strin
   return { result: `${captured >= 0 ? "+" : "−"}${Math.abs(captured).toFixed(1)}%`, win: false }
 }
 
-async function getClosed(sql: SqlClient): Promise<LiveClosed[]> {
+async function getClosed(sql: SqlClient, book: Book): Promise<LiveClosed[]> {
   try {
     const rows = (await sql`
       SELECT s.id, s.symbol, s.direction, s.scanned_at, o.pct_change
       FROM scanner_signals s
       JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
       WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE})
+        AND (${book} = 'combined' OR s.direction = ${book})
       ORDER BY s.scanned_at DESC
       LIMIT 10
     `) as Row[]
@@ -145,7 +157,7 @@ async function getClosed(sql: SqlClient): Promise<LiveClosed[]> {
 }
 
 // ── 30-day track record: per-book hit rate + counts + AVERAGE move/signal ────
-async function getRecord(sql: SqlClient): Promise<LiveRecord> {
+async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
   const empty: LiveRecord = { combinedHitRate: null, long: { hitRate: null, count: 0 }, short: { hitRate: null, count: 0 }, avgMove: null }
   try {
     const [shortRow] = (await sql`
@@ -170,11 +182,25 @@ async function getRecord(sql: SqlClient): Promise<LiveRecord> {
     const sCnt = num(shortRow?.cnt) || 0, sHits = num(shortRow?.hits) || 0, sSum = num(shortRow?.summove) || 0
     const lCnt = num(longRow?.cnt) || 0, lHits = num(longRow?.hits) || 0, lSum = num(longRow?.summove) || 0
     const totalCnt = sCnt + lCnt, totalHits = sHits + lHits
+    const rate = (hits: number, cnt: number) => (cnt > 0 ? (hits / cnt) * 100 : null)
+    const avg  = (sum: number, cnt: number) => (cnt > 0 ? sum / cnt : null)
+
+    // The hero hit-rate + avg move reflect the SELECTED book; the per-side cells
+    // always carry the true long/short numbers (the scene shows the relevant ones).
+    const heroRate =
+      book === "short" ? rate(sHits, sCnt) :
+      book === "long"  ? rate(lHits, lCnt) :
+                         rate(totalHits, totalCnt)
+    const heroAvg =
+      book === "short" ? avg(sSum, sCnt) :
+      book === "long"  ? avg(lSum, lCnt) :
+                         avg(sSum + lSum, totalCnt)
+
     return {
-      combinedHitRate: totalCnt > 0 ? (totalHits / totalCnt) * 100 : null,
-      long: { hitRate: lCnt > 0 ? (lHits / lCnt) * 100 : null, count: lCnt },
-      short: { hitRate: sCnt > 0 ? (sHits / sCnt) * 100 : null, count: sCnt },
-      avgMove: totalCnt > 0 ? (sSum + lSum) / totalCnt : null,
+      combinedHitRate: heroRate,
+      long: { hitRate: rate(lHits, lCnt), count: lCnt },
+      short: { hitRate: rate(sHits, sCnt), count: sCnt },
+      avgMove: heroAvg,
     }
   } catch {
     return empty
@@ -217,7 +243,12 @@ function buildPricesAndContext(tk: Map<string, Ticker>): { prices: LivePrice[]; 
 }
 
 export async function GET(request: Request) {
-  const mode = new URL(request.url).searchParams.get("mode")
+  const params = new URL(request.url).searchParams
+  const mode = params.get("mode")
+  // Which book to broadcast. Default is SHORT — the long model is freshly
+  // rewritten and its track record is still maturing.
+  const bp = params.get("book")
+  const book: Book = bp === "long" || bp === "combined" ? bp : "short"
   const noStore = { headers: { "Cache-Control": "no-store, max-age=0" } }
 
   // Lightweight prices-only mode for the fast (~3s) poll.
@@ -236,15 +267,16 @@ export async function GET(request: Request) {
   let context: LiveContext = { btcMomentum: null, volatility: null, altBreadth: null }
   let feedOk = false
   const [regime, sig, closed, record, tickers] = await Promise.all([
-    getRegime(sql),
-    getSignals(sql),
-    getClosed(sql),
-    getRecord(sql),
+    getRegime(sql, book),
+    getSignals(sql, book),
+    getClosed(sql, book),
+    getRecord(sql, book),
     fetchTickers().catch((e) => { console.error("[live] price source failed:", e instanceof Error ? e.message : e); return null }),
   ])
   if (tickers) { ({ prices, context } = buildPricesAndContext(tickers)); feedOk = prices.length > 0 }
 
   const data: LiveData = {
+    book,
     regime,
     signals: sig.signals,
     closed,
