@@ -196,6 +196,17 @@
   font-weight:500;font-size:24px;color:var(--text);opacity:0;transition:opacity .6s ease}
 .t365-live .cta .msg.show{opacity:1}
 .t365-live .cta .msg b{color:var(--gold);font-weight:600}
+/* preferred-partner slot — sits between the CTA strip and the QR card */
+.t365-live .partner{width:266px;display:flex;flex-direction:column;justify-content:center;gap:3px;
+  padding:0 22px;background:linear-gradient(180deg,#15171d,#101218);border:1px solid var(--line);
+  border-radius:12px;position:relative;overflow:hidden}
+.t365-live .partner::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;
+  background:linear-gradient(180deg,var(--gold),var(--gold-deep))}
+.t365-live .partner .plabel{font-family:var(--sans);font-weight:700;font-size:12px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--dim)}
+.t365-live .partner .pname{font-family:var(--cond);font-weight:700;font-size:36px;letter-spacing:.04em;
+  color:var(--gold);line-height:1.02;text-shadow:0 0 22px rgba(240,185,74,.25)}
+.t365-live .partner .pmsg{font-family:var(--sans);font-size:13.5px;color:var(--muted);letter-spacing:.01em;margin-top:3px}
 .t365-live .qrcard{width:300px;display:flex;align-items:center;gap:18px;padding:0 20px;
   background:linear-gradient(180deg,#15171d,#101218);border:1px solid var(--line);border-radius:12px}
 .t365-live .qrcard .qbox{background:#f7f1e3;padding:7px;border-radius:8px;line-height:0;box-shadow:0 0 0 1px var(--gold-deep)}

@@ -17,6 +17,10 @@ const SITE_HOST = host(SITE_URL)
 const SUB_HANDLE = host(SUB_URL)
 const QR_HOST = host(QR_URL)
 
+// Preferred-partner slot in the bottom band. Hard-coded for now — edit `name`
+// to swap the sponsor (or clear it to hide the box entirely).
+const PARTNER = { name: "WEEX", msg: "Click the link in the description" }
+
 // Rotating strip alternates website-intent and sub lines (URLs from env).
 const CTA_MSGS = [
   `Independent exchange reviews, fees &amp; sign-up bonuses → <b>${SITE_HOST}</b>`,
@@ -532,6 +536,13 @@ export function LiveScene() {
               ))}
             </div>
           </footer>
+          {PARTNER.name && (
+            <div className="partner">
+              <span className="plabel">Preferred Partner</span>
+              <span className="pname">{PARTNER.name}</span>
+              <span className="pmsg">↳ {PARTNER.msg}</span>
+            </div>
+          )}
           <div className="qrcard" ref={qrcardRef}>
             <div className="qbox"><div id="t365qr" /></div>
             <div className="qt">
