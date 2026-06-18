@@ -59,26 +59,32 @@ interface Stats {
   totalSignals: number
   signalsConfirmed: number
   avgMove: number | null
+  calibrating: boolean
 }
 
+// Below this many filtered signals with 24h outcomes, the rate is statistically
+// meaningless — show "Calibrating" instead of broadcasting a noisy percentage.
+const MIN_SAMPLE = 50
+
 // Stats are the LONG product: direction='long', hostile (bullish BTC) regime,
-// score ≥ 7. TP1 = +1.5% within 24h; directional accuracy = price rose (>0).
+// score ≥ 8 (the entry-alert threshold). TP1 = +1.5% within 24h; directional
+// accuracy = price rose (>0).
 async function getStats(): Promise<Stats> {
   const sql = neon(process.env.DATABASE_URL!)
   try {
     const aggRows = await sql`
       SELECT
         COUNT(*) FILTER (
-          WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+          WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change IS NOT NULL
         )::int AS filtered_with_24h,
         COUNT(*) FILTER (
-          WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change >= 1.5
+          WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change >= 1.5
         )::int AS tp1_hits,
         COUNT(*) FILTER (
-          WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change > 0
+          WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change > 0
         )::int AS up_hits,
         AVG(o24.pct_change) FILTER (
-          WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+          WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change IS NOT NULL
         )::float AS avg_move,
         (SELECT COUNT(*)::int FROM scanner_signals WHERE direction = 'long') AS total_all
       FROM scanner_signals s
@@ -88,15 +94,17 @@ async function getStats(): Promise<Stats> {
 
     const agg = aggRows[0] ?? {}
     const denom = (agg.filtered_with_24h ?? 0) as number
+    const ready = denom >= MIN_SAMPLE
     return {
-      tp1WinRate:          denom > 0 ? ((agg.tp1_hits as number) / denom) * 100 : null,
-      directionalAccuracy: denom > 0 ? ((agg.up_hits as number) / denom) * 100 : null,
+      tp1WinRate:          ready ? ((agg.tp1_hits as number) / denom) * 100 : null,
+      directionalAccuracy: ready ? ((agg.up_hits as number) / denom) * 100 : null,
       totalSignals:        (agg.total_all ?? 0) as number,
-      signalsConfirmed:    (agg.tp1_hits ?? 0) as number,
-      avgMove:             denom > 0 ? (agg.avg_move as number) : null,
+      signalsConfirmed:    ready ? ((agg.tp1_hits ?? 0) as number) : 0,
+      avgMove:             ready ? (agg.avg_move as number) : null,
+      calibrating:         !ready,
     }
   } catch {
-    return { tp1WinRate: null, directionalAccuracy: null, totalSignals: 0, signalsConfirmed: 0, avgMove: null }
+    return { tp1WinRate: null, directionalAccuracy: null, totalSignals: 0, signalsConfirmed: 0, avgMove: null, calibrating: true }
   }
 }
 
@@ -121,7 +129,7 @@ async function getRecentWins(): Promise<RecentWin[]> {
       JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
       WHERE s.direction = 'long'
         AND s.market_condition = 'hostile'
-        AND s.score >= 7
+        AND s.score >= 8
         AND o24.pct_change >= 1.5
         AND s.scanned_at > NOW() - INTERVAL '30 days'
       ORDER BY s.scanned_at DESC
@@ -239,14 +247,14 @@ export default async function LongScannerPage() {
           <div className="grid grid-cols-2 md:grid-cols-5 divide-x divide-border text-center">
             <div className="px-4 py-2">
               {tp1WinRate === null
-                ? <p className="text-base font-semibold text-muted-foreground pt-2.5">Accumulating data</p>
+                ? <p className="text-sm font-semibold text-muted-foreground pt-3 leading-tight">Calibrating — data accumulating</p>
                 : <p className="text-3xl font-bold text-emerald-400 tabular-nums">{fmtPct(tp1WinRate)}</p>}
               <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">TP1 Win Rate</p>
               <p className="text-[10px] text-muted-foreground/70 mt-0.5">TP1 hit rate (1.5% move)</p>
             </div>
             <div className="px-4 py-2">
               {directionalAccuracy === null
-                ? <p className="text-base font-semibold text-muted-foreground pt-2.5">Accumulating data</p>
+                ? <p className="text-sm font-semibold text-muted-foreground pt-3 leading-tight">Calibrating — data accumulating</p>
                 : <p className="text-3xl font-bold text-foreground tabular-nums">{fmtPct(directionalAccuracy)}</p>}
               <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Directional Accuracy</p>
               <p className="text-[10px] text-muted-foreground/70 mt-0.5">price rose within 24h</p>
@@ -259,13 +267,13 @@ export default async function LongScannerPage() {
             <div className="px-4 py-2">
               {signalsConfirmed > 0
                 ? <p className="text-3xl font-bold text-emerald-400 tabular-nums">{signalsConfirmed.toLocaleString()}</p>
-                : <p className="text-base font-semibold text-muted-foreground pt-2.5">Accumulating data</p>}
+                : <p className="text-sm font-semibold text-muted-foreground pt-3 leading-tight">Calibrating — data accumulating</p>}
               <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Signals Confirmed</p>
               <p className="text-[10px] text-muted-foreground/70 mt-0.5">hit TP1 within 24h</p>
             </div>
             <div className="px-4 py-2">
               {avgMove === null
-                ? <p className="text-base font-semibold text-muted-foreground pt-2.5">Accumulating data</p>
+                ? <p className="text-sm font-semibold text-muted-foreground pt-3 leading-tight">Calibrating — data accumulating</p>
                 : <p className={`text-3xl font-bold tabular-nums ${avgMove > 0 ? "text-emerald-400" : "text-foreground"}`}>
                     {`${avgMove > 0 ? "+" : ""}${avgMove.toFixed(2)}%`}
                   </p>}

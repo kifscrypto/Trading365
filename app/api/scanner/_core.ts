@@ -24,6 +24,22 @@ export interface RawResult {
   signals: string[]
   exchange: string
   scanned_at: string
+  // 4h trend context computed by the long scorer at scoring time and persisted on
+  // the watchlist row, so the long-entries route can reference 4h EMA levels
+  // without re-fetching 4h klines. Undefined for shorts (unused).
+  ema50_4h?: number | null
+  ema200_4h?: number | null
+  price_distance_pct?: number | null
+}
+
+/** Shared scorer return shape. Long scorer also emits 4h EMA context. */
+export interface ScoreResult {
+  score: number
+  signals: string[]
+  skip: boolean
+  ema50_4h?: number | null
+  ema200_4h?: number | null
+  price_distance_pct?: number | null
 }
 
 export const HEADERS = {
@@ -117,7 +133,7 @@ export function scoreKlines(
   dailyKlines: Kline[],
   price: number,
   fundingRate: number
-): { score: number; signals: string[]; skip: boolean } {
+): ScoreResult {
   const base = symbol.replace(/USDT$|USDC$|BUSD$|-USDT|-USDC|_USDT/i, '').toUpperCase()
   if (HARD_EXCLUDE.includes(base)) return { score: 0, signals: [], skip: true }
 
@@ -213,9 +229,26 @@ export function scoreKlines(
 }
 
 /**
- * LONG scoring — fully inverted, bullish-setup model. Same shape/inputs as
- * scoreKlines so the scan functions can swap scorers. Raw factors can total
- * ~17; applyBtcSentiment clamps the adjusted score to 15 (same ceiling as shorts).
+ * LONG scoring — PULLBACK-WITHIN-UPTREND model (Jun 2026 rewrite).
+ *
+ * Thesis: don't buy strength, buy the dip in a confirmed uptrend. "Daily looks
+ * great, 4h temporarily weak, sitting on support → buy the dip not the breakout."
+ * The old model rewarded extension (price above 50EMA, higher-highs, rising
+ * volume) and bought local tops that mean-reverted (−3.4% avg in the hostile,
+ * score≥7 product). This model rewards proximity to support inside an uptrend.
+ *
+ * Raw factors total ~17; applyBtcSentiment clamps the adjusted score to 15.
+ * Scoring/logging threshold stays ≥7 (entry route gates at ≥8). Same inputs as
+ * scoreKlines so the scan functions can swap scorers.
+ *
+ * HARD GATE: daily trend filter is non-negotiable — if we have enough daily
+ * candles and price is NOT above the daily trend EMA, the setup is skipped
+ * entirely (you do not long a coin in a daily downtrend). The trend EMA is the
+ * 200 EMA; for coins with <200 but ≥100 daily candles we fall back to the 100
+ * EMA and tag 'reduced_confidence' (no score penalty — flag only).
+ *
+ * Also emits the 4h ema50/ema200 + price-distance-from-200EMA so the entry route
+ * can reference 4h levels without re-fetching 4h klines.
  */
 export function scoreLongKlines(
   symbol: string,
@@ -223,7 +256,7 @@ export function scoreLongKlines(
   dailyKlines: Kline[],
   price: number,
   fundingRate: number
-): { score: number; signals: string[]; skip: boolean } {
+): ScoreResult {
   const base = symbol.replace(/USDT$|USDC$|BUSD$|-USDT|-USDC|_USDT/i, '').toUpperCase()
   if (HARD_EXCLUDE.includes(base)) return { score: 0, signals: [], skip: true }
 
@@ -232,96 +265,100 @@ export function scoreLongKlines(
   if (klines.length < 50) return { score, signals, skip: false }
 
   const closes  = klines.map(k => parseFloat(k[4]))
-  const highs   = klines.map(k => parseFloat(k[2]))
-  const lows    = klines.map(k => parseFloat(k[3]))
+  const opens   = klines.map(k => parseFloat(k[1]))
   const volumes = klines.map(k => parseFloat(k[5]))
 
-  // Are per-window extremes strictly ascending across the last n windows?
-  const ascending = (vals: number[], pick: (w: number[]) => number, seg = 5, n = 3): boolean => {
+  // 4h EMAs — also returned for the entry route.
+  let e50_4h: number | null = null, e200_4h: number | null = null
+  if (closes.length >= 50)  { const e = calcEMA(closes, 50);  e50_4h  = e[e.length - 1] }
+  if (closes.length >= 200) { const e = calcEMA(closes, 200); e200_4h = e[e.length - 1] }
+  const priceDistPct = e200_4h && e200_4h > 0 ? ((price - e200_4h) / e200_4h) * 100 : null
+  const ret = (s: ScoreResult): ScoreResult =>
+    ({ ...s, ema50_4h: e50_4h, ema200_4h: e200_4h, price_distance_pct: priceDistPct })
+
+  // Are per-window minima strictly ascending across the last n windows? (daily HL)
+  const ascendingLows = (vals: number[], seg = 5, n = 3): boolean => {
     if (vals.length < seg * n) return false
     const tail = vals.slice(-seg * n)
     const pts: number[] = []
-    for (let i = 0; i < n; i++) pts.push(pick(tail.slice(i * seg, (i + 1) * seg)))
+    for (let i = 0; i < n; i++) pts.push(Math.min(...tail.slice(i * seg, (i + 1) * seg)))
     for (let i = 1; i < n; i++) if (pts[i] <= pts[i - 1]) return false
     return true
   }
-  const minOf = (w: number[]) => Math.min(...w)
-  const maxOf = (w: number[]) => Math.max(...w)
 
-  // STRUCTURE (0–3)
-  let e50last = NaN, e200last = NaN
-  if (closes.length >= 200) {
-    const e200 = calcEMA(closes, 200); e200last = e200[e200.length - 1]
-    if (price > e200last) { score++; signals.push('above_200ema') }
-  }
-  if (closes.length >= 50) {
-    const e50 = calcEMA(closes, 50); e50last = e50[e50.length - 1]
-    if (price > e50last) { score++; signals.push('above_50ema') }
-  }
-  if (!Number.isNaN(e50last) && !Number.isNaN(e200last) && e50last > e200last) {
-    score++; signals.push('golden_cross')
-  }
-
-  // MOMENTUM (0–3)
-  if (closes.length >= 35) {
-    const { macd, signal: macdSig } = calcMACD(closes)
-    if (macd > macdSig)     { score++; signals.push('macd_bull') }
-    if (macd - macdSig > 0) { score++; signals.push('macd_hist_pos') }
-  }
-  if (closes.length >= 18) {
-    const rsi     = calcRSI(closes)
-    const rsiPrev = calcRSI(closes.slice(0, -3))
-    if (rsi >= 40 && rsi <= 65 && rsi > rsiPrev) { score++; signals.push('rsi_building') }
-  }
-
-  // VOLUME (0–2)
-  if (volumes.length >= 20) {
-    const last  = volumes[volumes.length - 1]
-    const avg20 = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20
-    if (last > avg20) { score++; signals.push('vol_above_avg') }
-  }
-  if (closes.length >= 4) {
-    const upMove = closes[closes.length - 1] > closes[closes.length - 4]
-    const v = volumes.slice(-3)
-    if (upMove && v[2] >= v[1] && v[1] >= v[0]) { score++; signals.push('vol_rising_up') }
-  }
-
-  // PATTERN (0–2)
-  if (ascending(lows, minOf))  { score++; signals.push('higher_lows') }
-  if (ascending(highs, maxOf)) { score++; signals.push('higher_highs') }
-
-  // EMA DISTANCE BANDING off the 50 EMA (0–2) — reward proximity, penalise extension
-  if (!Number.isNaN(e50last) && e50last > 0) {
-    const pctAbove = (price - e50last) / e50last
-    if (pctAbove >= 0 && pctAbove <= 0.03)        { score += 2; signals.push('ema50_tight') }
-    else if (pctAbove > 0.03 && pctAbove <= 0.06) { score += 1; signals.push('ema50_near') }
-    // > 6% above = too extended = 0
-  }
-
-  // FUNDING (0–2) — longs cheap when funding is low/negative; squeeze fuel when very negative
-  if (fundingRate < -0.0005)     { score += 2; signals.push('funding_squeeze') }
-  else if (fundingRate < 0.0001) { score += 1; signals.push('funding_low') }
-
-  // DAILY CONFIRMATION (0–2)
-  if (dailyKlines.length >= 200) {
+  // ── DAILY CONTEXT (0–4) + non-negotiable trend gate ────────────────────────
+  // Trend EMA = 200 daily; fall back to 100 daily (reduced_confidence) when a
+  // coin is too young for 200 candles. If we have the data and price is below
+  // the trend EMA, this is not a valid pullback-in-uptrend → skip.
+  if (dailyKlines.length >= 100) {
     const dCloses = dailyKlines.map(k => parseFloat(k[4]))
     const dLows   = dailyKlines.map(k => parseFloat(k[3]))
     const dPrice  = dCloses[dCloses.length - 1]
-    const dEma200 = calcEMA(dCloses, 200)
-    if (dPrice > dEma200[dEma200.length - 1]) { score++; signals.push('d_above_200ema') }
-    if (ascending(dLows, minOf))              { score++; signals.push('d_higher_lows') }
+    const period  = dailyKlines.length >= 200 ? 200 : 100
+    if (period === 100) signals.push('reduced_confidence')   // flag only, no penalty
+    const dTrend  = calcEMA(dCloses, period)
+    const dTrendLast = dTrend[dTrend.length - 1]
+
+    if (dPrice <= dTrendLast) return ret({ score: 0, signals: [], skip: true })  // hard trend gate
+    score += 2; signals.push('d_above_trend')
+
+    const dEma50 = calcEMA(dCloses, 50)
+    if (dEma50[dEma50.length - 1] > dTrendLast) { score++; signals.push('d_golden') }
+    if (ascendingLows(dLows))                   { score++; signals.push('d_higher_lows') }
   }
 
-  // RSI DIVERGENCE — bullish (0–1): price lower lows, RSI higher lows
-  if (closes.length >= 18 && lows.length >= 10) {
-    const rsi       = calcRSI(closes)
-    const rsiPrev   = calcRSI(closes.slice(0, -5))
-    const recentLow = Math.min(...lows.slice(-5))
-    const priorLow  = Math.min(...lows.slice(-10, -5))
-    if (recentLow < priorLow && rsi > rsiPrev) { score++; signals.push('rsi_bull_div') }
+  // ── 4h PULLBACK ZONE (0–7) ──────────────────────────────────────────────
+  // The heart of the model: price has dipped below the 4h 50EMA but is still
+  // holding above the 4h 200EMA, close to support, with a soft RSI.
+  if (e50_4h !== null && e200_4h !== null && price < e50_4h && price > e200_4h) {
+    score += 2; signals.push('pullback_zone')
+  }
+  if (priceDistPct !== null && priceDistPct > 0) {
+    if (priceDistPct <= 3)      { score += 2; signals.push('near_200ema') }
+    else if (priceDistPct <= 6) { score += 1; signals.push('above_200ema') }
+    // > 6% above 200EMA = too extended for a dip-buy = 0
+  }
+  if (closes.length >= 18) {
+    const rsi = calcRSI(closes)
+    if (rsi < 40)      { score += 2; signals.push('rsi_oversold') }
+    else if (rsi < 50) { score += 1; signals.push('rsi_soft') }
+  }
+  // MACD pulling back but still bullish: hist falling while MACD line > 0
+  if (closes.length >= 36) {
+    const { macd: mNow, signal: sNow } = calcMACD(closes)
+    const { macd: mPrev, signal: sPrev } = calcMACD(closes.slice(0, -1))
+    const histNow = mNow - sNow, histPrev = mPrev - sPrev
+    if (histNow < histPrev && mNow > 0) { score++; signals.push('macd_pullback') }
   }
 
-  return { score, signals, skip: false }
+  // ── VOLUME (0–2) — a healthy pullback comes on FALLING volume ─────────────
+  if (volumes.length >= 20) {
+    const last  = volumes[volumes.length - 1]
+    const avg20 = volumes.slice(-20).reduce((a, b) => a + b, 0) / 20
+    if (last < avg20) { score++; signals.push('low_vol_pullback') }
+  }
+  // Declining volume across the last 3 down candles
+  if (volumes.length >= 3 && closes.length >= 3) {
+    const v = volumes.slice(-3)
+    const down = closes.slice(-3).every((c, i) => c < opens[opens.length - 3 + i])
+    if (down && v[2] < v[1] && v[1] < v[0]) { score++; signals.push('vol_drying_up') }
+  }
+
+  // ── FUNDING (0–2) — longs are cheap when funding is low/negative ──────────
+  if (fundingRate < 0)            { score += 2; signals.push('funding_negative') }
+  else if (fundingRate < 0.0001)  { score += 1; signals.push('funding_low') }
+  // highly positive funding = crowded longs = 0
+
+  // ── CONFLUENCE BONUS (0–2) ────────────────────────────────────────────────
+  if (closes.length >= 18 && priceDistPct !== null) {
+    const rsi = calcRSI(closes)
+    const dailyBullish = signals.includes('d_above_trend')
+    if (dailyBullish && rsi < 45 && priceDistPct >= 0 && priceDistPct <= 5) {
+      score += 2; signals.push('confluence')
+    }
+  }
+
+  return ret({ score, signals, skip: false })
 }
 
 // --- OKX ---
@@ -410,7 +447,8 @@ export async function runOKXScan(direction: 'short' | 'long' = 'short'): Promise
         ? (fundingRes[j] as PromiseFulfilledResult<number>).value : 0
       const dailyKl = dailyRes[j].status === 'fulfilled'
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      const { score, signals, skip } = scoreFn(t.instId.replace('-USDT-SWAP', 'USDT'), kl, dailyKl, t.price, funding)
+      const { score, signals, skip, ema50_4h, ema200_4h, price_distance_pct } =
+        scoreFn(t.instId.replace('-USDT-SWAP', 'USDT'), kl, dailyKl, t.price, funding)
       if (skip) continue
       results.push({
         symbol:      t.instId.replace('-USDT-SWAP', 'USDT'),
@@ -421,6 +459,7 @@ export async function runOKXScan(direction: 'short' | 'long' = 'short'): Promise
         signals,
         exchange:    'okx',
         scanned_at:  new Date().toISOString(),
+        ema50_4h, ema200_4h, price_distance_pct,
       })
     }
   }
@@ -503,7 +542,8 @@ export async function runMEXCScan(direction: 'short' | 'long' = 'short'): Promis
       if (kl.length < 50) continue
       const dailyKl = dailyRes[j].status === 'fulfilled'
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      const { score, signals, skip } = scoreFn(t.symbol, kl, dailyKl, t.price, t.funding)
+      const { score, signals, skip, ema50_4h, ema200_4h, price_distance_pct } =
+        scoreFn(t.symbol, kl, dailyKl, t.price, t.funding)
       if (skip) continue
       results.push({
         symbol:      t.symbol.replace('_', ''),   // BTC_USDT → BTCUSDT
@@ -514,6 +554,7 @@ export async function runMEXCScan(direction: 'short' | 'long' = 'short'): Promis
         signals,
         exchange:    'mexc',
         scanned_at:  new Date().toISOString(),
+        ema50_4h, ema200_4h, price_distance_pct,
       })
     }
   }
@@ -606,7 +647,8 @@ export async function runWEEXScan(direction: 'short' | 'long' = 'short'): Promis
       if (kl.length < 50) continue
       const dailyKl = dailyRes[j].status === 'fulfilled'
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      const { score, signals, skip } = scoreFn(t.symbol, kl, dailyKl, t.price, t.funding)
+      const { score, signals, skip, ema50_4h, ema200_4h, price_distance_pct } =
+        scoreFn(t.symbol, kl, dailyKl, t.price, t.funding)
       if (skip) continue
       results.push({
         symbol:      t.symbol,
@@ -617,6 +659,7 @@ export async function runWEEXScan(direction: 'short' | 'long' = 'short'): Promis
         signals,
         exchange:    'weex',
         scanned_at:  new Date().toISOString(),
+        ema50_4h, ema200_4h, price_distance_pct,
       })
     }
   }
@@ -707,7 +750,8 @@ export async function runBitunixScan(direction: 'short' | 'long' = 'short'): Pro
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
       const funding = fundingRes[j].status === 'fulfilled'
         ? (fundingRes[j] as PromiseFulfilledResult<number>).value : 0
-      const { score, signals, skip } = scoreFn(t.symbol, kl, dailyKl, t.price, funding)
+      const { score, signals, skip, ema50_4h, ema200_4h, price_distance_pct } =
+        scoreFn(t.symbol, kl, dailyKl, t.price, funding)
       if (skip) continue
       results.push({
         symbol:      t.symbol,
@@ -718,6 +762,7 @@ export async function runBitunixScan(direction: 'short' | 'long' = 'short'): Pro
         signals,
         exchange:    'bitunix',
         scanned_at:  new Date().toISOString(),
+        ema50_4h, ema200_4h, price_distance_pct,
       })
     }
   }
@@ -806,7 +851,8 @@ export async function runHyperliquidScan(direction: 'short' | 'long' = 'short'):
       if (kl.length < 50) continue
       const dailyKl = dailyRes[j].status === 'fulfilled'
         ? (dailyRes[j] as PromiseFulfilledResult<Kline[]>).value : []
-      const { score, signals, skip } = scoreFn(t.coin, kl, dailyKl, t.price, t.funding8h)
+      const { score, signals, skip, ema50_4h, ema200_4h, price_distance_pct } =
+        scoreFn(t.coin, kl, dailyKl, t.price, t.funding8h)
       if (skip) continue
       results.push({
         symbol:      t.coin + 'USDT',
@@ -817,6 +863,7 @@ export async function runHyperliquidScan(direction: 'short' | 'long' = 'short'):
         signals,
         exchange:    'hyperliquid',
         scanned_at:  new Date().toISOString(),
+        ema50_4h, ema200_4h, price_distance_pct,
       })
     }
   }

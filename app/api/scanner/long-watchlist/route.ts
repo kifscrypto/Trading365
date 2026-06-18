@@ -37,9 +37,16 @@ export async function GET(request: Request) {
         sentiment_flags  JSONB       DEFAULT '[]',
         market_condition TEXT,
         price            NUMERIC,
+        ema50_4h           NUMERIC,
+        ema200_4h          NUMERIC,
+        price_distance_pct NUMERIC,
         created_at       TIMESTAMPTZ DEFAULT NOW()
       )
     `
+    // Migration: add the 4h trend columns to pre-existing tables (pullback model)
+    await sql`ALTER TABLE scanner_long_watchlist ADD COLUMN IF NOT EXISTS ema50_4h NUMERIC`
+    await sql`ALTER TABLE scanner_long_watchlist ADD COLUMN IF NOT EXISTS ema200_4h NUMERIC`
+    await sql`ALTER TABLE scanner_long_watchlist ADD COLUMN IF NOT EXISTS price_distance_pct NUMERIC`
 
     // All exchanges (long-scored) + BTC sentiment in parallel. allSettled-style
     // catch per scan so one exchange outage can't abort the whole build.
@@ -63,11 +70,13 @@ export async function GET(request: Request) {
     await Promise.all(
       allResults.map(r => sql`
         INSERT INTO scanner_long_watchlist
-          (symbol, exchange, score, adjusted_score, signals, sentiment_flags, market_condition, price)
+          (symbol, exchange, score, adjusted_score, signals, sentiment_flags, market_condition, price,
+           ema50_4h, ema200_4h, price_distance_pct)
         VALUES (
           ${r.symbol}, ${r.exchange}, ${r.score}, ${r.adjusted_score},
           ${JSON.stringify(r.signals)}::jsonb, ${JSON.stringify(r.sentiment_flags)}::jsonb,
-          ${r.market_condition}, ${r.price}
+          ${r.market_condition}, ${r.price},
+          ${r.ema50_4h ?? null}, ${r.ema200_4h ?? null}, ${r.price_distance_pct ?? null}
         )
       `)
     )

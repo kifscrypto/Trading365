@@ -2,7 +2,7 @@ import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 import {
   okx1hKlines, hyperliquid1hKlines, mexcKlines, weex1hKlines, bitunix1hKlines,
-  calcRSI, calcMACD, setupSignalTables, EXCHANGE_LABEL,
+  calcRSI, setupSignalTables, EXCHANGE_LABEL,
   type Kline, type SqlClient,
 } from '@/app/api/scanner/_core'
 import { exchangeTradeLink } from '@/app/api/scanner/_config'
@@ -14,26 +14,26 @@ import { exchangeTradeLink } from '@/app/api/scanner/_config'
 // never fed long rows. Existing short scanner code is untouched.
 
 const SIGNAL_DISPLAY: Record<string, string> = {
-  above_200ema:        '>200EMA',
-  above_50ema:         '>50EMA',
-  golden_cross:        'Golden X',
-  macd_bull:           'MACD Bull',
-  macd_hist_pos:       'MACD Hist+',
-  rsi_building:        'RSI Build',
-  vol_above_avg:       'Vol ✓',
-  vol_rising_up:       'Vol Rising',
-  higher_lows:         'HL',
-  higher_highs:        'HH',
-  ema50_tight:         'EMA50 ✓✓',
-  ema50_near:          'EMA50 ✓',
-  funding_squeeze:     'Fund Sqz',
-  funding_low:         'Fund Low',
-  d_above_200ema:      'D >200EMA',
+  // Pullback-within-uptrend scoring signals
+  d_above_trend:       'D Uptrend',
+  d_golden:            'D Golden X',
   d_higher_lows:       'D HL',
-  rsi_bull_div:        'RSI Div',
-  macd_1h_cross_bull:  'MACD 1H ✓',
-  rsi_1h_rising:       'RSI 1H ↑',
-  bullish_engulf:      'Bull Engulf',
+  pullback_zone:       'Pullback',
+  near_200ema:         'At 200EMA',
+  above_200ema:        '>200EMA',
+  rsi_oversold:        'RSI<40',
+  rsi_soft:            'RSI<50',
+  macd_pullback:       'MACD Dip',
+  low_vol_pullback:    'Low Vol',
+  vol_drying_up:       'Vol Drying',
+  funding_negative:    'Fund Neg',
+  funding_low:         'Fund Low',
+  confluence:          'Confluence',
+  reduced_confidence:  '⚠ Young',
+  // 1h entry triggers
+  rsi_1h_turn_up:      'RSI 1H ↑',
+  engulf_near_200:     'Bull Engulf',
+  ema_bounce_hl:       'EMA Bounce',
 }
 
 function fmtPrice(p: number): string {
@@ -42,23 +42,20 @@ function fmtPrice(p: number): string {
   return p.toFixed(6)
 }
 
-// --- 1H bullish entry triggers (inverted from the short route) ---
+// --- 1H bullish entry triggers (pullback-within-uptrend model) ---
+// The dip-buy fires when the 4h setup is a healthy pullback and the 1h shows the
+// dip is ENDING. Any ONE of three triggers qualifies (1-of-3 OR'd); the looser
+// trigger logic is compensated by the higher entry threshold (adjusted ≥ 8).
+// The 4h EMA levels referenced here are read from the watchlist row (stored at
+// scoring time), so the entry route never re-fetches 4h klines.
 
-function checkMACDCrossBull(klines: Kline[]): boolean {
-  if (klines.length < 36) return false
-  const closes = klines.map(k => parseFloat(k[4]))
-  const { macd: mNow,  signal: sNow  } = calcMACD(closes)
-  const { macd: mPrev, signal: sPrev } = calcMACD(closes.slice(0, -1))
-  // Bullish cross: was below or equal, now above
-  return mPrev <= sPrev && mNow > sNow
-}
-
-function checkRSIRising(klines: Kline[]): boolean {
+// Trigger A — RSI turning up off an oversold 1h reading (the dip is reversing).
+function checkRSIturnUp(klines: Kline[]): boolean {
   if (klines.length < 20) return false
   const closes  = klines.map(k => parseFloat(k[4]))
   const rsiNow  = calcRSI(closes)
   const rsiPrev = calcRSI(closes.slice(0, -3))
-  return rsiNow > 40 && rsiNow > rsiPrev
+  return rsiPrev < 40 && rsiNow > rsiPrev
 }
 
 function checkBullishEngulfing(klines: Kline[]): boolean {
@@ -71,6 +68,29 @@ function checkBullishEngulfing(klines: Kline[]): boolean {
     && lastClose > lastOpen          // current candle bullish
     && lastOpen  <= prevClose        // current opens below prev close
     && lastClose >= prevOpen         // current closes above prev open
+}
+
+// Trigger B — bullish engulfing on 1h occurring near the 4h 200EMA (support).
+function checkEngulfNear200(klines: Kline[], ema200_4h: number | null): boolean {
+  if (!ema200_4h || ema200_4h <= 0) return false
+  if (!checkBullishEngulfing(klines)) return false
+  const price = parseFloat(klines[klines.length - 1][4])
+  return Math.abs(price - ema200_4h) / ema200_4h <= 0.05   // within 5% of 200EMA
+}
+
+// Trigger C — bounce off a 4h EMA (50 or 200) with a higher-low forming on 1h.
+function checkEmaBounceHL(klines: Kline[], ema50_4h: number | null, ema200_4h: number | null): boolean {
+  if (klines.length < 16) return false
+  const lows  = klines.map(k => parseFloat(k[3]))
+  const price = parseFloat(klines[klines.length - 1][4])
+  // Recent low dipped to/below a 4h EMA (within 1.5%) and price reclaimed above it.
+  const bouncedOff = (ema: number | null) =>
+    !!ema && ema > 0 && Math.min(...lows.slice(-5)) <= ema * 1.015 && price > ema
+  const bounced = bouncedOff(ema50_4h) || bouncedOff(ema200_4h)
+  // Higher-low forming: most recent swing low above the prior swing low.
+  const recentSwing = Math.min(...lows.slice(-3))
+  const priorSwing  = Math.min(...lows.slice(-8, -3))
+  return bounced && recentSwing > priorSwing
 }
 
 function swingLow(klines: Kline[], lookback = 10): number {
@@ -132,7 +152,8 @@ export async function GET(request: Request) {
     const watchlist = await sql`
       SELECT DISTINCT ON (symbol, exchange)
         symbol, exchange, score, adjusted_score,
-        signals, market_condition, price
+        signals, market_condition, price,
+        ema50_4h, ema200_4h, price_distance_pct
       FROM scanner_long_watchlist
       WHERE created_at > NOW() - INTERVAL '5 hours'
       ORDER BY symbol, exchange, created_at DESC
@@ -177,27 +198,32 @@ export async function GET(request: Request) {
 
         if (klineResults[j].status !== 'fulfilled') continue
         const klines = (klineResults[j] as PromiseFulfilledResult<Kline[]>).value
-        if (klines.length < 36) continue
+        if (klines.length < 20) continue
 
-        const macdCross = checkMACDCrossBull(klines)
-        const rsiRising = checkRSIRising(klines)
-        const engulfing = checkBullishEngulfing(klines)
-        const firedCount = [macdCross, rsiRising, engulfing].filter(Boolean).length
-        console.log(`[long-entries] ${sym} 1H triggers — MACD bull cross:${macdCross} RSI rising:${rsiRising} Bull engulf:${engulfing} → firedCount:${firedCount}`)
+        // 4h EMA levels stored on the watchlist row (NUMERIC → string from neon).
+        const ema50_4h  = item.ema50_4h  != null ? Number(item.ema50_4h)  : null
+        const ema200_4h = item.ema200_4h != null ? Number(item.ema200_4h) : null
 
-        if (firedCount < 2) continue
+        const rsiTurn   = checkRSIturnUp(klines)
+        const engulf200 = checkEngulfNear200(klines, ema200_4h)
+        const emaBounce = checkEmaBounceHL(klines, ema50_4h, ema200_4h)
+        const firedCount = [rsiTurn, engulf200, emaBounce].filter(Boolean).length
+        console.log(`[long-entries] ${sym} 1H triggers — RSI turn-up:${rsiTurn} Engulf@200:${engulf200} EMA bounce+HL:${emaBounce} → firedCount:${firedCount}`)
+
+        // 1-of-3 OR'd entry triggers (compensated by the ≥8 score threshold below).
+        if (firedCount < 1) continue
 
         const entrySignals: string[] = []
-        if (macdCross) entrySignals.push('macd_1h_cross_bull')
-        if (rsiRising) entrySignals.push('rsi_1h_rising')
-        if (engulfing) entrySignals.push('bullish_engulf')
+        if (rsiTurn)   entrySignals.push('rsi_1h_turn_up')
+        if (engulf200) entrySignals.push('engulf_near_200')
+        if (emaBounce) entrySignals.push('ema_bounce_hl')
 
         const entryPrice    = parseFloat(klines[klines.length - 1][4])
         const stopPrice     = swingLow(klines)
         const adjustedScore = (item.adjusted_score ?? item.score ?? 0) as number
         const displaySymbol = sym.replace('USDT', '')
 
-        if (adjustedScore >= 7) {
+        if (adjustedScore >= 8) {
           // Dedup across exchanges: one alert per symbol per 4h — the first
           // qualifying exchange to be processed fires; the rest are skipped.
           const recent = await sql`
