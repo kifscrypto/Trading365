@@ -350,6 +350,14 @@ export default function ArticleStudioPage() {
   const [pubError, setPubError] = useState('')
   const [pubDone, setPubDone] = useState<{ id: number; slug: string; category_slug: string } | null>(null)
 
+  // Social posts (generated after publish)
+  const [redditTitle, setRedditTitle] = useState('')
+  const [redditBody, setRedditBody] = useState('')
+  const [xPost, setXPost] = useState('')
+  const [socialLoading, setSocialLoading] = useState(false)
+  const [socialError, setSocialError] = useState('')
+  const [copiedField, setCopiedField] = useState<string>('')
+
   const [error, setError] = useState('')
 
   // ── Step helpers ────────────────────────────────────────────────────────────
@@ -776,6 +784,37 @@ export default function ArticleStudioPage() {
     } finally {
       setPubLoading(false)
     }
+  }
+
+  // ── Step 8 → Social posts (after publish) ──────────────────────────────────
+
+  async function generateSocialPosts() {
+    if (!pubDone) return
+    setSocialLoading(true)
+    setSocialError('')
+    try {
+      const url = `https://trading365.org/${pubDone.category_slug}/${pubDone.slug}`
+      const res = await fetch('/api/admin/seo/social-posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: pubTitle.trim(), content: article, url }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Social post generation failed')
+      setRedditTitle(data.reddit_title ?? '')
+      setRedditBody(data.reddit_body ?? '')
+      setXPost(data.x_post ?? '')
+    } catch (err: any) {
+      setSocialError(err.message)
+    } finally {
+      setSocialLoading(false)
+    }
+  }
+
+  function copyField(field: string, value: string) {
+    navigator.clipboard.writeText(value)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(c => (c === field ? '' : c)), 2000)
   }
 
   // ── Styles ──────────────────────────────────────────────────────────────────
@@ -1435,6 +1474,73 @@ export default function ArticleStudioPage() {
               <a href={`/admin/articles/${pubDone.id}`} className="text-xs text-zinc-400 hover:text-zinc-300">
                 Edit in admin →
               </a>
+            </div>
+
+            {/* Social posts */}
+            <div className="mt-6 pt-5 border-t border-zinc-700">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className={h2}>Promote this article</h3>
+                  <p className="text-xs text-zinc-500 mt-1">Generate a Reddit and X post with the article link and a short summary.</p>
+                </div>
+                <button onClick={generateSocialPosts} disabled={socialLoading} className={primaryBtn}>
+                  {socialLoading ? 'Generating…' : (redditBody || xPost) ? 'Regenerate posts' : 'Generate social posts'}
+                </button>
+              </div>
+
+              {socialError && (
+                <div className="mt-3 px-4 py-3 bg-red-900/30 border border-red-700 text-red-400 rounded-lg text-sm">{socialError}</div>
+              )}
+
+              {(redditBody || xPost) && (
+                <div className="mt-4 space-y-5">
+                  {/* Reddit */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Reddit Post</span>
+                      <button
+                        onClick={() => copyField('reddit', `${redditTitle}\n\n${redditBody}`)}
+                        className={secondaryBtn}
+                      >
+                        {copiedField === 'reddit' ? '✓ Copied' : 'Copy title + body'}
+                      </button>
+                    </div>
+                    <input
+                      value={redditTitle}
+                      onChange={e => setRedditTitle(e.target.value)}
+                      placeholder="Reddit title"
+                      className={`${ic} mb-2 font-medium`}
+                    />
+                    <textarea
+                      value={redditBody}
+                      onChange={e => setRedditBody(e.target.value)}
+                      rows={4}
+                      placeholder="Reddit body"
+                      className={ic}
+                    />
+                  </div>
+
+                  {/* X */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">X Post</span>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs ${xPost.length > 280 ? 'text-red-400' : 'text-zinc-500'}`}>{xPost.length}/280</span>
+                        <button onClick={() => copyField('x', xPost)} className={secondaryBtn}>
+                          {copiedField === 'x' ? '✓ Copied' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+                    <textarea
+                      value={xPost}
+                      onChange={e => setXPost(e.target.value)}
+                      rows={3}
+                      placeholder="X post"
+                      className={ic}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
