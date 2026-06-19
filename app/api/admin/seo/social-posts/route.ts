@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
+import { getArticleBySlugFromDB } from '@/lib/data/articles-db'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -15,9 +16,20 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { content, title, url } = await request.json()
+    const body = await request.json()
+    let { content, title, url } = body as { content?: string; title?: string; url?: string }
+
+    // Admin list passes just a slug — look the article up server-side.
+    if (body.slug && (!content || !url)) {
+      const article = await getArticleBySlugFromDB(body.slug)
+      if (!article) return NextResponse.json({ error: 'Article not found' }, { status: 404 })
+      content = article.content
+      title = article.title
+      url = `https://trading365.org/${article.categorySlug}/${article.slug}`
+    }
+
     if (!url || typeof url !== 'string') {
-      return NextResponse.json({ error: 'Article url is required' }, { status: 400 })
+      return NextResponse.json({ error: 'Article url (or a valid slug) is required' }, { status: 400 })
     }
     const excerpt = typeof content === 'string' ? content.slice(0, 4000) : ''
 

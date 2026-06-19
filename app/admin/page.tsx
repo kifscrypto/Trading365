@@ -37,6 +37,9 @@ export default function AdminPage() {
   const [newsletterLoading, setNewsletterLoading] = useState<string | null>(null)
   const [newsletterModal, setNewsletterModal] = useState<{ slug: string; title: string; html: string } | null>(null)
   const [htmlCopied, setHtmlCopied] = useState(false)
+  const [socialLoading, setSocialLoading] = useState<string | null>(null)
+  const [socialModal, setSocialModal] = useState<{ slug: string; title: string; redditTitle: string; redditBody: string; xPost: string } | null>(null)
+  const [socialCopied, setSocialCopied] = useState<string>('')
   const [selectedLocales, setSelectedLocales] = useState<string[]>(['es', 'pt', 'de', 'fr'])
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([])
   // Article-list finding tools (all client-side over the already-loaded list)
@@ -370,6 +373,31 @@ export default function AdminPage() {
       alert(`Newsletter error: ${err.message}`)
     } finally {
       setNewsletterLoading(null)
+    }
+  }
+
+  async function handleGenerateSocial(slug: string, title: string) {
+    setSocialLoading(slug)
+    try {
+      const res = await fetch('/api/admin/seo/social-posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed')
+      setSocialModal({
+        slug,
+        title,
+        redditTitle: json.reddit_title ?? '',
+        redditBody: json.reddit_body ?? '',
+        xPost: json.x_post ?? '',
+      })
+      setSocialCopied('')
+    } catch (err: any) {
+      alert(`Social posts error: ${err.message}`)
+    } finally {
+      setSocialLoading(null)
     }
   }
 
@@ -1277,6 +1305,13 @@ export default function AdminPage() {
                         >
                           {newsletterLoading === article.slug ? 'Building…' : 'Newsletter'}
                         </button>
+                        <button
+                          onClick={() => handleGenerateSocial(article.slug, article.title)}
+                          disabled={socialLoading === article.slug}
+                          className="px-3 py-1 bg-orange-600 text-white rounded text-sm hover:bg-orange-500 disabled:opacity-50"
+                        >
+                          {socialLoading === article.slug ? 'Generating…' : 'Social'}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1345,6 +1380,73 @@ export default function AdminPage() {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Social Posts Modal */}
+      {socialModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-700">
+              <div>
+                <p className="text-xs text-zinc-400 mb-0.5">Social posts</p>
+                <p className="text-sm font-semibold text-zinc-100 line-clamp-1">{socialModal.title}</p>
+              </div>
+              <button onClick={() => setSocialModal(null)} className="text-zinc-400 hover:text-zinc-100 text-xl leading-none px-1">✕</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {/* Reddit */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Reddit Post</span>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(`${socialModal.redditTitle}\n\n${socialModal.redditBody}`); setSocialCopied('reddit'); setTimeout(() => setSocialCopied(c => (c === 'reddit' ? '' : c)), 2000) }}
+                    className="px-3 py-1 rounded text-xs bg-zinc-700 text-zinc-200 hover:bg-zinc-600"
+                  >
+                    {socialCopied === 'reddit' ? '✓ Copied' : 'Copy title + body'}
+                  </button>
+                </div>
+                <input
+                  value={socialModal.redditTitle}
+                  onChange={e => setSocialModal(m => (m ? { ...m, redditTitle: e.target.value } : m))}
+                  className="w-full px-3 py-2 mb-2 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <textarea
+                  value={socialModal.redditBody}
+                  onChange={e => setSocialModal(m => (m ? { ...m, redditBody: e.target.value } : m))}
+                  rows={4}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* X */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">X Post</span>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs ${socialModal.xPost.length > 280 ? 'text-red-400' : 'text-zinc-500'}`}>{socialModal.xPost.length}/280</span>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(socialModal.xPost); setSocialCopied('x'); setTimeout(() => setSocialCopied(c => (c === 'x' ? '' : c)), 2000) }}
+                      className="px-3 py-1 rounded text-xs bg-zinc-700 text-zinc-200 hover:bg-zinc-600"
+                    >
+                      {socialCopied === 'x' ? '✓ Copied' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  value={socialModal.xPost}
+                  onChange={e => setSocialModal(m => (m ? { ...m, xPost: e.target.value } : m))}
+                  rows={3}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-zinc-700 flex justify-end">
+              <button onClick={() => setSocialModal(null)} className="px-6 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-100 border border-zinc-700 hover:border-zinc-500">Close</button>
             </div>
           </div>
         </div>
