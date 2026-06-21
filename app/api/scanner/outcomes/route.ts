@@ -1,6 +1,23 @@
 import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
-import { setupSignalTables, HEADERS } from '@/app/api/scanner/_core'
+import {
+  setupSignalTables, HEADERS,
+  okx1hKlines, hyperliquid1hKlines, mexcKlines, type Kline,
+} from '@/app/api/scanner/_core'
+
+// Fetch 1h klines for a signal's symbol on its exchange, to detect whether the
+// protective stop was touched at any point during the outcome window. Only the
+// three exchanges the outcome tracker prices (OKX / Hyperliquid / MEXC) are
+// supported; others return [] and fall back to the uncapped spot outcome.
+async function fetchWindowKlines(exchange: string, symbol: string): Promise<Kline[]> {
+  const base = symbol.replace(/USDT$/i, '')
+  try {
+    if (exchange === 'okx')         return await okx1hKlines(`${base}-USDT-SWAP`)
+    if (exchange === 'hyperliquid') return await hyperliquid1hKlines(base)
+    if (exchange === 'mexc')        return await mexcKlines(`${base}_USDT`, 'Min60', 80)
+  } catch { /* fall through */ }
+  return []
+}
 
 async function fetchOKXPrices(): Promise<Map<string, number>> {
   const r = await fetch(
@@ -72,6 +89,8 @@ export async function GET(request: Request) {
         s.exchange,
         s.direction,
         s.price_at_signal::float               AS price_at_signal,
+        s.stop_price::float                    AS stop_price,
+        EXTRACT(EPOCH FROM s.scanned_at) * 1000 AS scanned_at_ms,
         EXTRACT(EPOCH FROM (NOW() - s.scanned_at)) / 3600 AS hours_old,
         (SELECT id FROM scanner_outcomes WHERE signal_id = s.id AND hours_after = 24 LIMIT 1) IS NULL AS needs_24h,
         (SELECT id FROM scanner_outcomes WHERE signal_id = s.id AND hours_after = 48 LIMIT 1) IS NULL AS needs_48h,
@@ -116,26 +135,51 @@ export async function GET(request: Request) {
       const currentPrice = priceMap.get(sig.symbol as string)
       if (!currentPrice) continue
 
-      const hours     = sig.hours_old as number
+      const hours      = sig.hours_old as number
       const entryPrice = sig.price_at_signal as number
-      const pctChange  = ((currentPrice - entryPrice) / entryPrice) * 100
+      const spotPct    = ((currentPrice - entryPrice) / entryPrice) * 100
+      const isLong     = (sig.direction as string) === 'long'
 
       const toRecord: number[] = []
       if (hours >= 24 && sig.needs_24h) toRecord.push(24)
       if (hours >= 48 && sig.needs_48h) toRecord.push(48)
       if (hours >= 72 && sig.needs_72h) toRecord.push(72)
+      if (toRecord.length === 0) continue
 
-      const isLong = (sig.direction as string) === 'long'
+      // Stop-aware capping: when the signal carries a protective stop, fetch the
+      // window's 1h klines once and, per window, check whether price ever pierced
+      // the stop. If it did, the trade was stopped out — record the loss at the
+      // stop level (never the raw spot move, which can over/understate it).
+      const stopPrice = sig.stop_price as number | null
+      const scannedMs = Number(sig.scanned_at_ms)
+      const stopPct   = stopPrice != null ? ((stopPrice - entryPrice) / entryPrice) * 100 : null
+      const klines    = stopPrice != null
+        ? await fetchWindowKlines(sig.exchange as string, sig.symbol as string)
+        : []
 
       for (const hours_after of toRecord) {
-        // TP flags only meaningful at the 24h check (entry triggers exit timeframe).
-        // Direction-aware: shorts win when price falls, longs win when price rises.
-        const tp1Hit = hours_after === 24 && (isLong ? pctChange >=  1.5 : pctChange <= -1.5)
-        const tp2Hit = hours_after === 24 && (isLong ? pctChange >=  2.5 : pctChange <= -2.5)
-        const tp3Hit = hours_after === 24 && (isLong ? pctChange >=  4.0 : pctChange <= -4.0)
+        // Stop breach anywhere in [scanned_at, scanned_at + hours_after]:
+        // short stops when a high pierces above; long stops when a low pierces below.
+        let stoppedOut = false
+        if (stopPrice != null && klines.length) {
+          const windowEnd = scannedMs + hours_after * 3_600_000
+          const inWindow = klines.filter(k => { const t = Number(k[0]); return t >= scannedMs && t <= windowEnd })
+          stoppedOut = inWindow.length > 0 && (isLong
+            ? inWindow.some(k => parseFloat(k[3]) <= stopPrice)
+            : inWindow.some(k => parseFloat(k[2]) >= stopPrice))
+        }
+
+        const pctChange   = stoppedOut && stopPct != null ? stopPct : spotPct
+        const recordPrice = stoppedOut && stopPrice != null ? stopPrice : currentPrice
+
+        // A stopped-out trade is never a win; otherwise direction-aware TP flags
+        // (shorts win when price falls, longs when price rises) at the 24h check.
+        const tp1Hit = !stoppedOut && hours_after === 24 && (isLong ? pctChange >=  1.5 : pctChange <= -1.5)
+        const tp2Hit = !stoppedOut && hours_after === 24 && (isLong ? pctChange >=  2.5 : pctChange <= -2.5)
+        const tp3Hit = !stoppedOut && hours_after === 24 && (isLong ? pctChange >=  4.0 : pctChange <= -4.0)
         await sql`
-          INSERT INTO scanner_outcomes (signal_id, hours_after, price, pct_change, tp1_hit, tp2_hit, tp3_hit)
-          VALUES (${sig.id as number}, ${hours_after}, ${currentPrice}, ${pctChange}, ${tp1Hit}, ${tp2Hit}, ${tp3Hit})
+          INSERT INTO scanner_outcomes (signal_id, hours_after, price, pct_change, tp1_hit, tp2_hit, tp3_hit, stopped_out)
+          VALUES (${sig.id as number}, ${hours_after}, ${recordPrice}, ${pctChange}, ${tp1Hit}, ${tp2Hit}, ${tp3Hit}, ${stoppedOut})
         `
         rows.push({ symbol: sig.symbol as string, hours: hours_after, pct: Math.round(pctChange * 100) / 100 })
         processed++

@@ -178,6 +178,7 @@
 .t365-live .tp.pend{color:var(--gold);border-color:rgba(240,185,74,.35);background:rgba(240,185,74,.06)}
 .t365-live .res{font-family:var(--mono);font-size:16px;text-align:right;font-variant-numeric:tabular-nums}
 .t365-live .res.win{color:var(--tp)} .t365-live .res.loss{color:var(--short)}
+.t365-live .res.sl{display:inline-block;font-family:var(--cond),sans-serif;font-weight:700;font-size:12px;letter-spacing:.08em;color:var(--gold);border:1px solid rgba(240,185,74,.4);background:rgba(240,185,74,.08);border-radius:3px;padding:1px 7px}
 .t365-live .frow .sc{font-family:var(--mono);font-weight:600;font-size:17px;text-align:right;color:var(--gold)}
 .t365-live .frow .ago{font-family:var(--mono);font-size:13px;text-align:right;color:var(--dim)}
 

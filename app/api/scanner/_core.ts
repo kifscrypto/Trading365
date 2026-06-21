@@ -30,6 +30,10 @@ export interface RawResult {
   ema50_4h?: number | null
   ema200_4h?: number | null
   price_distance_pct?: number | null
+  // Protective stop computed at scan time from recent swing extremes (short → last
+  // swing high, long → last swing low). Persisted on the signal so the outcome
+  // tracker can cap losses at this level. Absolute price, not a percentage.
+  stop_price?: number | null
 }
 
 /** Shared scorer return shape. Long scorer also emits 4h EMA context. */
@@ -126,6 +130,15 @@ export function calcMACD(closes: number[]): { macd: number; signal: number } {
 // --- Scoring (max raw ~15) ---
 
 const HARD_EXCLUDE = ['BTC', 'ETH', 'XAUT', 'XBT', 'DOGE', 'SHIB', 'PEPE', 'FLOKI', 'BONK', 'WIF', 'MEME', 'BOME', 'NEIRO', 'POPCAT', 'TURBO', 'GOAT', 'PNUT', 'LUNC', 'DEGEN']
+
+/** Protective stop from recent swing extremes. Short stops above the last swing
+ *  high (k[2]); long stops below the last swing low (k[3]). Returns an absolute price. */
+export function swingHigh(klines: Kline[], lookback = 10): number {
+  return Math.max(...klines.slice(-lookback).map(k => parseFloat(k[2])))
+}
+export function swingLow(klines: Kline[], lookback = 10): number {
+  return Math.min(...klines.slice(-lookback).map(k => parseFloat(k[3])))
+}
 
 export function scoreKlines(
   symbol: string,
@@ -460,6 +473,7 @@ export async function runOKXScan(direction: 'short' | 'long' = 'short'): Promise
         exchange:    'okx',
         scanned_at:  new Date().toISOString(),
         ema50_4h, ema200_4h, price_distance_pct,
+        stop_price:  direction === 'long' ? swingLow(kl) : swingHigh(kl),
       })
     }
   }
@@ -555,6 +569,7 @@ export async function runMEXCScan(direction: 'short' | 'long' = 'short'): Promis
         exchange:    'mexc',
         scanned_at:  new Date().toISOString(),
         ema50_4h, ema200_4h, price_distance_pct,
+        stop_price:  direction === 'long' ? swingLow(kl) : swingHigh(kl),
       })
     }
   }
@@ -660,6 +675,7 @@ export async function runWEEXScan(direction: 'short' | 'long' = 'short'): Promis
         exchange:    'weex',
         scanned_at:  new Date().toISOString(),
         ema50_4h, ema200_4h, price_distance_pct,
+        stop_price:  direction === 'long' ? swingLow(kl) : swingHigh(kl),
       })
     }
   }
@@ -763,6 +779,7 @@ export async function runBitunixScan(direction: 'short' | 'long' = 'short'): Pro
         exchange:    'bitunix',
         scanned_at:  new Date().toISOString(),
         ema50_4h, ema200_4h, price_distance_pct,
+        stop_price:  direction === 'long' ? swingLow(kl) : swingHigh(kl),
       })
     }
   }
@@ -864,6 +881,7 @@ export async function runHyperliquidScan(direction: 'short' | 'long' = 'short'):
         exchange:    'hyperliquid',
         scanned_at:  new Date().toISOString(),
         ema50_4h, ema200_4h, price_distance_pct,
+        stop_price:  direction === 'long' ? swingLow(kl) : swingHigh(kl),
       })
     }
   }
@@ -1018,6 +1036,9 @@ export async function setupSignalTables(sql: SqlClient): Promise<void> {
 
   // Migration: ensure the direction column exists on pre-existing tables (long/short support)
   await sql`ALTER TABLE scanner_signals ADD COLUMN IF NOT EXISTS direction VARCHAR(10) DEFAULT 'short'`
+  // Migration: protective stop price (absolute), populated at scan time so the
+  // outcome tracker can cap losses at the stop. NULL for pre-migration signals.
+  await sql`ALTER TABLE scanner_signals ADD COLUMN IF NOT EXISTS stop_price NUMERIC`
 
   await sql`
     CREATE TABLE IF NOT EXISTS scanner_outcomes (
@@ -1029,6 +1050,9 @@ export async function setupSignalTables(sql: SqlClient): Promise<void> {
       recorded_at TIMESTAMP     DEFAULT NOW()
     )
   `
+
+  // Migration: flag rows whose loss was capped at the protective stop level.
+  await sql`ALTER TABLE scanner_outcomes ADD COLUMN IF NOT EXISTS stopped_out BOOLEAN DEFAULT FALSE`
 }
 
 export interface LoggableResult {
@@ -1042,6 +1066,7 @@ export interface LoggableResult {
   fng: number
   oi_usd: number
   funding_pct: number    // already ×100, e.g. 0.01 means 0.01%
+  stop_price?: number | null // protective stop (absolute price), computed at scan time
 }
 
 export async function logSignals(
@@ -1070,14 +1095,15 @@ export async function logSignals(
 
     await sql`
       INSERT INTO scanner_signals
-        (symbol, exchange, price_at_signal, score, raw_score, signals, market_condition, fng, oi_usd, funding_rate, direction)
+        (symbol, exchange, price_at_signal, score, raw_score, signals, market_condition, fng, oi_usd, funding_rate, direction, stop_price)
       VALUES (
         ${r.symbol}, ${r.exchange}, ${r.price},
         ${r.adjusted_score}, ${r.score},
         ${signalsLiteral}::text[],
         ${r.market_condition},
         ${r.fng}, ${r.oi_usd}, ${r.funding_pct / 100},
-        ${direction}
+        ${direction},
+        ${r.stop_price ?? null}
       )
     `
     logged++

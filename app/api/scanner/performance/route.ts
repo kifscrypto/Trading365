@@ -51,9 +51,11 @@ export async function GET(request: Request) {
   try {
     // Regime-gated product set, direction-aware:
     //   short → direction='short' AND market_condition='favourable'
-    //   long  → direction='long'  AND market_condition='hostile'
+    //   long  → direction='long'  AND market_condition='hostile' AND scanned after the rewrite
     //   both  → either of the above
-    // The single param-guarded predicate covers all three cases.
+    // The single param-guarded predicate covers all three cases. Long signals are
+    // floored at the 2026-06-18 rewrite date so pre-rewrite long signals (a
+    // different model) can't pollute the stats; short signals are unaffected.
     const rows = await sql`
       SELECT
         s.id,
@@ -80,7 +82,7 @@ export async function GET(request: Request) {
         AND (
           (${direction} IN ('short', 'both') AND s.direction = 'short' AND s.market_condition = 'favourable')
           OR
-          (${direction} IN ('long', 'both')  AND s.direction = 'long'  AND s.market_condition = 'hostile')
+          (${direction} IN ('long', 'both')  AND s.direction = 'long'  AND s.market_condition = 'hostile' AND s.scanned_at > '2026-06-18')
         )
       ORDER BY s.scanned_at DESC
     `

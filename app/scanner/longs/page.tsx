@@ -86,10 +86,10 @@ async function getStats(): Promise<Stats> {
         AVG(o24.pct_change) FILTER (
           WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change IS NOT NULL
         )::float AS avg_move,
-        (SELECT COUNT(*)::int FROM scanner_signals WHERE direction = 'long') AS total_all
+        (SELECT COUNT(*)::int FROM scanner_signals WHERE direction = 'long' AND scanned_at > '2026-06-18') AS total_all
       FROM scanner_signals s
       LEFT JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
-      WHERE s.direction = 'long'
+      WHERE s.direction = 'long' AND s.scanned_at > '2026-06-18'
     `
 
     const agg = aggRows[0] ?? {}
@@ -132,6 +132,7 @@ async function getRecentWins(): Promise<RecentWin[]> {
         AND s.score >= 8
         AND o24.pct_change >= 1.5
         AND s.scanned_at > NOW() - INTERVAL '30 days'
+        AND s.scanned_at > '2026-06-18'
       ORDER BY s.scanned_at DESC
       LIMIT 12
     `

@@ -54,8 +54,9 @@ export interface LiveClosed {
   id: number
   pair: string
   direction: "long" | "short"
-  result: string // e.g. "TP2 +2.5%" or "−1.1%"
+  result: string // e.g. "TP2 +2.5%" or "−1.1%" or "SL −3.0%"
   win: boolean
+  stopped: boolean // loss was capped at the protective stop → show an SL badge
   time: string
 }
 

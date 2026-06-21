@@ -515,7 +515,10 @@ export function LiveScene() {
                     <div className="frow" key={c.id}>
                       <span className="pair">{c.pair}</span>
                       <span className={`dir ${c.direction === "long" ? "L" : "S"}`}>{c.direction === "long" ? "LONG" : "SHORT"}</span>
-                      <span className={`res ${c.win ? "win" : "loss"}`}>{c.result}</span>
+                      <span
+                        className={`res ${c.stopped ? "sl" : c.win ? "win" : "loss"}`}
+                        title={c.stopped ? c.result : undefined}
+                      >{c.stopped ? "SL" : c.result}</span>
                       <span className="ago">{fmtAgo(c.time)}</span>
                     </div>
                   ))}

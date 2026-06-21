@@ -103,6 +103,7 @@ async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSi
       LEFT JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
       WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE}) AND o.id IS NULL
         AND (${book} = 'combined' OR s.direction = ${book})
+        AND (s.direction <> 'long' OR s.scanned_at > '2026-06-18')
       ORDER BY s.scanned_at DESC
       LIMIT 10
     `) as Row[]
@@ -118,36 +119,49 @@ async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSi
   }
 }
 
+// Legacy display fallback. The outcome tracker now caps losses at the real stop
+// and sets stopped_out, but signals recorded before stop tracking have neither —
+// for those, cap any loss worse than this at the stop level and tag it 'SL'.
+const STOP_LOSS_PCT = 3
+
 // ── Closed panel: most recent signals that HAVE a matured 24h outcome ────────
-function closedResult(direction: "long" | "short", pct: number): { result: string; win: boolean } {
+function closedResult(direction: "long" | "short", pct: number, stoppedOut: boolean): { result: string; win: boolean; stopped: boolean } {
   const captured = direction === "short" ? -pct : pct // favourable move
-  if (captured >= 1.5) {
+  if (!stoppedOut && captured >= 1.5) {
     const tier = captured >= 4 ? 3 : captured >= 2.5 ? 2 : 1
-    return { result: `TP${tier} +${captured.toFixed(1)}%`, win: true }
+    return { result: `TP${tier} +${captured.toFixed(1)}%`, win: true, stopped: false }
   }
-  return { result: `${captured >= 0 ? "+" : "−"}${Math.abs(captured).toFixed(1)}%`, win: false }
+  // Stopped out (authoritative from the tracker), or a legacy loss worse than the
+  // stop → show the stop level with an SL tag, never the raw move.
+  if (stoppedOut || captured <= -STOP_LOSS_PCT) {
+    const mag = stoppedOut ? Math.abs(captured) : STOP_LOSS_PCT
+    return { result: `SL −${mag.toFixed(1)}%`, win: false, stopped: true }
+  }
+  return { result: `${captured >= 0 ? "+" : "−"}${Math.abs(captured).toFixed(1)}%`, win: false, stopped: false }
 }
 
 async function getClosed(sql: SqlClient, book: Book): Promise<LiveClosed[]> {
   try {
     const rows = (await sql`
-      SELECT s.id, s.symbol, s.direction, s.scanned_at, o.pct_change
+      SELECT s.id, s.symbol, s.direction, s.scanned_at, o.pct_change, o.stopped_out
       FROM scanner_signals s
       JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
       WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE})
         AND (${book} = 'combined' OR s.direction = ${book})
+        AND (s.direction <> 'long' OR s.scanned_at > '2026-06-18')
       ORDER BY s.scanned_at DESC
       LIMIT 10
     `) as Row[]
     return rows.map((r) => {
       const direction = (r.direction as string) === "long" ? "long" : "short"
-      const { result, win } = closedResult(direction, num(r.pct_change))
+      const { result, win, stopped } = closedResult(direction, num(r.pct_change), Boolean(r.stopped_out))
       return {
         id: num(r.id),
         pair: String(r.symbol).replace("USDT", ""),
         direction,
         result,
         win,
+        stopped,
         time: new Date(r.scanned_at as string).toISOString(),
       }
     })
@@ -177,6 +191,7 @@ async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
       JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
       WHERE s.direction = 'long' AND s.market_condition = 'hostile' AND s.score >= 7 AND s.symbol <> ALL(${EXCLUDE})
         AND s.scanned_at > NOW() - INTERVAL '30 days'
+        AND s.scanned_at > '2026-06-18'
     `) as Row[]
 
     const sCnt = num(shortRow?.cnt) || 0, sHits = num(shortRow?.hits) || 0, sSum = num(shortRow?.summove) || 0

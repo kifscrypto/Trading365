@@ -306,14 +306,15 @@ export async function GET(request: Request) {
 
           await sql`
             INSERT INTO scanner_signals
-              (symbol, exchange, price_at_signal, score, raw_score, signals, market_condition, direction)
+              (symbol, exchange, price_at_signal, score, raw_score, signals, market_condition, direction, stop_price)
             VALUES (
               ${sym}, ${item.exchange as string},
               ${entryPrice},
               ${adjustedScore}, ${item.score as number},
               ${signalsLiteral}::text[],
               ${item.market_condition as string},
-              'long'
+              'long',
+              ${stopPrice}
             )
           `
         }
