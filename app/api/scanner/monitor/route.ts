@@ -2,9 +2,10 @@ import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 import {
   okx1hKlines, hyperliquid1hKlines, mexcKlines, weex1hKlines, bitunix1hKlines,
-  exchangeTradeUrl, EXCHANGE_LABEL,
+  EXCHANGE_LABEL,
   type Kline,
 } from '@/app/api/scanner/_core'
+import { exchangeReferralUrl } from '@/app/api/scanner/_config'
 
 // Real-time TP-touch monitor for already-alerted short signals.
 //
@@ -21,17 +22,19 @@ function fmtPrice(p: number): string {
   return p.toFixed(6)
 }
 
-async function sendTelegram(text: string, chatIdOverride?: string): Promise<void> {
+async function sendTelegram(text: string, button?: { text: string; url: string }, chatIdOverride?: string): Promise<void> {
   const token  = process.env.TELEGRAM_BOT_TOKEN
   const chatId = chatIdOverride ?? process.env.TELEGRAM_CHAT_ID
   if (!token || !chatId) {
     console.error('[monitor/sendTelegram] missing token or chatId — token present:', !!token, 'chatId:', chatId)
     return
   }
+  const body: Record<string, unknown> = { chat_id: chatId, text }
+  if (button) body.reply_markup = { inline_keyboard: [[{ text: button.text, url: button.url }]] }
   const res  = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify(body),
   })
   const json = await res.json()
   if (!res.ok || !json.ok) {
@@ -39,10 +42,10 @@ async function sendTelegram(text: string, chatIdOverride?: string): Promise<void
   }
 }
 
-async function broadcast(text: string): Promise<void> {
+async function broadcast(text: string, button?: { text: string; url: string }): Promise<void> {
   // Single premium channel (TELEGRAM_CHAT_ID = @ShortsScanner). No separate
   // premium broadcast — that would double-post to the same channel.
-  await sendTelegram(text)
+  await sendTelegram(text, button)
 }
 
 function fetchKlines(symbol: string, exchange: string): Promise<Kline[]> {
@@ -172,9 +175,8 @@ export async function GET(request: Request) {
             `Reached: ${hitLabels}`,
             `Target price: $${fmtPrice(entry * best.mult)}`,
             `Signal confirmed 🎯`,
-            `Trade on ${exchangeLabel}: ${exchangeTradeUrl(exchange, a.symbol as string)}`,
           ].join('\n')
-          if (doSend) await broadcast(text)
+          if (doSend) await broadcast(text, { text: `Trade ${displaySymbol} on ${exchangeLabel}`, url: exchangeReferralUrl(exchange) })
           if (doWrite) {
             await sql`
               UPDATE telegram_alerts SET

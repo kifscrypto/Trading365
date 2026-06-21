@@ -5,7 +5,7 @@ import {
   calcRSI, setupSignalTables, EXCHANGE_LABEL,
   type Kline, type SqlClient,
 } from '@/app/api/scanner/_core'
-import { exchangeTradeLink } from '@/app/api/scanner/_config'
+import { exchangeReferralUrl } from '@/app/api/scanner/_config'
 
 // Long entry trigger — parallel to /api/scanner/entries, inverted for longs.
 // Reads the long watchlist, fires only in a BULLISH-BTC ('hostile') regime, and
@@ -99,17 +99,19 @@ function swingLow(klines: Kline[], lookback = 10): number {
 
 // --- Telegram (single premium channel, same as the short route now does) ---
 
-async function sendTelegram(text: string): Promise<void> {
+async function sendTelegram(text: string, button?: { text: string; url: string }): Promise<void> {
   const token  = process.env.TELEGRAM_BOT_TOKEN
   const chatId = process.env.TELEGRAM_CHAT_ID
   if (!token || !chatId) {
     console.error('[long-entries/sendTelegram] missing token or chatId — token present:', !!token, 'chatId:', chatId)
     return
   }
+  const body: Record<string, unknown> = { chat_id: chatId, text, parse_mode: 'HTML' }
+  if (button) body.reply_markup = { inline_keyboard: [[{ text: button.text, url: button.url }]] }
   const res  = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+    body: JSON.stringify(body),
   })
   const json = await res.json()
   if (!res.ok || !json.ok) console.error('[long-entries/sendTelegram] API error:', JSON.stringify(json))
@@ -250,7 +252,6 @@ export async function GET(request: Request) {
 
           const exchange      = item.exchange as string
           const exchangeLabel = EXCHANGE_LABEL[exchange] ?? 'OKX'
-          const tradeLink     = exchangeTradeLink(exchange, sym)
           const allSignalKeys = [...(item.signals as string[]), ...entrySignals]
           const signalStr     = allSignalKeys.map(s => SIGNAL_DISPLAY[s] ?? s).join(', ')
 
@@ -281,13 +282,12 @@ export async function GET(request: Request) {
             '',
             `📋 Signals: ${signalStr}`,
             '',
-            `🔗 Trade now: ${tradeLink}`,
-            '',
             '⚡ trading365.org/scanner/longs',
             div,
           ].join('\n') + '</b>'
 
-          await sendTelegram(text)
+          // Trade link is a tappable inline button carrying our referral link.
+          await sendTelegram(text, { text: `Trade ${displaySymbol} on ${exchangeLabel}`, url: exchangeReferralUrl(exchange) })
           triggered.push(displaySymbol)
         } else {
           // Below threshold — log to scanner_signals (direction='long') without alerting

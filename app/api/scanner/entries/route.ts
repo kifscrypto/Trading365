@@ -5,7 +5,7 @@ import {
   calcRSI, calcMACD, setupSignalTables, EXCHANGE_LABEL,
   type Kline, type SqlClient,
 } from '@/app/api/scanner/_core'
-import { exchangeTradeLink } from '@/app/api/scanner/_config'
+import { exchangeReferralUrl } from '@/app/api/scanner/_config'
 
 // Human-readable labels for Telegram alert
 const SIGNAL_DISPLAY: Record<string, string> = {
@@ -70,17 +70,19 @@ function swingHigh(klines: Kline[], lookback = 10): number {
 
 // --- Telegram ---
 
-async function sendTelegram(text: string, chatIdOverride?: string): Promise<void> {
+async function sendTelegram(text: string, button?: { text: string; url: string }, chatIdOverride?: string): Promise<void> {
   const token  = process.env.TELEGRAM_BOT_TOKEN
   const chatId = chatIdOverride ?? process.env.TELEGRAM_CHAT_ID
   if (!token || !chatId) {
     console.error('[sendTelegram] missing token or chatId — token present:', !!token, 'chatId:', chatId)
     return
   }
+  const body: Record<string, unknown> = { chat_id: chatId, text, parse_mode: 'HTML' }
+  if (button) body.reply_markup = { inline_keyboard: [[{ text: button.text, url: button.url }]] }
   const res  = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+    body: JSON.stringify(body),
   })
   const json = await res.json()
   if (!res.ok || !json.ok) {
@@ -249,7 +251,6 @@ export async function GET(request: Request) {
 
           const exchange      = item.exchange as string
           const exchangeLabel = EXCHANGE_LABEL[exchange] ?? 'OKX'
-          const tradeLink     = exchangeTradeLink(exchange, sym)
           const allSignalKeys = [...(item.signals as string[]), ...entrySignals]
           const signalStr     = allSignalKeys.map(s => SIGNAL_DISPLAY[s] ?? s).join(', ')
 
@@ -280,14 +281,13 @@ export async function GET(request: Request) {
             '',
             `📋 Signals: ${signalStr}`,
             '',
-            `🔗 Trade now: ${tradeLink}`,
-            '',
             '⚡ trading365.org/scanner',
             div,
           ].join('\n') + '</b>'
 
           // Single premium channel (TELEGRAM_CHAT_ID = @ShortsScanner) — one send only.
-          await sendTelegram(text)
+          // Trade link is a tappable inline button carrying our referral link.
+          await sendTelegram(text, { text: `Trade ${displaySymbol} on ${exchangeLabel}`, url: exchangeReferralUrl(exchange) })
           triggered.push(displaySymbol)
         } else {
           // Below threshold — log to scanner_signals without alerting
