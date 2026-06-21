@@ -142,7 +142,11 @@
 .t365-live .gauge .bars{display:flex;gap:5px}
 .t365-live .gauge .bars i{width:24px;height:10px;border-radius:2px;background:#2a313c;display:block}
 .t365-live .gauge .bars i.on{background:var(--ctx);box-shadow:0 0 8px rgba(125,138,160,.4)}
+/* directional tone: green = bullish, red = bearish, neutral keeps the slate above */
+.t365-live .gauge .bars i.on.up{background:var(--long);box-shadow:0 0 8px rgba(55,217,138,.45)}
+.t365-live .gauge .bars i.on.down{background:var(--short);box-shadow:0 0 8px rgba(255,77,94,.45)}
 .t365-live .gauge .gv{font-family:var(--mono);font-size:13px;color:var(--muted);margin-top:6px}
+.t365-live .gauge .gv.up{color:var(--long)} .t365-live .gauge .gv.down{color:var(--short)}
 @keyframes t365breathe{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.12);opacity:1}}
 @keyframes t365glow{0%,100%{text-shadow:0 0 32px var(--reg-hglow,rgba(255,157,46,.2))}50%{text-shadow:0 0 52px var(--reg-hglow,rgba(255,157,46,.42))}}
 

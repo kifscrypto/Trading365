@@ -356,10 +356,15 @@ export function LiveScene() {
     "--acc": reg.c, "--acc-glow": reg.c + "73",
   }
 
-  const gauges: Array<{ k: string; level: number; v: string }> = [
-    { k: "BTC Momentum", level: momentumLevel(ctx.btcMomentum), v: ctx.btcMomentum == null ? "—" : `${ctx.btcMomentum >= 0 ? "+" : ""}${ctx.btcMomentum.toFixed(1)}% 24h` },
-    { k: "Volatility", level: volLevel(ctx.volatility), v: ctx.volatility == null ? "—" : `${ctx.volatility.toFixed(1)}% range` },
-    { k: "Alt Breadth", level: breadthLevel(ctx.altBreadth), v: ctx.altBreadth == null ? "—" : `${Math.round(ctx.altBreadth)}% green` },
+  // Tone colours each gauge by its directional reading (green = bullish, red =
+  // bearish, neutral = no direction): BTC momentum by sign, alt breadth vs the
+  // 50% line; volatility has no direction so it stays neutral.
+  const tone = (n: number | null, pivot: number): "up" | "down" | "neutral" =>
+    n == null ? "neutral" : n >= pivot ? "up" : "down"
+  const gauges: Array<{ k: string; level: number; v: string; tone: "up" | "down" | "neutral" }> = [
+    { k: "BTC Momentum", level: momentumLevel(ctx.btcMomentum), v: ctx.btcMomentum == null ? "—" : `${ctx.btcMomentum >= 0 ? "+" : ""}${ctx.btcMomentum.toFixed(1)}% 24h`, tone: tone(ctx.btcMomentum, 0) },
+    { k: "Volatility", level: volLevel(ctx.volatility), v: ctx.volatility == null ? "—" : `${ctx.volatility.toFixed(1)}% range`, tone: "neutral" },
+    { k: "Alt Breadth", level: breadthLevel(ctx.altBreadth), v: ctx.altBreadth == null ? "—" : `${Math.round(ctx.altBreadth)}% green`, tone: tone(ctx.altBreadth, 50) },
   ]
 
   return (
@@ -468,8 +473,8 @@ export function LiveScene() {
                   {gauges.map((g) => (
                     <div className="gauge" key={g.k}>
                       <div className="gk">{g.k}</div>
-                      <div className="bars">{Array.from({ length: 5 }, (_, i) => <i key={i} className={i < g.level ? "on" : ""} />)}</div>
-                      <div className="gv">{g.v}</div>
+                      <div className="bars">{Array.from({ length: 5 }, (_, i) => <i key={i} className={i < g.level ? `on ${g.tone}` : ""} />)}</div>
+                      <div className={`gv ${g.tone}`}>{g.v}</div>
                     </div>
                   ))}
                 </div>
