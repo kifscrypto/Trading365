@@ -3,8 +3,9 @@ import { neon } from "@neondatabase/serverless"
 // Shared scanner stats + recent-wins, used by the homepage hero and the two
 // scanner pages so the advertised numbers can never diverge. The SQL is copied
 // verbatim from app/scanner/page.tsx (short) and app/scanner/longs/page.tsx
-// (long) — note the two sides are deliberately asymmetric: short filters by
-// market_condition='favourable', long filters by direction='long'.
+// (long). CANONICAL filters: short = direction='short' AND favourable AND
+// score>=7, TP1 = 24h pct_change<=-1.5; long = direction='long' AND hostile AND
+// score>=8 (floored at the Jun-18 rewrite), TP1 = >= +1.5.
 
 export type ScannerSide = "short" | "long"
 
@@ -40,16 +41,16 @@ export async function getScannerStats(side: ScannerSide): Promise<ScannerStats> 
       ? await sql`
         SELECT
           COUNT(*) FILTER (
-            WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+            WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
           )::int AS filtered_with_24h,
           COUNT(*) FILTER (
-            WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change <= -1.5
+            WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change <= -1.5
           )::int AS tp1_hits,
           COUNT(*) FILTER (
-            WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change < 0
+            WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change < 0
           )::int AS dir_hits,
           AVG(o24.pct_change) FILTER (
-            WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+            WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
           )::float AS avg_move,
           (SELECT COUNT(*)::int FROM scanner_signals) AS total_all
         FROM scanner_signals s
@@ -58,16 +59,16 @@ export async function getScannerStats(side: ScannerSide): Promise<ScannerStats> 
       : await sql`
         SELECT
           COUNT(*) FILTER (
-            WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+            WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change IS NOT NULL
           )::int AS filtered_with_24h,
           COUNT(*) FILTER (
-            WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change >= 1.5
+            WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change >= 1.5
           )::int AS tp1_hits,
           COUNT(*) FILTER (
-            WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change > 0
+            WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change > 0
           )::int AS dir_hits,
           AVG(o24.pct_change) FILTER (
-            WHERE s.market_condition = 'hostile' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+            WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change IS NOT NULL
           )::float AS avg_move,
           (SELECT COUNT(*)::int FROM scanner_signals WHERE direction = 'long' AND scanned_at > '2026-06-18') AS total_all
         FROM scanner_signals s
@@ -99,7 +100,8 @@ export async function getScannerRecentWins(side: ScannerSide, limit = 12): Promi
                s.scanned_at
         FROM scanner_signals s
         JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
-        WHERE s.market_condition = 'favourable'
+        WHERE s.direction = 'short'
+          AND s.market_condition = 'favourable'
           AND s.score >= 7
           AND o24.pct_change <= -1.5
           AND s.scanned_at > NOW() - INTERVAL '30 days'

@@ -77,16 +77,16 @@ async function getStats(): Promise<Stats> {
     const aggRows = await sql`
       SELECT
         COUNT(*) FILTER (
-          WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+          WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
         )::int AS filtered_with_24h,
         COUNT(*) FILTER (
-          WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change <= -1.5
+          WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change <= -1.5
         )::int AS tp1_hits,
         COUNT(*) FILTER (
-          WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change < 0
+          WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change < 0
         )::int AS down_hits,
         AVG(o24.pct_change) FILTER (
-          WHERE s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
+          WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
         )::float AS avg_move,
         (SELECT COUNT(*)::int FROM scanner_signals) AS total_all
       FROM scanner_signals s
@@ -127,7 +127,8 @@ async function getRecentWins(): Promise<RecentWin[]> {
              s.scanned_at
       FROM scanner_signals s
       JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
-      WHERE s.market_condition = 'favourable'
+      WHERE s.direction = 'short'
+        AND s.market_condition = 'favourable'
         AND s.score >= 7
         AND o24.pct_change <= -1.5
         AND s.scanned_at > NOW() - INTERVAL '30 days'
