@@ -29,10 +29,21 @@ const EXCHANGE_HOMEPAGE: Record<string, string> = {
 // scoring (both watchlist builders) AND before firing (both entry triggers), on
 // the short and long sides alike.
 const EXCLUDED_SYMBOLS = new Set<string>([
-  'NAS100USDT', 'SPX500USDT', 'QQQSTOCKUSDT',
+  // Tokenised stocks / indices
+  'NAS100USDT', 'SPX500USDT', 'QQQSTOCKUSDT', 'SPCXSTOCKUSDT', 'STXSTOCKUSDT',
+  // Forex / FX pairs
   'CHFUSDT', 'EURUSDT', 'GBPUSDT', 'JPYUSDT', 'AUDUSDT', 'NZDUSDT', 'CADUSDT',
+  // Gold (XAU / GOLD; GOLDUSTDT is a known exchange/typo variant)
+  'XAUUSDT', 'GOLDUSDT', 'GOLDUSTDT',
+  // Silver (XAG / SILVER)
+  'XAGUSDT', 'SILVERUSDT',
+  // Oil (WTI / Brent / US / UK / CL)
+  'WTIUSDT', 'BRENTUSDT', 'USOILUSDT', 'UKOILUSDT', 'CLUSDT',
+  // Copper
+  'COPPERUSDT', 'XCUUSDT',
+  // Leveraged / other non-altcoin tokens
   'LABUSDT', 'HUSDT', 'BICOUSDT',
-  // Add any other stock/forex/index/leveraged tokens here.
+  // Add any other stock/forex/index/commodity/leveraged tokens here.
 ])
 
 /**
