@@ -14,6 +14,13 @@ import type { SqlClient } from "@/app/api/scanner/_core"
  *   • any tranche whose TP was NOT reached exits at the 24h price
  *   • if the trade was stopped out, the ENTIRE position exits at the stop loss
  *
+ * Losses ALWAYS respect the stop (spec §6), even when the outcome tracker never
+ * flagged it: the tracker only sets stopped_out for OKX/HL/MEXC and only ran from
+ * 2026-06-21, so most historical losers carry stopped_out=false. Any loss worse
+ * than the signal's stop (its stored stop_price, else a 3% house fallback) is
+ * capped at the stop — otherwise unflagged losers ran to their raw 24h move,
+ * overstating losses and driving wild negative swings.
+ *
  * The per-trade return is the weighted blend of the tranche exits. A TP is
  * "reached" when the 24h favourable move hits that level — the same convention
  * the stats, closed-results and live record use (intra-window touches that
@@ -47,6 +54,11 @@ const TP3_WEIGHT = 0.25
 const TP1_MOVE = 1.5
 const TP2_MOVE = 2.5
 const TP3_MOVE = 4.0
+
+// House stop used to cap a loss when a signal has no stored stop_price (e.g.
+// pre-2026-06-21 signals, logged before stop tracking existed). Matches the live
+// page's STOP_LOSS_PCT fallback so the two surfaces agree.
+const STOP_LOSS_FALLBACK_PCT = 3
 
 export const PNL_LABEL =
   "Simulated P&L — $1,000 start, 10% position sizing, all signals followed"
@@ -93,6 +105,7 @@ interface EligibleSignal {
   outcomePrice: number
   pctChange: number // stop-aware capped 24h price move (signed)
   stoppedOut: boolean
+  stopPrice: number | null // protective stop (absolute price); null pre-stop-tracking
   scannedAt: string
 }
 
@@ -122,27 +135,42 @@ function resolveTrade(s: EligibleSignal): {
   pnlPct: number
 } {
   const isLong = s.direction === "long"
-  const favMove = isLong ? s.pctChange : -s.pctChange
+  const rawFav = isLong ? s.pctChange : -s.pctChange
 
   let pnlPct: number
   let exitReason: PnlExitReason
 
   if (s.stoppedOut) {
-    // Stop breached in the window → the entire position exits at the stop. The
-    // favourable move is the (negative) capped stop loss, never the raw move.
-    pnlPct = favMove
+    // Tracker confirmed a stop breach → loss already capped at the real stop.
+    pnlPct = rawFav
     exitReason = "SL"
   } else {
-    // Scale out: each tranche takes its TP if the 24h move reached it, otherwise
-    // exits at the 24h price (the stop was never hit, so it's always the 24h px).
-    const t1 = favMove >= TP1_MOVE ? TP1_MOVE : favMove
-    const t2 = favMove >= TP2_MOVE ? TP2_MOVE : favMove
-    const t3 = favMove >= TP3_MOVE ? TP3_MOVE : favMove
+    // Respect the stop even when the tracker didn't flag it. The outcome tracker
+    // only sets stopped_out for OKX/HL/MEXC and only ran from 2026-06-21, so many
+    // losers carry stopped_out=false yet would have stopped out. Cap the loss at
+    // the signal's own stored stop where present, else the house fallback — never
+    // let an unflagged loser run to its raw 24h move (that overstated the loss and
+    // drove the wild negative swings).
+    let stopFav = -STOP_LOSS_FALLBACK_PCT
+    if (s.stopPrice != null && s.entryPrice > 0) {
+      const moveToStopPct = ((s.stopPrice - s.entryPrice) / s.entryPrice) * 100
+      const realStopFav = isLong ? moveToStopPct : -moveToStopPct
+      if (realStopFav < 0) stopFav = realStopFav // ignore zero/garbage stops
+    }
+    const cappedAtStop = rawFav < stopFav
+    const fav = cappedAtStop ? stopFav : rawFav
+
+    // Scale out: each tranche takes its TP if the move reached it, else exits at
+    // the (stop-capped) 24h level.
+    const t1 = fav >= TP1_MOVE ? TP1_MOVE : fav
+    const t2 = fav >= TP2_MOVE ? TP2_MOVE : fav
+    const t3 = fav >= TP3_MOVE ? TP3_MOVE : fav
     pnlPct = TP1_WEIGHT * t1 + TP2_WEIGHT * t2 + TP3_WEIGHT * t3
     exitReason =
-      favMove >= TP3_MOVE ? "TP3" :
-      favMove >= TP2_MOVE ? "TP2" :
-      favMove >= TP1_MOVE ? "TP1" : "24H"
+      fav >= TP3_MOVE ? "TP3" :
+      fav >= TP2_MOVE ? "TP2" :
+      fav >= TP1_MOVE ? "TP1" :
+      cappedAtStop    ? "SL"  : "24H"
   }
 
   // Blended exit price implied by the weighted return (favourable move flipped
@@ -195,6 +223,7 @@ export async function computePnl(sql?: SqlClient): Promise<PnlResult> {
         o.price::float           AS outcome_price,
         o.pct_change::float      AS pct,
         COALESCE(o.stopped_out, FALSE) AS stopped_out,
+        s.stop_price::float      AS stop_price,
         s.scanned_at
       FROM scanner_signals s
       JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
@@ -215,6 +244,7 @@ export async function computePnl(sql?: SqlClient): Promise<PnlResult> {
         outcomePrice: Number(r.outcome_price),
         pctChange: Number(r.pct),
         stoppedOut: Boolean(r.stopped_out),
+        stopPrice: r.stop_price != null ? Number(r.stop_price) : null,
         scannedAt: new Date(r.scanned_at as string).toISOString(),
       }))
       .filter(
