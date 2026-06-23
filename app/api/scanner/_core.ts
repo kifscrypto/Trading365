@@ -3,6 +3,7 @@
  * Not a route itself; Next.js only treats route.ts as an API endpoint.
  */
 import { neon } from '@neondatabase/serverless'
+import { isExcludedSymbol } from './_config'
 
 export type Kline = [string, string, string, string, string, string, ...string[]]
 export type SqlClient = ReturnType<typeof neon>
@@ -140,6 +141,22 @@ export function swingLow(klines: Kline[], lookback = 10): number {
   return Math.min(...klines.slice(-lookback).map(k => parseFloat(k[3])))
 }
 
+/**
+ * Clamp a protective stop to a 2–4% distance from entry. The raw swing extreme can
+ * sit too tight (<2% → stopped out by noise) or too wide (>4% → oversized risk);
+ * this bounds it. Longs stop BELOW entry (2–4% below); shorts stop ABOVE (2–4% above).
+ */
+export function clampStop(entry: number, rawStop: number, direction: 'short' | 'long'): number {
+  if (direction === 'long') {
+    const nearest  = entry * 0.98  // min 2% below entry
+    const furthest = entry * 0.96  // max 4% below entry
+    return Math.min(Math.max(rawStop, furthest), nearest)
+  }
+  const nearest  = entry * 1.02    // min 2% above entry
+  const furthest = entry * 1.04    // max 4% above entry
+  return Math.max(Math.min(rawStop, furthest), nearest)
+}
+
 export function scoreKlines(
   symbol: string,
   klines: Kline[],
@@ -148,7 +165,7 @@ export function scoreKlines(
   fundingRate: number
 ): ScoreResult {
   const base = symbol.replace(/USDT$|USDC$|BUSD$|-USDT|-USDC|_USDT/i, '').toUpperCase()
-  if (HARD_EXCLUDE.includes(base)) return { score: 0, signals: [], skip: true }
+  if (HARD_EXCLUDE.includes(base) || isExcludedSymbol(symbol)) return { score: 0, signals: [], skip: true }
 
   const signals: string[] = []
   let score = 0
@@ -271,7 +288,7 @@ export function scoreLongKlines(
   fundingRate: number
 ): ScoreResult {
   const base = symbol.replace(/USDT$|USDC$|BUSD$|-USDT|-USDC|_USDT/i, '').toUpperCase()
-  if (HARD_EXCLUDE.includes(base)) return { score: 0, signals: [], skip: true }
+  if (HARD_EXCLUDE.includes(base) || isExcludedSymbol(symbol)) return { score: 0, signals: [], skip: true }
 
   const signals: string[] = []
   let score = 0
@@ -473,7 +490,7 @@ export async function runOKXScan(direction: 'short' | 'long' = 'short'): Promise
         exchange:    'okx',
         scanned_at:  new Date().toISOString(),
         ema50_4h, ema200_4h, price_distance_pct,
-        stop_price:  direction === 'long' ? swingLow(kl) : swingHigh(kl),
+        stop_price:  clampStop(t.price, direction === 'long' ? swingLow(kl) : swingHigh(kl), direction),
       })
     }
   }
@@ -569,7 +586,7 @@ export async function runMEXCScan(direction: 'short' | 'long' = 'short'): Promis
         exchange:    'mexc',
         scanned_at:  new Date().toISOString(),
         ema50_4h, ema200_4h, price_distance_pct,
-        stop_price:  direction === 'long' ? swingLow(kl) : swingHigh(kl),
+        stop_price:  clampStop(t.price, direction === 'long' ? swingLow(kl) : swingHigh(kl), direction),
       })
     }
   }
@@ -675,7 +692,7 @@ export async function runWEEXScan(direction: 'short' | 'long' = 'short'): Promis
         exchange:    'weex',
         scanned_at:  new Date().toISOString(),
         ema50_4h, ema200_4h, price_distance_pct,
-        stop_price:  direction === 'long' ? swingLow(kl) : swingHigh(kl),
+        stop_price:  clampStop(t.price, direction === 'long' ? swingLow(kl) : swingHigh(kl), direction),
       })
     }
   }
@@ -779,7 +796,7 @@ export async function runBitunixScan(direction: 'short' | 'long' = 'short'): Pro
         exchange:    'bitunix',
         scanned_at:  new Date().toISOString(),
         ema50_4h, ema200_4h, price_distance_pct,
-        stop_price:  direction === 'long' ? swingLow(kl) : swingHigh(kl),
+        stop_price:  clampStop(t.price, direction === 'long' ? swingLow(kl) : swingHigh(kl), direction),
       })
     }
   }
@@ -881,7 +898,7 @@ export async function runHyperliquidScan(direction: 'short' | 'long' = 'short'):
         exchange:    'hyperliquid',
         scanned_at:  new Date().toISOString(),
         ema50_4h, ema200_4h, price_distance_pct,
-        stop_price:  direction === 'long' ? swingLow(kl) : swingHigh(kl),
+        stop_price:  clampStop(t.price, direction === 'long' ? swingLow(kl) : swingHigh(kl), direction),
       })
     }
   }

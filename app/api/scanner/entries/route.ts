@@ -2,10 +2,10 @@ import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 import {
   okx1hKlines, hyperliquid1hKlines, mexcKlines, weex1hKlines, bitunix1hKlines,
-  calcRSI, calcMACD, setupSignalTables, EXCHANGE_LABEL,
+  calcRSI, calcMACD, setupSignalTables, EXCHANGE_LABEL, clampStop,
   type Kline, type SqlClient,
 } from '@/app/api/scanner/_core'
-import { exchangeReferralUrl } from '@/app/api/scanner/_config'
+import { exchangeReferralUrl, isExcludedSymbol } from '@/app/api/scanner/_config'
 
 // Human-readable labels for Telegram alert
 const SIGNAL_DISPLAY: Record<string, string> = {
@@ -191,6 +191,10 @@ export async function GET(request: Request) {
         const item = batch[j]
         const sym  = item.symbol as string
 
+        // Belt-and-suspenders: skip non-altcoins (stocks/forex/leveraged tokens),
+        // in case a stale watchlist row pre-dates the scorer-level exclude.
+        if (isExcludedSymbol(sym)) continue
+
         // Stage 2 — kline fetch result
         if (klineResults[j].status !== 'fulfilled') {
           console.log(`[entries] ${sym} kline fetch FAILED:`, (klineResults[j] as PromiseRejectedResult).reason)
@@ -216,7 +220,8 @@ export async function GET(request: Request) {
         if (engulfing)  entrySignals.push('bearish_engulf')
 
         const entryPrice    = parseFloat(klines[klines.length - 1][4])
-        const stopPrice     = swingHigh(klines)
+        // Protective stop = last swing high, clamped to 2–4% above entry.
+        const stopPrice     = clampStop(entryPrice, swingHigh(klines), 'short')
         const adjustedScore = (item.adjusted_score ?? item.score ?? 0) as number
         const displaySymbol = sym.replace('USDT', '')
 
@@ -277,7 +282,7 @@ export async function GET(request: Request) {
             `   TP2: $${fmtPrice(tp2)} (-2.5%)`,
             `   TP3: $${fmtPrice(tp3)} (-4.0%)`,
             '',
-            `🛑 Stop: $${fmtPrice(stopPrice)} (last swing high)`,
+            `🛑 Stop: $${fmtPrice(stopPrice)} (+${(((stopPrice - entryPrice) / entryPrice) * 100).toFixed(1)}%)`,
             '',
             `📋 Signals: ${signalStr}`,
             '',

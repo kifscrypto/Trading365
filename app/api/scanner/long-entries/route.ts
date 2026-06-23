@@ -2,10 +2,10 @@ import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
 import {
   okx1hKlines, hyperliquid1hKlines, mexcKlines, weex1hKlines, bitunix1hKlines,
-  calcRSI, setupSignalTables, EXCHANGE_LABEL,
+  calcRSI, setupSignalTables, EXCHANGE_LABEL, clampStop,
   type Kline, type SqlClient,
 } from '@/app/api/scanner/_core'
-import { exchangeReferralUrl } from '@/app/api/scanner/_config'
+import { exchangeReferralUrl, isExcludedSymbol } from '@/app/api/scanner/_config'
 
 // Long entry trigger — parallel to /api/scanner/entries, inverted for longs.
 // Reads the long watchlist, fires only in a BULLISH-BTC ('hostile') regime, and
@@ -198,6 +198,10 @@ export async function GET(request: Request) {
         const item = batch[j]
         const sym  = item.symbol as string
 
+        // Belt-and-suspenders: skip non-altcoins (stocks/forex/leveraged tokens),
+        // in case a stale watchlist row pre-dates the scorer-level exclude.
+        if (isExcludedSymbol(sym)) continue
+
         if (klineResults[j].status !== 'fulfilled') continue
         const klines = (klineResults[j] as PromiseFulfilledResult<Kline[]>).value
         if (klines.length < 20) continue
@@ -221,7 +225,8 @@ export async function GET(request: Request) {
         if (emaBounce) entrySignals.push('ema_bounce_hl')
 
         const entryPrice    = parseFloat(klines[klines.length - 1][4])
-        const stopPrice     = swingLow(klines)
+        // Protective stop = last swing low, clamped to 2–4% below entry.
+        const stopPrice     = clampStop(entryPrice, swingLow(klines), 'long')
         const adjustedScore = (item.adjusted_score ?? item.score ?? 0) as number
         const displaySymbol = sym.replace('USDT', '')
 
@@ -278,7 +283,7 @@ export async function GET(request: Request) {
             `   TP2: $${fmtPrice(tp2)} (+2.5%)`,
             `   TP3: $${fmtPrice(tp3)} (+4.0%)`,
             '',
-            `🛑 Stop: $${fmtPrice(stopPrice)} (last swing low)`,
+            `🛑 Stop: $${fmtPrice(stopPrice)} (-${(((entryPrice - stopPrice) / entryPrice) * 100).toFixed(1)}%)`,
             '',
             `📋 Signals: ${signalStr}`,
             '',
