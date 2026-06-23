@@ -36,6 +36,22 @@ export interface LiveRecord {
   avgMove: number | null // honest average favourable move per CLOSED signal, %
 }
 
+// Simulated running P&L (virtual $1,000 book, 10% fixed-fraction sizing). The
+// broadcast shows all three books at once — combined total plus the separate
+// short and long books. `series` is the running balance over time (sparkline).
+export interface LivePnlBook {
+  balance: number
+  returnPct: number
+  trades: number
+  startDate: string | null // ISO of the first tracked signal
+  series: number[]
+}
+export interface LivePnl {
+  combined: LivePnlBook
+  short: LivePnlBook
+  long: LivePnlBook
+}
+
 // MARKET CONTEXT gauges — public market data computed independently of the gate.
 export interface LiveContext {
   btcMomentum: number | null // BTC 24h %
@@ -67,6 +83,7 @@ export interface LiveData {
   closed: LiveClosed[] // Closed panel: most recent matured results, newest first
   latestSignalId: number | null // newest score>=7 crypto signal id — drives the fire trigger
   record: LiveRecord
+  pnl: LivePnl // simulated running P&L — combined + separate short/long books
   context: LiveContext
   prices: LivePrice[]
   feedOk: boolean // price source returned data this request

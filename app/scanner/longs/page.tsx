@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingDown } from "lucide-react"
 import { premiumEnabled } from "@/lib/premium"
 import { ScannerNewsletter } from "@/components/scanner-newsletter"
+import { computePnl } from "@/lib/scanner-pnl"
+import { ScannerPnlCard } from "@/components/scanner-pnl-card"
 
 const BASE_URL = "https://trading365.org"
 
@@ -200,7 +202,7 @@ const monthlyFeatures = [
 const quarterlyFeatures = ["Same features as monthly", "Priority support"]
 
 export default async function LongScannerPage() {
-  const [stats, recentWins] = await Promise.all([getStats(), getRecentWins()])
+  const [stats, recentWins, pnl] = await Promise.all([getStats(), getRecentWins(), computePnl()])
   const { tp1WinRate, directionalAccuracy, totalSignals, signalsConfirmed, avgMove } = stats
   const automated = premiumEnabled()
 
@@ -284,6 +286,9 @@ export default async function LongScannerPage() {
           </div>
         </div>
       </section>
+
+      {/* Simulated running P&L */}
+      <ScannerPnlCard book={pnl.long} accent="emerald" heading="Simulated P&L — Longs" />
 
       {/* Recent wins */}
       <section className="border-b border-border bg-zinc-950">

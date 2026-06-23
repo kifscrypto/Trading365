@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Script from "next/script"
-import type { Book, LiveData, LivePrice, LiveSideRecord, Verdict } from "@/lib/live-types"
+import { Sparkline } from "@/components/sparkline"
+import type { Book, LiveData, LivePrice, LivePnlBook, LiveSideRecord, Verdict } from "@/lib/live-types"
 
 // A book needs at least this many closed signals before we show a hit-rate %.
 const MIN_SAMPLE = 20
@@ -70,6 +71,15 @@ function fmtAgo(iso: string): string {
 }
 function fmtPct(n: number | null, digits = 0): string {
   return n === null || !Number.isFinite(n) ? "—" : `${n.toFixed(digits)}%`
+}
+function fmtUsd(n: number): string {
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function fmtRet(n: number): string {
+  return `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)}%`
+}
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
 }
 function momentumLevel(p: number | null) { if (p == null) return 0; const a = Math.abs(p); return a < 0.5 ? 1 : a < 1 ? 2 : a < 2 ? 3 : a < 3.5 ? 4 : 5 }
 function volLevel(v: number | null) { if (v == null) return 0; return v < 2 ? 1 : v < 3.5 ? 2 : v < 5 ? 3 : v < 7 ? 4 : 5 }
@@ -339,6 +349,7 @@ export function LiveScene() {
   const reg = REG[verdict]
   const ctx = data?.context ?? { btcMomentum: null, volatility: null, altBreadth: null }
   const rec = data?.record
+  const pnl = data?.pnl
   const signals = data?.signals ?? []
   const closed = data?.closed ?? []
   // Closed-sample count for the displayed book (gates the "building" hero).
@@ -439,6 +450,38 @@ export function LiveScene() {
               <div className="pnl-row">
                 <span className="k">Avg move / signal</span>
                 <span className="v">{rec?.avgMove == null ? "—" : `${rec.avgMove >= 0 ? "+" : "−"}${Math.abs(rec.avgMove).toFixed(1)}%`}</span>
+              </div>
+            </section>
+
+            {/* Simulated running P&L — combined total + separate short/long books */}
+            <section className="panel pnlboard">
+              <div className="eyebrow">Simulated P&amp;L · $1,000 Book</div>
+              <div className="pnl-cards">
+                {([
+                  { key: "combined", label: "Combined", cls: "c" },
+                  { key: "short", label: "Shorts", cls: "s" },
+                  { key: "long", label: "Longs", cls: "l" },
+                ] as const).map(({ key, label, cls }) => {
+                  const b: LivePnlBook | undefined = pnl?.[key]
+                  const ret = b?.returnPct ?? 0
+                  return (
+                    <div className={`pcard ${cls}`} key={key}>
+                      <div className="pk">{label}</div>
+                      <div className="pbal">{b && b.trades > 0 ? fmtUsd(b.balance) : "—"}</div>
+                      <div className={`pret ${ret >= 0 ? "up" : "down"}`}>
+                        {b && b.trades > 0 ? fmtRet(ret) : "building"}
+                      </div>
+                      <div className="pspark">
+                        {b && b.series.length > 1 && (
+                          <Sparkline data={b.series} width={150} height={30} strokeWidth={1.5} />
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="pnl-foot">
+                Simulated{pnl?.combined.startDate ? ` since ${fmtDate(pnl.combined.startDate)}` : ""} · $1,000 start · 10% position sizing · all signals followed · no fees or slippage. Past performance does not guarantee future results.
               </div>
             </section>
           </div>

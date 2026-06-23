@@ -89,6 +89,26 @@
 .t365-live .pnl-row .k{font-family:var(--sans);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .t365-live .pnl-row .v{font-family:var(--mono);font-weight:600;font-size:30px;color:var(--tp);font-variant-numeric:tabular-nums}
 
+/* simulated running P&L board (combined + separate short/long books) */
+.t365-live .pnlboard{flex:0.8;padding:16px 20px;display:flex;flex-direction:column;min-height:0}
+.t365-live .pnlboard .eyebrow{margin-bottom:12px}
+.t365-live .pnl-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;flex:1;min-height:0}
+.t365-live .pcard{background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;
+  padding:11px 13px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.t365-live .pcard .pk{font-family:var(--sans);font-weight:700;font-size:12px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted)}
+.t365-live .pcard.c .pk{color:var(--gold)}
+.t365-live .pcard.s .pk{color:var(--short)}
+.t365-live .pcard.l .pk{color:var(--long)}
+.t365-live .pcard .pbal{font-family:var(--mono);font-weight:600;font-size:22px;color:var(--text);
+  font-variant-numeric:tabular-nums;margin-top:7px;line-height:1}
+.t365-live .pcard .pret{font-family:var(--mono);font-weight:600;font-size:15px;margin-top:4px;
+  font-variant-numeric:tabular-nums}
+.t365-live .pcard .pret.up{color:var(--tp)} .t365-live .pcard .pret.down{color:var(--short)}
+.t365-live .pcard .pspark{margin-top:auto;width:100%;line-height:0}
+.t365-live .pcard .pspark svg{display:block;width:100%;height:30px}
+.t365-live .pnl-foot{font-family:var(--sans);font-size:11px;color:var(--dim);margin-top:12px;letter-spacing:.01em}
+
 .t365-live .rcol{display:grid;grid-template-rows:1.12fr 1fr;gap:16px;min-height:0}
 
 /* regime hero */

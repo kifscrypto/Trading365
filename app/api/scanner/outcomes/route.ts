@@ -4,6 +4,7 @@ import {
   setupSignalTables, HEADERS,
   okx1hKlines, hyperliquid1hKlines, mexcKlines, type Kline,
 } from '@/app/api/scanner/_core'
+import { persistPnl } from '@/lib/scanner-pnl'
 
 // Fetch 1h klines for a signal's symbol on its exchange, to detect whether the
 // protective stop was touched at any point during the outcome window. Only the
@@ -185,6 +186,11 @@ export async function GET(request: Request) {
         processed++
       }
     }
+
+    // New 24h outcomes were recorded → rebuild the simulated P&L ledger so the
+    // scanner pages and the live broadcast stay in sync. Best-effort: a failure
+    // here must never fail outcome recording (persistPnl swallows its own errors).
+    if (processed > 0) await persistPnl(sql)
 
     return NextResponse.json({ ok: true, processed, outcomes: rows })
   } catch (err) {

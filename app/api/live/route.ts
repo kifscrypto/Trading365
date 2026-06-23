@@ -1,8 +1,9 @@
 import { neon } from "@neondatabase/serverless"
 import { NextResponse } from "next/server"
 import { HEADERS, type SqlClient } from "@/app/api/scanner/_core"
+import { computePnl, type PnlBook } from "@/lib/scanner-pnl"
 import type {
-  LiveData, LiveSignal, LiveClosed, LiveRecord, LiveContext, LivePrice, Verdict, Book,
+  LiveData, LiveSignal, LiveClosed, LiveRecord, LiveContext, LivePrice, LivePnl, Verdict, Book,
 } from "@/lib/live-types"
 
 export const dynamic = "force-dynamic"
@@ -281,14 +282,31 @@ export async function GET(request: Request) {
   let prices: LivePrice[] = []
   let context: LiveContext = { btcMomentum: null, volatility: null, altBreadth: null }
   let feedOk = false
-  const [regime, sig, closed, record, tickers] = await Promise.all([
+  const [regime, sig, closed, record, pnlResult, tickers] = await Promise.all([
     getRegime(sql, book),
     getSignals(sql, book),
     getClosed(sql, book),
     getRecord(sql, book),
+    computePnl(sql),
     fetchTickers().catch((e) => { console.error("[live] price source failed:", e instanceof Error ? e.message : e); return null }),
   ])
   if (tickers) { ({ prices, context } = buildPricesAndContext(tickers)); feedOk = prices.length > 0 }
+
+  const slimPnl = (b: PnlBook): LivePnl["combined"] => ({
+    balance: Math.round(b.balance * 100) / 100,
+    returnPct: Math.round(b.returnPct * 10) / 10,
+    trades: b.trades,
+    startDate: b.startDate,
+    // Cap the sparkline series so the payload stays small on the 5s poll.
+    series: b.series.length > 80
+      ? b.series.filter((_, i) => i % Math.ceil(b.series.length / 80) === 0).concat(b.series[b.series.length - 1])
+      : b.series,
+  })
+  const pnl: LivePnl = {
+    combined: slimPnl(pnlResult.combined),
+    short: slimPnl(pnlResult.short),
+    long: slimPnl(pnlResult.long),
+  }
 
   const data: LiveData = {
     book,
@@ -297,6 +315,7 @@ export async function GET(request: Request) {
     closed,
     latestSignalId: sig.latestSignalId,
     record,
+    pnl,
     context,
     prices,
     feedOk,
