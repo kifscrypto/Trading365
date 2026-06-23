@@ -82,6 +82,12 @@ export async function GET(request: Request) {
     await sql`ALTER TABLE scanner_outcomes ADD COLUMN IF NOT EXISTS tp2_hit BOOLEAN DEFAULT FALSE`
     await sql`ALTER TABLE scanner_outcomes ADD COLUMN IF NOT EXISTS tp3_hit BOOLEAN DEFAULT FALSE`
 
+    // Exactly one outcome row per (signal, window). Overlapping cron runs used to
+    // race past the needs_* check and insert duplicate 24h rows (double-counting
+    // signals in the stats/P&L). This unique index + ON CONFLICT below makes the
+    // insert idempotent so it can never happen again.
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS scanner_outcomes_sig_hours_uniq ON scanner_outcomes (signal_id, hours_after)`
+
     // Find signals in last 7 days that are missing one or more time-window outcomes
     const signals = await sql`
       SELECT
@@ -181,6 +187,7 @@ export async function GET(request: Request) {
         await sql`
           INSERT INTO scanner_outcomes (signal_id, hours_after, price, pct_change, tp1_hit, tp2_hit, tp3_hit, stopped_out)
           VALUES (${sig.id as number}, ${hours_after}, ${recordPrice}, ${pctChange}, ${tp1Hit}, ${tp2Hit}, ${tp3Hit}, ${stoppedOut})
+          ON CONFLICT (signal_id, hours_after) DO NOTHING
         `
         rows.push({ symbol: sig.symbol as string, hours: hours_after, pct: Math.round(pctChange * 100) / 100 })
         processed++
