@@ -59,61 +59,71 @@ async function getRegime(sql: SqlClient, book: Book) {
                             (real === "long"  ? "long"  : "neutral")
   } catch { /* default neutral */ }
   try {
+    // Last fired ALERT (Telegram send) for the book — not the last scored candidate.
     const r = (await sql`
-      SELECT MAX(scanned_at) AS t FROM scanner_signals
-      WHERE score >= 7 AND symbol <> ALL(${EXCLUDE})
-        AND (${book} = 'combined' OR direction = ${book})
+      SELECT MAX(t) AS t FROM (
+        SELECT MAX(triggered_at) AS t FROM telegram_alerts
+        WHERE (${book} = 'combined' OR ${book} = 'short')
+        UNION ALL
+        SELECT MAX(triggered_at) AS t FROM telegram_alerts_long
+        WHERE (${book} = 'combined' OR ${book} = 'long')
+      ) x
     `) as Row[]
     lastSignalAt = r[0]?.t ? new Date(r[0].t as string).toISOString() : null
   } catch { /* null */ }
   return { verdict, lastSignalAt }
 }
 
-function mapSignal(r: Row): LiveSignal {
-  const direction = (r.direction as string) === "long" ? "long" : "short"
-  const pct = r.pct_change == null ? null : num(r.pct_change)
-  const hasOutcome = pct != null && Number.isFinite(pct)
-  // short wins on a drop (≤ −1.5/−2.5/−4); long wins on a rise (≥ +1.5/+2.5/+4)
-  const tps = hasOutcome
-    ? (direction === "short"
-        ? { tp1: pct! <= -1.5, tp2: pct! <= -2.5, tp3: pct! <= -4 }
-        : { tp1: pct! >= 1.5, tp2: pct! >= 2.5, tp3: pct! >= 4 })
-    : { tp1: false, tp2: false, tp3: false }
-  // signed favourable move: short captures the negative of pct, long the pct
-  const closeResult = hasOutcome ? (direction === "short" ? -pct! : pct!) : null
-  const scannedMs = new Date(r.scanned_at as string).getTime()
-  return {
-    id: num(r.id),
-    pair: String(r.symbol).replace("USDT", ""),
-    direction,
-    entry: num(r.price_at_signal),
-    ...tps,
-    closeResult,
-    score: num(r.score),
-    time: new Date(scannedMs).toISOString(),
-    live: !hasOutcome && Date.now() - scannedMs < 30 * 60 * 1000,
-  }
-}
-
-// ── Recent panel: currently-OPEN fires (no 24h outcome yet), newest first ────
+// ── Recent panel: actual fired Telegram alerts still inside their 24h window ──
+// Sourced from telegram_alerts (short) ∪ telegram_alerts_long (long) — the exact
+// rows that triggered a Telegram send — NOT scanner_signals (the scored-candidate
+// pool). No score/regime/exclude/date re-filtering: the alert already cleared
+// every gate at fire time, so re-filtering here is precisely what dropped them.
+// Row id = triggered_at epoch-ms — monotonic across BOTH tables, so the client's
+// "new signal" fire-trigger detection keeps working.
 async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSignal[]; latestSignalId: number | null }> {
   try {
     const rows = (await sql`
-      SELECT s.id, s.symbol, s.direction, s.price_at_signal, s.score, s.scanned_at, NULL AS pct_change
-      FROM scanner_signals s
-      LEFT JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
-      WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE}) AND o.id IS NULL
-        AND (${book} = 'combined' OR s.direction = ${book})
-        AND (s.direction <> 'long' OR s.scanned_at > '2026-06-18')
-      ORDER BY s.scanned_at DESC
+      SELECT id, symbol, direction, entry_price, score, triggered_at FROM (
+        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol,
+               'short'::text AS direction, entry_price, adjusted_score AS score, triggered_at
+        FROM telegram_alerts
+        WHERE triggered_at > NOW() - INTERVAL '24 hours' AND (${book} = 'combined' OR ${book} = 'short')
+        UNION ALL
+        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol,
+               'long'::text AS direction, entry_price, adjusted_score AS score, triggered_at
+        FROM telegram_alerts_long
+        WHERE triggered_at > NOW() - INTERVAL '24 hours' AND (${book} = 'combined' OR ${book} = 'long')
+      ) a
+      ORDER BY triggered_at DESC
       LIMIT 10
     `) as Row[]
+
     const [maxRow] = (await sql`
-      SELECT MAX(id)::int AS m FROM scanner_signals
-      WHERE score >= 7 AND symbol <> ALL(${EXCLUDE})
-        AND (${book} = 'combined' OR direction = ${book})
+      SELECT MAX(id) AS m FROM (
+        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id FROM telegram_alerts
+        WHERE (${book} = 'combined' OR ${book} = 'short')
+        UNION ALL
+        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id FROM telegram_alerts_long
+        WHERE (${book} = 'combined' OR ${book} = 'long')
+      ) a
     `) as Row[]
-    const signals = rows.map(mapSignal)
+
+    // Open fires: TP tiers pending until the trade matures (shown in Closed then).
+    const signals: LiveSignal[] = rows.map((r) => {
+      const ms = num(r.id)
+      return {
+        id: ms,
+        pair: String(r.symbol).replace("USDT", ""),
+        direction: (r.direction as string) === "long" ? "long" : "short",
+        entry: num(r.entry_price),
+        tp1: false, tp2: false, tp3: false,
+        closeResult: null,
+        score: num(r.score),
+        time: new Date(ms).toISOString(),
+        live: Date.now() - ms < 30 * 60 * 1000,
+      }
+    })
     return { signals, latestSignalId: maxRow?.m != null ? num(maxRow.m) : (signals[0]?.id ?? null) }
   } catch {
     return { signals: [], latestSignalId: null }
@@ -141,16 +151,36 @@ function closedResult(direction: "long" | "short", pct: number, stoppedOut: bool
   return { result: `${captured >= 0 ? "+" : "−"}${Math.abs(captured).toFixed(1)}%`, win: false, stopped: false }
 }
 
+// Fired alerts that have matured (≥24h old). The alert tables don't track
+// outcomes, so each alert is matched (Option A) to its scanner_signals candidate
+// — same symbol+exchange+direction, scored at/just before the fire — and that
+// candidate's 24h outcome. Only alerts with a matched outcome appear here.
 async function getClosed(sql: SqlClient, book: Book): Promise<LiveClosed[]> {
   try {
     const rows = (await sql`
-      SELECT s.id, s.symbol, s.direction, s.scanned_at, o.pct_change, o.stopped_out
-      FROM scanner_signals s
-      JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
-      WHERE s.score >= 7 AND s.symbol <> ALL(${EXCLUDE})
-        AND (${book} = 'combined' OR s.direction = ${book})
-        AND (s.direction <> 'long' OR s.scanned_at > '2026-06-18')
-      ORDER BY s.scanned_at DESC
+      SELECT a.id, a.symbol, a.direction, c.pct_change, c.stopped_out
+      FROM (
+        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol, exchange,
+               'short'::text AS direction, triggered_at
+        FROM telegram_alerts
+        WHERE triggered_at <= NOW() - INTERVAL '24 hours' AND (${book} = 'combined' OR ${book} = 'short')
+        UNION ALL
+        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol, exchange,
+               'long'::text AS direction, triggered_at
+        FROM telegram_alerts_long
+        WHERE triggered_at <= NOW() - INTERVAL '24 hours' AND (${book} = 'combined' OR ${book} = 'long')
+      ) a
+      JOIN LATERAL (
+        SELECT o.pct_change, o.stopped_out
+        FROM scanner_signals s
+        JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
+        WHERE s.symbol = a.symbol AND s.exchange = a.exchange AND s.direction = a.direction
+          AND s.scanned_at <= a.triggered_at + INTERVAL '1 hour'
+          AND s.scanned_at >  a.triggered_at - INTERVAL '6 hours'
+        ORDER BY s.scanned_at DESC
+        LIMIT 1
+      ) c ON TRUE
+      ORDER BY a.id DESC
       LIMIT 10
     `) as Row[]
     return rows.map((r) => {
@@ -163,7 +193,7 @@ async function getClosed(sql: SqlClient, book: Book): Promise<LiveClosed[]> {
         result,
         win,
         stopped,
-        time: new Date(r.scanned_at as string).toISOString(),
+        time: new Date(num(r.id)).toISOString(),
       }
     })
   } catch {
@@ -261,10 +291,10 @@ function buildPricesAndContext(tk: Map<string, Ticker>): { prices: LivePrice[]; 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams
   const mode = params.get("mode")
-  // Which book to broadcast. Default is SHORT — the long model is freshly
-  // rewritten and its track record is still maturing.
+  // Which book to broadcast. Default is COMBINED so alerts from BOTH books show
+  // without the operator having to switch.
   const bp = params.get("book")
-  const book: Book = bp === "long" || bp === "combined" ? bp : "short"
+  const book: Book = bp === "long" || bp === "short" ? bp : "combined"
   const noStore = { headers: { "Cache-Control": "no-store, max-age=0" } }
 
   // Lightweight prices-only mode for the fast (~3s) poll.

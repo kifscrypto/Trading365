@@ -113,11 +113,11 @@ export function LiveScene() {
   // Transient verdict the regime washes to DURING a fire/replay (the fired
   // signal's side). Cleared on settle → returns to the real verdict.
   const [fireVerdict, setFireVerdict] = useState<Verdict | null>(null)
-  // Which book the operator is broadcasting. Default SHORT (long model is
-  // freshly rewritten and still building a track record). Filters the feed,
-  // closed panel and track record server-side; the regime follows it.
-  const [book, setBookState] = useState<Book>("short")
-  const bookRef = useRef<Book>("short")
+  // Which book the operator is broadcasting. Default COMBINED so fired alerts
+  // from both books show without switching. Filters the feed, closed panel and
+  // track record server-side; the regime follows it.
+  const [book, setBookState] = useState<Book>("combined")
+  const bookRef = useRef<Book>("combined")
   const seenIdRef = useRef<number | null>(null)
   const firstPollDoneRef = useRef(false)
   const prevVerdictRef = useRef<Verdict | null>(null)
