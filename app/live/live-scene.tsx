@@ -429,7 +429,7 @@ export function LiveScene() {
             </section>
 
             <section className="panel score">
-              <div className="eyebrow">Track Record · Last 30 Days</div>
+              <div className="eyebrow">Signal Hit Rate · Last 30 Days</div>
               <div className="hero-stat">
                 {totalClosed < MIN_SAMPLE ? (
                   <>
