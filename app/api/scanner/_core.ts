@@ -12,7 +12,8 @@ export interface SentimentCondition {
   fng: number
   btcDominance: number
   btcFunding: number
-  btcStructure: 'bullish' | 'neutral' | 'bearish'
+  btcStructure: 'bullish' | 'neutral' | 'bearish'        // 4H price vs EMA50
+  btcStructureDaily: 'bullish' | 'neutral' | 'bearish'   // daily price vs EMA200
   domTrend: 'up' | 'down' | 'flat'
 }
 
@@ -917,25 +918,33 @@ export function applyBtcSentiment(
   sentimentFlags: string[]
 } {
   const sentimentFlags: string[] = []
-  // fav/hos are from the SHORT perspective (favourable = greedy/bearish-BTC regime;
-  // hostile = bullish BTC). This LABEL is shared by both directions — only the score
-  // delta below is inverted for longs — so 'hostile' always means bullish BTC.
+  // Trend-following regime (absolute, from the SHORT perspective): favourable =
+  // bearish BTC, hostile = bullish BTC. Structure leads; FNG only confirms. The
+  // LABEL is shared by both directions — only the score delta below is inverted
+  // for longs — so 'hostile' always means bullish BTC.
   let fav = 0, hos = 0
 
-  if (s.fng >= 75)      { sentimentFlags.push('extreme_greed'); fav += 2 }
-  else if (s.fng >= 60) { sentimentFlags.push('greed');         fav += 1 }
-  else if (s.fng <= 20) { sentimentFlags.push('extreme_fear');  hos += 2 }
-  else if (s.fng <= 35) { sentimentFlags.push('fear');          hos += 1 }
+  // 1) STRUCTURE IS KING — 4H price vs EMA50 sets the primary direction (±2).
+  if (s.btcStructure === 'bearish')      { sentimentFlags.push('btc_bearish'); fav += 2 }
+  else if (s.btcStructure === 'bullish') { sentimentFlags.push('btc_bullish'); hos += 2 }
 
+  // 2) FNG — CONFIRMATORY ONLY, capped at +1 (no extreme +2 tier). Fear confirms
+  //    a bearish trend, greed confirms a bullish one — it never overrides structure.
+  if (s.fng <= 35)      { sentimentFlags.push('fng_fear');  fav += 1 }
+  else if (s.fng >= 60) { sentimentFlags.push('fng_greed'); hos += 1 }
+
+  // 3) FUNDING — +1 to whichever side.
   if (s.btcFunding > 0.0003)       { sentimentFlags.push('btc_high_longs');  fav += 1 }
   else if (s.btcFunding > 0)       { sentimentFlags.push('btc_pos_funding'); fav += 1 }
   else if (s.btcFunding < -0.0001) { sentimentFlags.push('btc_crowd_short'); hos += 1 }
 
-  if (s.btcStructure === 'bearish')  { sentimentFlags.push('btc_bearish'); fav += 1 }
-  else if (s.btcStructure === 'bullish') { sentimentFlags.push('btc_bullish'); hos += 1 }
-
+  // 4) BTC DOMINANCE — +1 to whichever side.
   if (s.domTrend === 'up')        { sentimentFlags.push('dom_rising');  fav += 1 }
   else if (s.domTrend === 'down') { sentimentFlags.push('dom_falling'); hos += 1 }
+
+  // 5) DAILY 200 EMA — higher-timeframe tiebreaker (±1).
+  if (s.btcStructureDaily === 'bearish')      { sentimentFlags.push('btc_below_d200'); fav += 1 }
+  else if (s.btcStructureDaily === 'bullish') { sentimentFlags.push('btc_above_d200'); hos += 1 }
 
   const marketCondition: 'favourable' | 'neutral' | 'hostile' =
     hos >= 2 && hos >= fav ? 'hostile' :
@@ -956,10 +965,11 @@ export function applyBtcSentiment(
 
 export async function fetchBtcSentimentData(sql: SqlClient): Promise<SentimentCondition> {
   try {
-    const [fngRes, domRes, klinesRes, fundingRes] = await Promise.allSettled([
+    const [fngRes, domRes, klinesRes, dailyRes, fundingRes] = await Promise.allSettled([
       fetch('https://api.alternative.me/fng/', { cache: 'no-store', headers: HEADERS }),
       fetch('https://api.coingecko.com/api/v3/global', { cache: 'no-store', headers: { 'x-cg-demo-api-key': process.env.COINGECKO_API_KEY! } }),
       okxKlines('BTC-USDT-SWAP'),
+      okxDailyKlines('BTC-USDT-SWAP'),
       okxFunding('BTC-USDT-SWAP'),
     ])
 
@@ -984,31 +994,41 @@ export async function fetchBtcSentimentData(sql: SqlClient): Promise<SentimentCo
       } catch { /* defaults */ }
     }
 
+    // 4H structure — structure is king: price vs EMA50 alone decides direction.
+    // (No lower-highs AND-gate: a price below the 50EMA is bearish, full stop.)
     let btcStructure: 'bullish' | 'neutral' | 'bearish' = 'neutral'
     if (klinesRes.status === 'fulfilled') {
       const kl = klinesRes.value
       if (kl.length >= 50) {
         const closes = kl.map(k => parseFloat(k[4]))
-        const highs  = kl.map(k => parseFloat(k[2]))
         const price  = closes[closes.length - 1]
         const e50    = calcEMA(closes, 50)
-        if (highs.length >= 20) {
-          const slice  = highs.slice(-20)
-          const recent = slice.slice(10).reduce((a, b) => a + b, 0) / 10
-          const prior  = slice.slice(0, 10).reduce((a, b) => a + b, 0) / 10
-          const lh     = (prior - recent) / prior > 0.02
-          if (price < e50[e50.length - 1] && lh) btcStructure = 'bearish'
-          else if (price > e50[e50.length - 1])   btcStructure = 'bullish'
-        }
+        const e50last = e50[e50.length - 1]
+        if (price < e50last)      btcStructure = 'bearish'
+        else if (price > e50last) btcStructure = 'bullish'
+      }
+    }
+
+    // Daily structure — higher-timeframe tiebreaker: price vs EMA200 on the daily.
+    let btcStructureDaily: 'bullish' | 'neutral' | 'bearish' = 'neutral'
+    if (dailyRes.status === 'fulfilled') {
+      const dkl = dailyRes.value
+      if (dkl.length >= 200) {
+        const dCloses = dkl.map(k => parseFloat(k[4]))
+        const dPrice  = dCloses[dCloses.length - 1]
+        const e200    = calcEMA(dCloses, 200)
+        const e200last = e200[e200.length - 1]
+        if (dPrice < e200last)      btcStructureDaily = 'bearish'
+        else if (dPrice > e200last) btcStructureDaily = 'bullish'
       }
     }
 
     const btcFunding = fundingRes.status === 'fulfilled'
       ? (fundingRes as PromiseFulfilledResult<number>).value : 0
 
-    return { fng, btcDominance, btcFunding, btcStructure, domTrend }
+    return { fng, btcDominance, btcFunding, btcStructure, btcStructureDaily, domTrend }
   } catch {
-    return { fng: 50, btcDominance: 0, btcFunding: 0, btcStructure: 'neutral', domTrend: 'flat' }
+    return { fng: 50, btcDominance: 0, btcFunding: 0, btcStructure: 'neutral', btcStructureDaily: 'neutral', domTrend: 'flat' }
   }
 }
 

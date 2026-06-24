@@ -100,7 +100,7 @@ async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSi
     `) as Row[]
 
     // Open fires: TP tiers pending until the trade matures (shown in Closed then).
-    const signals: LiveSignal[] = rows.map((r) => {
+    const toSignal = (r: Row): LiveSignal => {
       const ms = num(r.id)
       return {
         id: ms,
@@ -113,8 +113,27 @@ async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSi
         time: new Date(ms).toISOString(),
         live: Date.now() - ms < 30 * 60 * 1000,
       }
-    })
-    return { signals, latestSignalId: maxRow?.m != null ? num(maxRow.m) : (signals[0]?.id ?? null) }
+    }
+
+    const signals: LiveSignal[] = rows.map(toSignal)
+    if (signals.length > 0) {
+      return { signals, latestSignalId: maxRow?.m != null ? num(maxRow.m) : signals[0].id }
+    }
+
+    // Fallback — no fired alert for this book in 24h (e.g. regime suppressing the
+    // side). Replay from the scored candidate pool so the Fire button always has
+    // something to show. id = scanned_at epoch-ms (same monotonic scheme as alerts).
+    const fb = (await sql`
+      SELECT (EXTRACT(EPOCH FROM scanned_at) * 1000)::bigint AS id, symbol, direction,
+             price_at_signal AS entry_price, score, scanned_at
+      FROM scanner_signals
+      WHERE scanned_at > NOW() - INTERVAL '24 hours'
+        AND (${book} = 'combined' OR direction = ${book})
+      ORDER BY scanned_at DESC
+      LIMIT 10
+    `) as Row[]
+    const fbSignals = fb.map(toSignal)
+    return { signals: fbSignals, latestSignalId: fbSignals[0]?.id ?? null }
   } catch {
     return { signals: [], latestSignalId: null }
   }
