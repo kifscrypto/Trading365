@@ -614,7 +614,7 @@ export default function ArticleStudioPage() {
       const res = await fetch('/api/admin/seo/analyze-article', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: article }),
+        body: JSON.stringify({ content: article, articleType }),
       })
       if (!res.ok) {
         const text = await res.text()

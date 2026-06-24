@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
 import { getPublishedArticles } from '@/lib/db'
 import { getPageGSCData, formatGSCForPrompt } from '@/lib/gsc'
+import { isGeneric, genericAuditPrompt } from '@/lib/seo/templates'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { content, url } = await request.json()
+    const { content, url, articleType } = await request.json()
 
     let articleContent = content?.trim() || ''
 
@@ -52,12 +53,11 @@ export async function POST(request: Request) {
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
-      messages: [{
-        role: 'user',
-        content: `You are an elite SEO and conversion auditor for Trading365.
+    // Educational article types use an informational-content rubric; exchange
+    // reviews keep the conversion/decision-page audit below.
+    const promptContent = isGeneric(articleType)
+      ? genericAuditPrompt(articleType, { articleContent, gscContext, siteUrls })
+      : `You are an elite SEO and conversion auditor for Trading365.
 
 Your job: evaluate whether a page will RANK and CONVERT for crypto exchange queries.
 This is a decision-page audit — not a generic SEO checklist.
@@ -197,8 +197,12 @@ ARTICLE:
 ${articleContent}
 ${gscContext}
 SITE PAGES (for internal link suggestions):
-${siteUrls || 'None available'}`,
-      }],
+${siteUrls || 'None available'}`
+
+    const stream = anthropic.messages.stream({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: promptContent }],
     })
 
     const encoder = new TextEncoder()
