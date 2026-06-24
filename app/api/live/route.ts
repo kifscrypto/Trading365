@@ -141,70 +141,60 @@ async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSi
   }
 }
 
-// Legacy display fallback. The outcome tracker now caps losses at the real stop
-// and sets stopped_out, but signals recorded before stop tracking have neither —
-// for those, cap any loss worse than this at the stop level and tag it 'SL'.
+// Fallback SL magnitude when entry/stop aren't both available to compute it.
 const STOP_LOSS_PCT = 3
+// Favourable move captured at each TP level (same magnitude both directions).
+const TP_CAPTURE: Record<string, number> = { TP1: 1.5, TP2: 2.5, TP3: 4.0 }
 
-// ── Closed panel: most recent signals that HAVE a matured 24h outcome ────────
-function closedResult(direction: "long" | "short", pct: number, stoppedOut: boolean): { result: string; win: boolean; stopped: boolean } {
-  const captured = direction === "short" ? -pct : pct // favourable move
-  if (!stoppedOut && captured >= 1.5) {
-    const tier = captured >= 4 ? 3 : captured >= 2.5 ? 2 : 1
-    return { result: `TP${tier} +${captured.toFixed(1)}%`, win: true, stopped: false }
-  }
-  // Stopped out (authoritative from the tracker), or a legacy loss worse than the
-  // stop → show the stop level with an SL tag, never the raw move.
-  if (stoppedOut || captured <= -STOP_LOSS_PCT) {
-    const mag = stoppedOut ? Math.abs(captured) : STOP_LOSS_PCT
-    return { result: `SL −${mag.toFixed(1)}%`, win: false, stopped: true }
-  }
-  return { result: `${captured >= 0 ? "+" : "−"}${Math.abs(captured).toFixed(1)}%`, win: false, stopped: false }
-}
-
-// Fired alerts that have matured (≥24h old). The alert tables don't track
-// outcomes, so each alert is matched (Option A) to its scanner_signals candidate
-// — same symbol+exchange+direction, scored at/just before the fire — and that
-// candidate's 24h outcome. Only alerts with a matched outcome appear here.
+// ── Closed panel: REAL-TIME. A signal is CLOSED the instant the monitor records
+// a TP touch or stop breach on the alert row (telegram_alerts.closed_at /
+// tp_result / stopped) — NOT when the 24h outcomes cron runs. Long table is
+// unioned for forward-compat (long TP monitoring not implemented yet, so it has
+// no closed rows). id = closed_at epoch-ms, so ORDER BY id DESC == closed_at DESC.
 async function getClosed(sql: SqlClient, book: Book): Promise<LiveClosed[]> {
   try {
     const rows = (await sql`
-      SELECT a.id, a.symbol, a.direction, c.pct_change, c.stopped_out
-      FROM (
-        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol, exchange,
-               'short'::text AS direction, triggered_at
+      SELECT id, symbol, direction, tp_result, stopped, entry_price, stop_price FROM (
+        SELECT (EXTRACT(EPOCH FROM closed_at) * 1000)::bigint AS id, symbol,
+               'short'::text AS direction, tp_result, stopped, entry_price, stop_price
         FROM telegram_alerts
-        WHERE triggered_at <= NOW() - INTERVAL '24 hours' AND (${book} = 'combined' OR ${book} = 'short')
+        WHERE closed_at IS NOT NULL AND (${book} = 'combined' OR ${book} = 'short')
         UNION ALL
-        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol, exchange,
-               'long'::text AS direction, triggered_at
+        SELECT (EXTRACT(EPOCH FROM closed_at) * 1000)::bigint AS id, symbol,
+               'long'::text AS direction, tp_result, stopped, entry_price, stop_price
         FROM telegram_alerts_long
-        WHERE triggered_at <= NOW() - INTERVAL '24 hours' AND (${book} = 'combined' OR ${book} = 'long')
-      ) a
-      JOIN LATERAL (
-        SELECT o.pct_change, o.stopped_out
-        FROM scanner_signals s
-        JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
-        WHERE s.symbol = a.symbol AND s.exchange = a.exchange AND s.direction = a.direction
-          AND s.scanned_at <= a.triggered_at + INTERVAL '1 hour'
-          AND s.scanned_at >  a.triggered_at - INTERVAL '6 hours'
-        ORDER BY s.scanned_at DESC
-        LIMIT 1
-      ) c ON TRUE
-      ORDER BY a.id DESC
+        WHERE closed_at IS NOT NULL AND (${book} = 'combined' OR ${book} = 'long')
+      ) c
+      ORDER BY id DESC
       LIMIT 10
     `) as Row[]
     return rows.map((r) => {
       const direction = (r.direction as string) === "long" ? "long" : "short"
-      const { result, win, stopped } = closedResult(direction, num(r.pct_change), Boolean(r.stopped_out))
+      const tp = (r.tp_result as string | null) ?? null
+      let result: string, win: boolean, stopped: boolean
+      if (tp && tp.startsWith("TP")) {
+        // A TP was reached → a win, even if the stop was later touched.
+        result = `${tp} +${(TP_CAPTURE[tp] ?? 1.5).toFixed(1)}%`
+        win = true
+        stopped = false
+      } else {
+        // Stopped out with no TP reached → show the stop magnitude.
+        const entry = num(r.entry_price), stop = num(r.stop_price)
+        const slPct = direction === "short" ? ((stop - entry) / entry) * 100 : ((entry - stop) / entry) * 100
+        const mag = Number.isFinite(slPct) && slPct > 0 ? slPct : STOP_LOSS_PCT
+        result = `SL −${mag.toFixed(1)}%`
+        win = false
+        stopped = true
+      }
+      const ms = num(r.id)
       return {
-        id: num(r.id),
+        id: ms,
         pair: String(r.symbol).replace("USDT", ""),
         direction,
         result,
         win,
         stopped,
-        time: new Date(num(r.id)).toISOString(),
+        time: new Date(ms).toISOString(),
       }
     })
   } catch {

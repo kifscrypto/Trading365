@@ -98,6 +98,27 @@ export async function GET(request: Request) {
     await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS tp2_alerted BOOLEAN DEFAULT FALSE`
     await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS tp3_alerted BOOLEAN DEFAULT FALSE`
     await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS stopped BOOLEAN DEFAULT FALSE`
+    // Close metadata read by the live Closed panel (real-time, not the 24h cron).
+    await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ`
+    await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS tp_result TEXT`
+    // Mirror columns on the long table so the live Closed feed can union both.
+    // (Long TP monitoring isn't implemented yet, so these stay NULL for now.)
+    await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ`
+    await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS tp_result TEXT`
+
+    // One-time back-fill: alerts that already hit a TP / stopped before these
+    // columns existed have no closed_at, so they'd never appear in the Closed
+    // panel. Stamp them from the flags (triggered_at is a proxy close time — the
+    // exact touch wasn't recorded then). Idempotent: only fills NULLs.
+    if (doWrite) {
+      await sql`
+        UPDATE telegram_alerts
+        SET closed_at = triggered_at,
+            tp_result = CASE WHEN tp3_alerted THEN 'TP3' WHEN tp2_alerted THEN 'TP2'
+                             WHEN tp1_alerted THEN 'TP1' WHEN stopped THEN 'SL' END
+        WHERE closed_at IS NULL AND (tp1_alerted OR tp2_alerted OR tp3_alerted OR stopped)
+      `
+    }
 
     // Open alerts from the last 48h still worth watching (not stopped, not all
     // three TPs already confirmed).
@@ -168,6 +189,11 @@ export async function GET(request: Request) {
         if (newlyHit.length > 0) {
           const hitLabels = newlyHit.map(tp => `TP${tp.level} (${tp.label})`).join(' & ')
           const best      = newlyHit[newlyHit.length - 1] // deepest TP reached this run
+          // Deepest TP reached overall (already-confirmed levels included).
+          const deepestLevel = Math.max(
+            best.level,
+            already[3] ? 3 : already[2] ? 2 : already[1] ? 1 : 0,
+          )
           const text = [
             `✅ TARGET HIT — $${displaySymbol}`,
             `Exchange: ${exchangeLabel}`,
@@ -182,7 +208,9 @@ export async function GET(request: Request) {
               UPDATE telegram_alerts SET
                 tp1_alerted = tp1_alerted OR ${newlyHit.some(t => t.level === 1)},
                 tp2_alerted = tp2_alerted OR ${newlyHit.some(t => t.level === 2)},
-                tp3_alerted = tp3_alerted OR ${newlyHit.some(t => t.level === 3)}
+                tp3_alerted = tp3_alerted OR ${newlyHit.some(t => t.level === 3)},
+                closed_at   = NOW(),
+                tp_result   = ${'TP' + deepestLevel}
               WHERE id = ${a.id as number}
             `
           }
@@ -191,7 +219,15 @@ export async function GET(request: Request) {
 
         if (stoppedOut) {
           if (doWrite) {
-            await sql`UPDATE telegram_alerts SET stopped = TRUE WHERE id = ${a.id as number}`
+            // Preserve a prior TP win if one was already recorded; only tag 'SL'
+            // when nothing had hit. Stamp close time if not already set.
+            await sql`
+              UPDATE telegram_alerts SET
+                stopped   = TRUE,
+                closed_at = COALESCE(closed_at, NOW()),
+                tp_result = COALESCE(tp_result, 'SL')
+              WHERE id = ${a.id as number}
+            `
           }
           stoppedCount++
         }
