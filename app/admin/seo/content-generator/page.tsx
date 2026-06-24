@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { ARTICLE_TYPES } from '@/lib/seo/templates'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -288,6 +289,7 @@ export default function ArticleStudioPage() {
   const [unlockedIdx, setUnlockedIdx] = useState(0)
 
   // Step 1: Input
+  const [articleType, setArticleType] = useState('exchange_review')
   const [keyword, setKeyword] = useState('')
   const [intent, setIntent] = useState('review')
   const [weaknesses, setWeaknesses] = useState('')
@@ -457,7 +459,7 @@ export default function ArticleStudioPage() {
       const res = await fetch('/api/admin/seo/outline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword, intent, weaknesses: weaksArr }),
+        body: JSON.stringify({ keyword, intent, weaknesses: weaksArr, articleType }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Outline generation failed')
@@ -483,7 +485,7 @@ export default function ArticleStudioPage() {
       const res = await fetch('/api/admin/seo/content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword, outline, intent, affiliateLink: affiliateLink.trim() || null, affiliateLinks }),
+        body: JSON.stringify({ keyword, outline, intent, affiliateLink: affiliateLink.trim() || null, affiliateLinks, articleType }),
       })
       if (!res.ok || !res.body) throw new Error('Content generation failed')
       const reader = res.body.getReader()
@@ -863,12 +865,34 @@ export default function ArticleStudioPage() {
           <h2 className={`${h2} mb-4`}>1. Input</h2>
           <div className="space-y-4">
             <div>
+              <label className="block text-xs text-zinc-400 mb-1">Content type</label>
+              <select
+                value={articleType}
+                onChange={e => {
+                  const t = e.target.value
+                  setArticleType(t)
+                  const meta = ARTICLE_TYPES.find(x => x.value === t)
+                  if (meta) {
+                    setIntent(meta.intent)
+                    setPubCategory(meta.categorySlug)
+                    setPubCategoryLabel(CATEGORIES.find(c => c.slug === meta.categorySlug)?.label ?? '')
+                  }
+                }}
+                className={ic}
+              >
+                {ARTICLE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+              <p className="mt-1 text-xs text-zinc-600">
+                Exchange Review = decision/money-page flow. The others generate educational articles (soft CTA only).
+              </p>
+            </div>
+            <div>
               <label className="block text-xs text-zinc-400 mb-1">Keyword *</label>
               <input
                 type="text"
                 value={keyword}
                 onChange={e => handleKeywordChange(e.target.value)}
-                placeholder="e.g. bingx review"
+                placeholder={ARTICLE_TYPES.find(t => t.value === articleType)?.keywordPlaceholder ?? 'e.g. bingx review'}
                 className={ic}
               />
             </div>

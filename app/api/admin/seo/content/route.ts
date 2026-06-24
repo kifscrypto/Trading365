@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
+import { isGeneric, genericContentPrompt } from '@/lib/seo/templates'
 
 export const maxDuration = 300
 
@@ -10,16 +11,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { keyword, outline, intent, affiliateLink, affiliateLinks } = await request.json()
+    const { keyword, outline, intent, affiliateLink, affiliateLinks, articleType } = await request.json()
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 8000,
-      messages: [{
-        role: 'user',
-        content: `CRITICAL: Never wrap links in bold. Write [text](url) — NEVER **[text](url)**. This applies to every single link in the article without exception.
+    // Generic (educational) article types use the template prompt; exchange
+    // reviews keep the original money-page prompt below.
+    const promptContent = isGeneric(articleType)
+      ? genericContentPrompt(articleType, { keyword, intent, outline, affiliateLink, affiliateLinks })
+      : `CRITICAL: Never wrap links in bold. Write [text](url) — NEVER **[text](url)**. This applies to every single link in the article without exception.
 
 You are an elite crypto SEO content writer for Trading365.
 
@@ -219,8 +219,12 @@ ${affiliateLink ? `CTA LINK: ${affiliateLink}
 Use this exact URL for ALL clickable CTAs ("Start Trading", "Open Account", "Claim Bonus", etc.). Do not invent or substitute other URLs.` : ''}
 
 OUTLINE TO FOLLOW:
-${outline}`,
-      }],
+${outline}`
+
+    const stream = anthropic.messages.stream({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 8000,
+      messages: [{ role: 'user', content: promptContent }],
     })
 
     const encoder = new TextEncoder()

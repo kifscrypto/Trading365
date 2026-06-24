@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
+import { isGeneric, genericOutlinePrompt } from '@/lib/seo/templates'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { keyword, intent, weaknesses } = await request.json()
+    const { keyword, intent, weaknesses, articleType } = await request.json()
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -23,12 +24,11 @@ export async function POST(request: Request) {
       ? (weaknesses as string[]).join('\n')
       : weaknesses
 
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
-      messages: [{
-        role: 'user',
-        content: `You are a content strategist.
+    // Generic (educational) article types use the template prompts; exchange
+    // reviews keep the original decision/review outline below.
+    const promptContent = isGeneric(articleType)
+      ? genericOutlinePrompt(articleType, { keyword, intent, weaknesses: weaknessList })
+      : `You are a content strategist.
 
 Your job is to create a STRUCTURE that beats current SERP results.
 
@@ -84,8 +84,12 @@ INTENT:
 ${intent}
 
 WEAKNESSES:
-${weaknessList}`,
-      }],
+${weaknessList}`
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: promptContent }],
     })
 
     const outline = message.content[0].type === 'text' ? message.content[0].text : ''
