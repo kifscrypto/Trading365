@@ -34,8 +34,12 @@ Rules:
 - Cinematic, professional, high-end feel
 - Relevant to the article topic (trading, crypto exchanges, financial platforms)
 - Use visual language: shallow depth of field, bokeh, dramatic lighting, wide angle, etc.
-- ALWAYS include a bold text title overlay on the image — derive a short punchy title (4-7 words max) from the keyword and include it in the prompt as: with bold white text overlay reading "[YOUR TITLE HERE]"
-- Think: a scene that conveys trust, technology, and financial expertise — with a clear text title so the image works as a standalone featured image
+- ALWAYS include a bold text title overlay. Derive a short punchy title (4-7 words max) from the keyword and include it in the prompt EXACTLY as: with a bold title text overlay centered in the middle of the image, the text in white and gold, reading "[YOUR TITLE HERE]"
+- TEXT REQUIREMENTS (NON-NEGOTIABLE — state all of these in the prompt every time):
+  - The title text colour MUST be white and gold (white with gold accents)
+  - The title MUST be CENTERED in the image — horizontally and vertically centered, in the middle of the frame
+  - Compose the scene so the centre is clear/uncluttered for the centered title to sit legibly
+- Think: a scene that conveys trust, technology, and financial expertise — with a clear, centered white-and-gold text title so the image works as a standalone featured image
 - Output only the prompt — no preamble, no explanation
 
 KEYWORD: ${keyword}
