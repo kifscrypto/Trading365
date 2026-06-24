@@ -25,6 +25,10 @@
       "schedule": "7,22,37,52 * * * *"
     },
     {
+      "path": "/api/scanner/long-monitor?cron=true",
+      "schedule": "9,24,39,54 * * * *"
+    },
+    {
       "path": "/api/pay/expiry?cron=true",
       "schedule": "0 3 * * *"
     }
