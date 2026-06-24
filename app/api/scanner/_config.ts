@@ -31,6 +31,7 @@ const EXCHANGE_HOMEPAGE: Record<string, string> = {
 const EXCLUDED_SYMBOLS = new Set<string>([
   // Tokenised stocks / indices
   'NAS100USDT', 'SPX500USDT', 'QQQSTOCKUSDT', 'SPCXSTOCKUSDT', 'STXSTOCKUSDT',
+  'TSLAUSDT', 'SPCXUSDT',
   // Forex / FX pairs
   'CHFUSDT', 'EURUSDT', 'GBPUSDT', 'JPYUSDT', 'AUDUSDT', 'NZDUSDT', 'CADUSDT',
   // Gold (XAU / GOLD; GOLDUSTDT is a known exchange/typo variant)
