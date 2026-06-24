@@ -120,14 +120,16 @@ async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSi
       return { signals, latestSignalId: maxRow?.m != null ? num(maxRow.m) : signals[0].id }
     }
 
-    // Fallback — no fired alert for this book in 24h (e.g. regime suppressing the
-    // side). Replay from the scored candidate pool so the Fire button always has
-    // something to show. id = scanned_at epoch-ms (same monotonic scheme as alerts).
+    // TRUE last resort — runs ONLY because the alert tables returned zero rows
+    // for this book in the last 24h (never unioned/mixed with alerts above).
+    // Restricted to alert-grade candidates (score >= 7) so the panel never shows
+    // sub-threshold 3-6 noise dressed up as signals.
     const fb = (await sql`
       SELECT (EXTRACT(EPOCH FROM scanned_at) * 1000)::bigint AS id, symbol, direction,
              price_at_signal AS entry_price, score, scanned_at
       FROM scanner_signals
       WHERE scanned_at > NOW() - INTERVAL '24 hours'
+        AND score >= 7
         AND (${book} = 'combined' OR direction = ${book})
       ORDER BY scanned_at DESC
       LIMIT 10
