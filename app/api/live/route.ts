@@ -210,38 +210,35 @@ async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
     // stamps them — matches the Closed panel, not the 24h outcomes cron.
     //   win      = closed_at set AND tp_result is a TP level (TP1+)
     //   loss(SL) = closed_at set AND tp_result = 'SL'
-    //   expired  = never resolved within the 48h window (closed_at NULL, > 48h old)
-    //   open     = closed_at NULL within 48h → EXCLUDED until resolved
-    // hit rate = wins / (wins + SL + expired). `cnt` below = that resolved total.
+    // Hit rate = wins / (wins + SL) — i.e. win rate of trades that actually
+    // RESOLVED to a TP or a stop. Signals that never hit either (still open, or
+    // chopped sideways past the 48h window) are NOT counted as losses — they're
+    // scratches and are excluded. `cnt` below = resolved total (closed_at set).
     const [shortRow] = (await sql`
       SELECT
         COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result LIKE 'TP%')::int AS hits,
-        (COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result LIKE 'TP%')
-         + COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result = 'SL')
-         + COUNT(*) FILTER (WHERE closed_at IS NULL AND triggered_at < NOW() - INTERVAL '48 hours'))::int AS cnt,
+        COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int AS cnt,
         COALESCE(SUM(CASE
           WHEN tp_result = 'TP3'     THEN 4.0
           WHEN tp_result = 'TP2'     THEN 2.5
           WHEN tp_result LIKE 'TP%'  THEN 1.5
           WHEN tp_result = 'SL'      THEN -((stop_price - entry_price) / NULLIF(entry_price, 0) * 100)
           ELSE 0
-        END) FILTER (WHERE closed_at IS NOT NULL OR triggered_at < NOW() - INTERVAL '48 hours'), 0)::float AS summove
+        END) FILTER (WHERE closed_at IS NOT NULL), 0)::float AS summove
       FROM telegram_alerts
       WHERE triggered_at > NOW() - INTERVAL '30 days'
     `) as Row[]
     const [longRow] = (await sql`
       SELECT
         COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result LIKE 'TP%')::int AS hits,
-        (COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result LIKE 'TP%')
-         + COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result = 'SL')
-         + COUNT(*) FILTER (WHERE closed_at IS NULL AND triggered_at < NOW() - INTERVAL '48 hours'))::int AS cnt,
+        COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int AS cnt,
         COALESCE(SUM(CASE
           WHEN tp_result = 'TP3'     THEN 4.0
           WHEN tp_result = 'TP2'     THEN 2.5
           WHEN tp_result LIKE 'TP%'  THEN 1.5
           WHEN tp_result = 'SL'      THEN -((entry_price - stop_price) / NULLIF(entry_price, 0) * 100)
           ELSE 0
-        END) FILTER (WHERE closed_at IS NOT NULL OR triggered_at < NOW() - INTERVAL '48 hours'), 0)::float AS summove
+        END) FILTER (WHERE closed_at IS NOT NULL), 0)::float AS summove
       FROM telegram_alerts_long
       WHERE triggered_at > NOW() - INTERVAL '30 days' AND triggered_at >= '2026-06-18'
     `) as Row[]
