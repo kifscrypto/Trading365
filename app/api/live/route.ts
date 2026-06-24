@@ -206,28 +206,44 @@ async function getClosed(sql: SqlClient, book: Book): Promise<LiveClosed[]> {
 async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
   const empty: LiveRecord = { combinedHitRate: null, long: { hitRate: null, count: 0 }, short: { hitRate: null, count: 0 }, avgMove: null }
   try {
-    // Filters are CANONICAL — identical to the scanner landing pages
-    // (app/scanner/page.tsx, app/scanner/longs/page.tsx) and the performance
-    // dashboard (app/api/scanner/performance/route.ts), so the broadcast hit rate
-    // can never diverge from the advertised numbers. Short: direction='short' AND
-    // favourable AND score>=7, TP1 = 24h pct_change <= -1.5. Long: direction='long'
-    // AND hostile AND score>=8 (floored at the Jun-18 rewrite), TP1 = >= +1.5.
+    // REAL-TIME track record, read from fired alerts the moment the monitor
+    // stamps them — matches the Closed panel, not the 24h outcomes cron.
+    //   win      = closed_at set AND tp_result is a TP level (TP1+)
+    //   loss(SL) = closed_at set AND tp_result = 'SL'
+    //   expired  = never resolved within the 48h window (closed_at NULL, > 48h old)
+    //   open     = closed_at NULL within 48h → EXCLUDED until resolved
+    // hit rate = wins / (wins + SL + expired). `cnt` below = that resolved total.
     const [shortRow] = (await sql`
-      SELECT COUNT(*)::int AS cnt,
-             COUNT(*) FILTER (WHERE o.pct_change <= -1.5)::int AS hits,
-             COALESCE(SUM(-o.pct_change), 0)::float AS summove
-      FROM scanner_signals s
-      JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
-      WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7
+      SELECT
+        COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result LIKE 'TP%')::int AS hits,
+        (COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result LIKE 'TP%')
+         + COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result = 'SL')
+         + COUNT(*) FILTER (WHERE closed_at IS NULL AND triggered_at < NOW() - INTERVAL '48 hours'))::int AS cnt,
+        COALESCE(SUM(CASE
+          WHEN tp_result = 'TP3'     THEN 4.0
+          WHEN tp_result = 'TP2'     THEN 2.5
+          WHEN tp_result LIKE 'TP%'  THEN 1.5
+          WHEN tp_result = 'SL'      THEN -((stop_price - entry_price) / NULLIF(entry_price, 0) * 100)
+          ELSE 0
+        END) FILTER (WHERE closed_at IS NOT NULL OR triggered_at < NOW() - INTERVAL '48 hours'), 0)::float AS summove
+      FROM telegram_alerts
+      WHERE triggered_at > NOW() - INTERVAL '30 days'
     `) as Row[]
     const [longRow] = (await sql`
-      SELECT COUNT(*)::int AS cnt,
-             COUNT(*) FILTER (WHERE o.pct_change >= 1.5)::int AS hits,
-             COALESCE(SUM(o.pct_change), 0)::float AS summove
-      FROM scanner_signals s
-      JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
-      WHERE s.direction = 'long' AND s.market_condition = 'hostile' AND s.score >= 8
-        AND s.scanned_at > '2026-06-18'
+      SELECT
+        COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result LIKE 'TP%')::int AS hits,
+        (COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result LIKE 'TP%')
+         + COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result = 'SL')
+         + COUNT(*) FILTER (WHERE closed_at IS NULL AND triggered_at < NOW() - INTERVAL '48 hours'))::int AS cnt,
+        COALESCE(SUM(CASE
+          WHEN tp_result = 'TP3'     THEN 4.0
+          WHEN tp_result = 'TP2'     THEN 2.5
+          WHEN tp_result LIKE 'TP%'  THEN 1.5
+          WHEN tp_result = 'SL'      THEN -((entry_price - stop_price) / NULLIF(entry_price, 0) * 100)
+          ELSE 0
+        END) FILTER (WHERE closed_at IS NOT NULL OR triggered_at < NOW() - INTERVAL '48 hours'), 0)::float AS summove
+      FROM telegram_alerts_long
+      WHERE triggered_at > NOW() - INTERVAL '30 days' AND triggered_at >= '2026-06-18'
     `) as Row[]
 
     const sCnt = num(shortRow?.cnt) || 0, sHits = num(shortRow?.hits) || 0, sSum = num(shortRow?.summove) || 0
