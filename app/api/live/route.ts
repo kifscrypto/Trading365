@@ -161,7 +161,7 @@ async function getClosed(sql: SqlClient, book: Book): Promise<LiveClosed[]> {
         WHERE closed_at IS NOT NULL AND (${book} = 'combined' OR ${book} = 'short')
         UNION ALL
         SELECT (EXTRACT(EPOCH FROM closed_at) * 1000)::bigint AS id, symbol,
-               'long'::text AS direction, tp_result, stopped, entry_price, stop_price
+               'long'::text AS direction, tp_result, FALSE AS stopped, entry_price, stop_price
         FROM telegram_alerts_long
         WHERE closed_at IS NOT NULL AND (${book} = 'combined' OR ${book} = 'long')
       ) c
