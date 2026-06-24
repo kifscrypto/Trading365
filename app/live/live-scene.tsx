@@ -20,7 +20,7 @@ const QR_HOST = host(QR_URL)
 
 // Preferred-partner slot in the bottom band. Hard-coded for now — edit `name`
 // to swap the sponsor (or clear it to hide the box entirely).
-const PARTNER = { name: "WEEX", msg: "Click the link in the description" }
+const PARTNER = { name: "OKX", msg: "Click the link in the description" }
 
 // Rotating strip alternates website-intent and sub lines (URLs from env).
 const CTA_MSGS = [
