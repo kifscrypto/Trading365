@@ -61,6 +61,11 @@ export default function AdminPage() {
   const [editPrompting, setEditPrompting] = useState(false)
   const [editPromptError, setEditPromptError] = useState('')
   const [editPromptDone, setEditPromptDone] = useState(false)
+  // Featured-image prompt regeneration (Higgsfield prompt → generate → upload)
+  const [imgPrompt, setImgPrompt] = useState('')
+  const [imgPromptLoading, setImgPromptLoading] = useState(false)
+  const [imgPromptError, setImgPromptError] = useState('')
+  const [imgPromptCopied, setImgPromptCopied] = useState(false)
 
   const [formData, setFormData] = useState({
     title: '',
@@ -503,6 +508,27 @@ export default function AdminPage() {
     }
   }
 
+  async function regenerateImagePrompt() {
+    if (!formData.content.trim() && !formData.title.trim()) return
+    setImgPromptError('')
+    setImgPromptLoading(true)
+    setImgPrompt('')
+    try {
+      const res = await fetch('/api/admin/seo/image-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: formData.content, keyword: formData.title }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed to generate image prompt')
+      setImgPrompt(json.prompt ?? '')
+    } catch (err: any) {
+      setImgPromptError(err.message ?? 'Failed to generate image prompt')
+    } finally {
+      setImgPromptLoading(false)
+    }
+  }
+
   function handleEditArticle(article) {
     setEditingArticle(article)
     setHealthIssues(null)
@@ -755,7 +781,36 @@ export default function AdminPage() {
                   </button>
                   <p className="text-xs text-zinc-500 mt-1">Max 5MB</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={regenerateImagePrompt}
+                  disabled={imgPromptLoading}
+                  className="px-3 py-1.5 border border-amber-700/50 text-amber-300 rounded-lg hover:bg-amber-900/20 text-sm disabled:opacity-50"
+                >
+                  {imgPromptLoading ? 'Generating…' : '✨ Regenerate image prompt'}
+                </button>
               </div>
+              {imgPromptError && <p className="text-xs text-red-400 mt-2">{imgPromptError}</p>}
+              {imgPrompt && (
+                <div className="mt-2 p-3 bg-zinc-900 border border-zinc-700 rounded-lg">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-zinc-500">Higgsfield prompt — centered white &amp; gold title</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(imgPrompt)
+                        setImgPromptCopied(true)
+                        setTimeout(() => setImgPromptCopied(false), 1500)
+                      }}
+                      className="text-xs text-blue-400 hover:text-blue-300"
+                    >
+                      {imgPromptCopied ? 'Copied ✓' : 'Copy'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-zinc-300 whitespace-pre-wrap font-mono">{imgPrompt}</p>
+                  <p className="text-xs text-zinc-500 mt-2">Generate this in Higgsfield, then upload the new image above.</p>
+                </div>
+              )}
             </div>
 
             <div>
