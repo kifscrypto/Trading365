@@ -318,6 +318,10 @@ function ContentOptimizerInner() {
   const [compressionMarkdown, setCompressionMarkdown] = useState<string>('')
   const [linkingMarkdown, setLinkingMarkdown] = useState<string>('')
   const [auditMarkdown, setAuditMarkdown] = useState<string>('')
+  // Which rubric the audit uses: 'conversion' (exchange money-pages) or
+  // 'educational' (explainers/guides/how-tos). Auto-set from the looked-up
+  // article's category, overridable via the dropdown.
+  const [auditMode, setAuditMode] = useState<'conversion' | 'educational'>('conversion')
   const [loadingState, setLoadingState] = useState<LoadingState>('idle')
   const [error, setError] = useState('')
 
@@ -358,6 +362,9 @@ function ContentOptimizerInner() {
         const data = await res.json()
         if (!res.ok) { setLookupError(data.error ?? 'Not found'); return }
         setArticleLookup({ id: data.id, title: data.title, slug: data.slug, category_slug: data.category_slug, content: data.content ?? undefined })
+        // Reviews/bonuses/no-kyc are money pages → conversion rubric; guides
+        // and other categories → educational rubric. User can still override.
+        setAuditMode(['reviews', 'bonuses', 'no-kyc'].includes(data.category_slug) ? 'conversion' : 'educational')
       } catch {
         setLookupError('Lookup failed')
       }
@@ -415,7 +422,7 @@ function ContentOptimizerInner() {
       const res = await fetch('/api/admin/seo/analyze-article', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: auditContent, url: auditUrlToSend }),
+        body: JSON.stringify({ content: auditContent, url: auditUrlToSend, auditMode }),
       })
       if (!res.ok) {
         const text = await res.text()
@@ -672,7 +679,23 @@ function ContentOptimizerInner() {
                   )}
                 </div>
               </div>
-              <div className="mt-4">
+              <div className="mt-4 flex items-end gap-4">
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-2">Audit rubric</label>
+                  <select
+                    value={auditMode}
+                    onChange={e => setAuditMode(e.target.value as 'conversion' | 'educational')}
+                    className={inputClass}
+                  >
+                    <option value="conversion">Exchange / Conversion (money page)</option>
+                    <option value="educational">Educational / Informational (guide)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-zinc-600">
+                    {auditMode === 'conversion'
+                      ? 'Scores CTAs, verdict, objection handling — for exchange pages.'
+                      : 'Scores intent, accuracy, clarity, FAQ/snippets — won’t penalise missing CTAs.'}
+                  </p>
+                </div>
                 <button
                   onClick={runAudit}
                   disabled={loadingState === 'loading' || (!content.trim() && !auditUrl.trim())}

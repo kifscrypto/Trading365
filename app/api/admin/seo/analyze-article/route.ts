@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { content, url, articleType } = await request.json()
+    const { content, url, articleType, auditMode } = await request.json()
 
     let articleContent = content?.trim() || ''
 
@@ -53,10 +53,11 @@ export async function POST(request: Request) {
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    // Educational article types use an informational-content rubric; exchange
-    // reviews keep the conversion/decision-page audit below.
-    const promptContent = isGeneric(articleType)
-      ? genericAuditPrompt(articleType, { articleContent, gscContext, siteUrls })
+    // Rubric: explicit auditMode wins (from the optimizer dropdown); otherwise
+    // fall back to the article type (generic types → educational).
+    const educational = auditMode ? auditMode === 'educational' : isGeneric(articleType)
+    const promptContent = educational
+      ? genericAuditPrompt(articleType ?? 'explainer', { articleContent, gscContext, siteUrls })
       : `You are an elite SEO and conversion auditor for Trading365.
 
 Your job: evaluate whether a page will RANK and CONVERT for crypto exchange queries.
