@@ -8,9 +8,11 @@ import type { SqlClient } from "@/app/api/scanner/_core"
  * 24h outcome (in chronological order), opens a position sized at a FIXED
  * FRACTION (10%) of the *current* running balance, then SCALES OUT:
  *
- *   • 50% of the position exits at TP1 (+1.5% fav) if TP1 is reached
- *   • 25% exits at TP2 (+2.5% fav) if reached
- *   • 25% exits at TP3 (+4.0% fav) if reached
+ *   • 30% of the position exits at TP1 (+1.5% fav) if TP1 is reached
+ *   • 20% exits at TP2 (+2.5% fav) if reached
+ *   • 20% exits at TP3 (+4.0% fav) if reached
+ *   • 15% exits at TP4 (+6.0% fav) if reached
+ *   • 15% exits at TP5 (+8.0% fav) if reached
  *   • any tranche whose TP was NOT reached exits at the 24h price
  *   • if the trade was stopped out, the ENTIRE position exits at the stop loss
  *
@@ -47,13 +49,18 @@ export const PNL_START_BALANCE = 1000
 export const PNL_POSITION_FRACTION = 0.1 // 10% of running balance per trade
 
 // Tiered scale-out: tranche weights (must sum to 1) and the favourable move at
-// which each take-profit fills.
-const TP1_WEIGHT = 0.5
-const TP2_WEIGHT = 0.25
-const TP3_WEIGHT = 0.25
+// which each take-profit fills. Aggressive back-weighting — more size rides the
+// upper tiers (TP4 +6%, TP5 +8%) so winners that run past TP3 are captured.
+const TP1_WEIGHT = 0.30
+const TP2_WEIGHT = 0.20
+const TP3_WEIGHT = 0.20
+const TP4_WEIGHT = 0.15
+const TP5_WEIGHT = 0.15
 const TP1_MOVE = 1.5
 const TP2_MOVE = 2.5
 const TP3_MOVE = 4.0
+const TP4_MOVE = 6.0
+const TP5_MOVE = 8.0
 
 // House stop used to cap a loss when a signal has no stored stop_price (e.g.
 // pre-2026-06-21 signals, logged before stop tracking existed). Matches the live
@@ -68,7 +75,7 @@ export const PNL_DISCLAIMER =
 export type PnlBookKey = "combined" | "short" | "long"
 // Highest take-profit tier the trade reached (or 'SL'/'24H'). The actual exit is
 // a weighted blend of tranches; this label records the best level hit.
-export type PnlExitReason = "TP1" | "TP2" | "TP3" | "SL" | "24H"
+export type PnlExitReason = "TP1" | "TP2" | "TP3" | "TP4" | "TP5" | "SL" | "24H"
 
 export interface PnlTrade {
   signalId: number
@@ -165,8 +172,12 @@ function resolveTrade(s: EligibleSignal): {
     const t1 = fav >= TP1_MOVE ? TP1_MOVE : fav
     const t2 = fav >= TP2_MOVE ? TP2_MOVE : fav
     const t3 = fav >= TP3_MOVE ? TP3_MOVE : fav
-    pnlPct = TP1_WEIGHT * t1 + TP2_WEIGHT * t2 + TP3_WEIGHT * t3
+    const t4 = fav >= TP4_MOVE ? TP4_MOVE : fav
+    const t5 = fav >= TP5_MOVE ? TP5_MOVE : fav
+    pnlPct = TP1_WEIGHT * t1 + TP2_WEIGHT * t2 + TP3_WEIGHT * t3 + TP4_WEIGHT * t4 + TP5_WEIGHT * t5
     exitReason =
+      fav >= TP5_MOVE ? "TP5" :
+      fav >= TP4_MOVE ? "TP4" :
       fav >= TP3_MOVE ? "TP3" :
       fav >= TP2_MOVE ? "TP2" :
       fav >= TP1_MOVE ? "TP1" :
