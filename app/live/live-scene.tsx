@@ -536,7 +536,9 @@ export function LiveScene() {
                   {signals.slice(0, 6).map((s) => {
                     const firing = firingId === s.id
                     const held = heldId === s.id
-                    const cls = firing ? "frow firerow live" : held ? "frow held" : `frow${s.live ? " live" : ""}`
+                    const profit = s.tp1 || s.tp2 || s.tp3 // in-flight trade that has touched a target
+                    let cls = firing ? "frow firerow live" : held ? "frow held" : `frow${s.live ? " live" : ""}`
+                    if (profit) cls += " profit"
                     return (
                       <div className={cls} key={s.id}>
                         <span className="pair">

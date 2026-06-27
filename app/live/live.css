@@ -183,6 +183,9 @@
 .t365-live .feed .rows{overflow:hidden;flex:1;display:flex;flex-direction:column}
 .t365-live .frow{padding:0 6px;height:100%;border-bottom:1px solid var(--line-soft);min-height:0;position:relative}
 .t365-live .recent .frow{min-height:46px}
+/* in-flight trade that has touched a TP — green wash + accent so live wins pop */
+.t365-live .recent .frow.profit{background:linear-gradient(90deg,rgba(55,217,138,.12) 0%,transparent 72%);
+  box-shadow:inset 3px 0 0 0 var(--tp)}
 .t365-live .frow:last-child{border-bottom:none}
 .t365-live .frow.live{background:linear-gradient(90deg,var(--lv-tint) 0%, transparent 70%);
   border:1px solid var(--lv-bd);border-radius:7px;animation:t365liverow 1.6s ease-in-out infinite}

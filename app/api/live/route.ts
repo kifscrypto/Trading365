@@ -75,20 +75,27 @@ async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSi
   try {
     const rows = (await sql`
       SELECT id, symbol, exchange, direction, entry_price, score, triggered_at,
-             tp1_alerted, tp2_alerted, tp3_alerted FROM (
+             tp1_alerted, tp2_alerted, tp3_alerted, closed_at FROM (
         SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol, exchange,
                'short'::text AS direction, entry_price, adjusted_score AS score, triggered_at,
-               tp1_alerted, tp2_alerted, tp3_alerted
+               tp1_alerted, tp2_alerted, tp3_alerted, closed_at
         FROM telegram_alerts
         WHERE triggered_at > NOW() - INTERVAL '24 hours' AND (${book} = 'combined' OR ${book} = 'short')
+          AND stopped = FALSE
+          AND NOT (tp1_alerted AND tp2_alerted AND tp3_alerted AND tp4_alerted AND tp5_alerted)
         UNION ALL
         SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol, exchange,
                'long'::text AS direction, entry_price, adjusted_score AS score, triggered_at,
-               tp1_alerted, tp2_alerted, tp3_alerted
+               tp1_alerted, tp2_alerted, tp3_alerted, closed_at
         FROM telegram_alerts_long
         WHERE triggered_at > NOW() - INTERVAL '24 hours' AND (${book} = 'combined' OR ${book} = 'long')
+          AND stopped = FALSE
+          AND NOT (tp1_alerted AND tp2_alerted AND tp3_alerted)
       ) a
-      ORDER BY triggered_at DESC
+      -- Surface live trades by most-recent ACTIVITY: a fresh fire (no hit yet)
+      -- sorts by triggered_at; a trade that just touched a TP has closed_at set
+      -- to that moment, so it bubbles up and its green badges become visible.
+      ORDER BY COALESCE(closed_at, triggered_at) DESC
       LIMIT 10
     `) as Row[]
 
