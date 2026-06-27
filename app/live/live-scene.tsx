@@ -530,7 +530,7 @@ export function LiveScene() {
                 <div className="eyebrow" style={{ marginBottom: 4 }}>Recent Signals · Live</div>
                 <div className="fhead">
                   <span>Pair</span><span>Side</span><span className="r">Entry</span>
-                  <span>TP1 / TP2 / TP3</span><span className="r">Sc</span><span className="r">Ago</span>
+                  <span>TP1 / TP2 / TP3</span><span className="r">Sc</span>
                 </div>
                 <div className="rows">
                   {signals.map((s) => {
@@ -539,12 +539,14 @@ export function LiveScene() {
                     const cls = firing ? "frow firerow live" : held ? "frow held" : `frow${s.live ? " live" : ""}`
                     return (
                       <div className={cls} key={s.id}>
-                        <span className="pair">{s.pair}{(s.live || firing) && <span className="lflag">● LIVE</span>}</span>
+                        <span className="pair">
+                          <span className="pname">{s.pair}{(s.live || firing) && <span className="lflag">● LIVE</span>}</span>
+                          <span className="psub">{s.exchange} · {fmtAgo(s.time)}</span>
+                        </span>
                         <span className={`dir ${s.direction === "long" ? "L" : "S"}`}>{s.direction === "long" ? "LONG" : "SHORT"}</span>
                         <span className="entry">{fmtEntry(s.entry)}</span>
                         <span className="tps">{[s.tp1, s.tp2, s.tp3].map((h, i) => <span key={i} className={`tp ${h ? "hit" : "pend"}`}>TP{i + 1}</span>)}</span>
                         <span className="sc">{s.score}</span>
-                        <span className="ago">{fmtAgo(s.time)}</span>
                       </div>
                     )
                   })}

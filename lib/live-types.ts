@@ -13,6 +13,7 @@ export type Book = "combined" | "short" | "long"
 export interface LiveSignal {
   id: number // scanner_signals.id — lets the client detect a genuinely new signal
   pair: string
+  exchange: string // friendly label e.g. "OKX", shown under the pair on /live
   direction: "long" | "short"
   entry: number
   tp1: boolean

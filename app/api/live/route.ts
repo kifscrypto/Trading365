@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless"
 import { NextResponse } from "next/server"
-import { HEADERS, type SqlClient } from "@/app/api/scanner/_core"
+import { HEADERS, EXCHANGE_LABEL, type SqlClient } from "@/app/api/scanner/_core"
 import { computePnl, type PnlBook } from "@/lib/scanner-pnl"
 import type {
   LiveData, LiveSignal, LiveClosed, LiveRecord, LiveContext, LivePrice, LivePnl, Verdict, Book,
@@ -74,15 +74,15 @@ async function getRegime(sql: SqlClient, book: Book) {
 async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSignal[]; latestSignalId: number | null }> {
   try {
     const rows = (await sql`
-      SELECT id, symbol, direction, entry_price, score, triggered_at,
+      SELECT id, symbol, exchange, direction, entry_price, score, triggered_at,
              tp1_alerted, tp2_alerted, tp3_alerted FROM (
-        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol,
+        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol, exchange,
                'short'::text AS direction, entry_price, adjusted_score AS score, triggered_at,
                tp1_alerted, tp2_alerted, tp3_alerted
         FROM telegram_alerts
         WHERE triggered_at > NOW() - INTERVAL '24 hours' AND (${book} = 'combined' OR ${book} = 'short')
         UNION ALL
-        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol,
+        SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol, exchange,
                'long'::text AS direction, entry_price, adjusted_score AS score, triggered_at,
                tp1_alerted, tp2_alerted, tp3_alerted
         FROM telegram_alerts_long
@@ -108,6 +108,7 @@ async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSi
       return {
         id: ms,
         pair: String(r.symbol).replace("USDT", ""),
+        exchange: EXCHANGE_LABEL[String(r.exchange)] ?? "OKX",
         direction: (r.direction as string) === "long" ? "long" : "short",
         entry: num(r.entry_price),
         // Live TP state from the monitor's per-trade flags (the fallback path
@@ -130,7 +131,7 @@ async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSi
     // Restricted to alert-grade candidates (score >= 7) so the panel never shows
     // sub-threshold 3-6 noise dressed up as signals.
     const fb = (await sql`
-      SELECT (EXTRACT(EPOCH FROM scanned_at) * 1000)::bigint AS id, symbol, direction,
+      SELECT (EXTRACT(EPOCH FROM scanned_at) * 1000)::bigint AS id, symbol, exchange, direction,
              price_at_signal AS entry_price, score, scanned_at
       FROM scanner_signals
       WHERE scanned_at > NOW() - INTERVAL '24 hours'
