@@ -82,16 +82,6 @@ export function SiteHeader() {
               {link.label}
             </Link>
           ))}
-          <Link
-            href="/live"
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm font-semibold text-foreground transition-colors hover:text-primary whitespace-nowrap"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
-            </span>
-            Live
-          </Link>
         </nav>
 
         <div className="hidden lg:flex items-center gap-2">
@@ -165,17 +155,6 @@ export function SiteHeader() {
                   {link.label}
                 </Link>
               ))}
-              <Link
-                href="/live"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
-                </span>
-                Live Scanner
-              </Link>
               <div className="pt-4">
                 <Button className="w-full font-semibold" size="sm" asChild>
                   <Link href="/bonuses">Get Bonuses</Link>

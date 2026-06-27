@@ -393,13 +393,13 @@ export function LiveScene() {
           <button className="fire" onClick={fireLatest}>⚡ Fire a signal</button>
         </div>
 
-        {/* HEADER — brand doubles as a link back to the main site */}
+        {/* HEADER — persistent site URL beside the brand */}
         <header className="head">
-          <a className="brand" href="/" aria-label="Back to Trading365 home">
+          <div className="brand">
             <h1>TRADING365</h1>
             <span className="sub">Live Altcoin Scanner · {bookLabel}</span>
-            <span className="url">← {SITE_HOST}</span>
-          </a>
+            <span className="url">{SITE_HOST}</span>
+          </div>
           <div className="head-right">
             <div className="live"><span className="dot" /> ON AIR</div>
             <div className="clock">
