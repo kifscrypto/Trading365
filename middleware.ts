@@ -1,32 +1,17 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 
-// Token-gate the private broadcast surface. BOTH /live and /api/live require
-// ?k=<LIVE_ACCESS_TOKEN>. Any missing/wrong token (or no token configured)
-// returns a bare 404 so the routes' existence is never confirmed to crawlers
-// or probers. Valid /live responses are additionally marked noindex.
+// /live is now a PUBLIC, read-only scanner display (linked from the site header
+// so visitors can watch the scanner in action without YouTube). It is still
+// marked noindex (it's a real-time dashboard, not SEO content) via this header
+// plus the route's own robots metadata. No token gate anymore; the old
+// ?k=<LIVE_ACCESS_TOKEN> broadcast URL still works (the param is simply ignored)
+// and /api/live is open so the public page can poll it.
 export const config = {
-  matcher: ["/live", "/api/live"],
+  matcher: ["/live"],
 }
 
-function notFound() {
-  return new NextResponse("Not Found", {
-    status: 404,
-    headers: { "content-type": "text/plain; charset=utf-8" },
-  })
-}
-
-export function middleware(req: NextRequest) {
-  const expected = process.env.LIVE_ACCESS_TOKEN
-  const provided = req.nextUrl.searchParams.get("k")
-
-  // No token configured, or mismatch → indistinguishable from a real 404.
-  if (!expected || !provided || provided !== expected) {
-    return notFound()
-  }
-
+export function middleware() {
   const res = NextResponse.next()
-  if (req.nextUrl.pathname === "/live") {
-    res.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive")
-  }
+  res.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive")
   return res
 }
