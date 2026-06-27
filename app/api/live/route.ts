@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 // Price board (matches the scene). Alt-breadth uses a wider fixed top-alt list.
-const PRICE_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "AVAX"]
+const PRICE_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"]
 const ALT_BREADTH = [
   "SOL", "BNB", "XRP", "DOGE", "AVAX", "ADA", "LINK", "TRX", "DOT", "LTC",
   "BCH", "NEAR", "APT", "ARB", "OP", "INJ", "SUI", "TIA", "SEI", "RUNE",

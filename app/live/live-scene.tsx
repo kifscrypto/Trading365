@@ -533,7 +533,7 @@ export function LiveScene() {
                   <span>TP1 / TP2 / TP3</span><span className="r">Sc</span>
                 </div>
                 <div className="rows">
-                  {signals.map((s) => {
+                  {signals.slice(0, 6).map((s) => {
                     const firing = firingId === s.id
                     const held = heldId === s.id
                     const cls = firing ? "frow firerow live" : held ? "frow held" : `frow${s.live ? " live" : ""}`

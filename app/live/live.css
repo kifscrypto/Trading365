@@ -60,34 +60,34 @@
 .t365-live .col{display:flex;flex-direction:column;gap:16px;min-height:0}
 
 /* price board */
-.t365-live .market{flex:1.15;display:flex;flex-direction:column;padding:20px 22px;min-height:0}
-.t365-live .market .rows{margin-top:12px;display:flex;flex-direction:column;flex:1;justify-content:space-between}
+.t365-live .market{flex:1.25;display:flex;flex-direction:column;padding:18px 22px 14px;min-height:0}
+.t365-live .market .rows{margin-top:10px;display:flex;flex-direction:column;flex:1;justify-content:space-between;overflow:hidden}
 .t365-live .mrow{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:14px;
-  padding:8px 6px;border-bottom:1px solid var(--line-soft)}
+  padding:4px 6px;border-bottom:1px solid var(--line-soft)}
 .t365-live .mrow:last-child{border-bottom:none}
-.t365-live .mrow .sym{font-family:var(--cond);font-weight:600;font-size:24px;letter-spacing:.05em}
-.t365-live .mrow .px{font-family:var(--mono);font-weight:500;font-size:22px;text-align:right;
+.t365-live .mrow .sym{font-family:var(--cond);font-weight:600;font-size:20px;letter-spacing:.05em}
+.t365-live .mrow .px{font-family:var(--mono);font-weight:500;font-size:19px;text-align:right;
   font-variant-numeric:tabular-nums;transition:color .25s,background .25s;padding:2px 8px;border-radius:5px}
-.t365-live .mrow .chg{font-family:var(--mono);font-size:17px;text-align:right;width:88px;font-variant-numeric:tabular-nums}
+.t365-live .mrow .chg{font-family:var(--mono);font-size:15px;text-align:right;width:80px;font-variant-numeric:tabular-nums}
 .t365-live .up{color:var(--tp)} .t365-live .down{color:var(--short)}
 .t365-live .flash-up{background:rgba(55,217,138,.16)} .t365-live .flash-down{background:rgba(255,77,94,.16)}
 
 /* scoreboard */
-.t365-live .score{flex:1;padding:20px 22px;display:flex;flex-direction:column;min-height:0}
-.t365-live .score .hero-stat{display:flex;align-items:baseline;gap:14px;margin-top:10px}
-.t365-live .score .hero-stat .big{font-family:var(--cond);font-weight:700;font-size:64px;line-height:.9;color:var(--gold)}
+.t365-live .score{flex:1.05;padding:16px 22px 14px;display:flex;flex-direction:column;min-height:0}
+.t365-live .score .hero-stat{display:flex;align-items:baseline;gap:14px;margin-top:6px}
+.t365-live .score .hero-stat .big{font-family:var(--cond);font-weight:700;font-size:48px;line-height:.9;color:var(--gold)}
 .t365-live .score .hero-stat .lbl{font-family:var(--sans);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);max-width:130px}
-.t365-live .split{display:flex;gap:10px;margin-top:14px}
-.t365-live .split .b{flex:1;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:9px 12px;
+.t365-live .split{display:flex;gap:10px;margin-top:10px}
+.t365-live .split .b{flex:1;background:var(--panel-2);border:1px solid var(--line-soft);border-radius:8px;padding:7px 12px;
   display:flex;align-items:baseline;justify-content:space-between}
 .t365-live .split .b .lk{font-family:var(--sans);font-weight:600;font-size:13px;letter-spacing:.12em;text-transform:uppercase}
 .t365-live .split .b .lk.l{color:var(--long)} .t365-live .split .b .lk.s{color:var(--short)}
 .t365-live .split .b .lv{font-family:var(--mono);font-weight:600;font-size:20px;font-variant-numeric:tabular-nums}
 .t365-live .split .b .lv small{color:var(--dim);font-size:13px;font-weight:400}
 .t365-live .pnl-row{display:flex;align-items:baseline;justify-content:space-between;margin-top:auto;
-  padding-top:14px;border-top:1px solid var(--line)}
+  padding-top:10px;border-top:1px solid var(--line)}
 .t365-live .pnl-row .k{font-family:var(--sans);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.t365-live .pnl-row .v{font-family:var(--mono);font-weight:600;font-size:30px;color:var(--tp);font-variant-numeric:tabular-nums}
+.t365-live .pnl-row .v{font-family:var(--mono);font-weight:600;font-size:26px;color:var(--tp);font-variant-numeric:tabular-nums}
 
 /* simulated running P&L board (combined + separate short/long books) */
 .t365-live .pnlboard{flex:0.8;padding:16px 20px;display:flex;flex-direction:column;min-height:0}
@@ -175,20 +175,21 @@
 .t365-live .feed{padding:16px 20px 12px;display:flex;flex-direction:column;min-height:0}
 .t365-live .feed.recent{flex:1.32}
 .t365-live .feed.closed{flex:1}
-.t365-live .recent .fhead,.t365-live .recent .frow{display:grid;grid-template-columns:1fr 70px 92px 150px 44px;align-items:center;gap:9px}
+.t365-live .recent .fhead,.t365-live .recent .frow{display:grid;grid-template-columns:1fr 72px 96px 156px 40px;align-items:center;gap:14px}
 .t365-live .closed .fhead,.t365-live .closed .frow{display:grid;grid-template-columns:1fr 70px 138px 50px;align-items:center;gap:9px}
 .t365-live .fhead{padding:8px 6px 9px;border-bottom:1px solid var(--line);font-family:var(--sans);font-size:11px;
   letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
 .t365-live .fhead .r,.t365-live .frow .r{text-align:right}
 .t365-live .feed .rows{overflow:hidden;flex:1;display:flex;flex-direction:column}
 .t365-live .frow{padding:0 6px;height:100%;border-bottom:1px solid var(--line-soft);min-height:0;position:relative}
+.t365-live .recent .frow{min-height:46px}
 .t365-live .frow:last-child{border-bottom:none}
 .t365-live .frow.live{background:linear-gradient(90deg,var(--lv-tint) 0%, transparent 70%);
   border:1px solid var(--lv-bd);border-radius:7px;animation:t365liverow 1.6s ease-in-out infinite}
 @keyframes t365liverow{0%,100%{box-shadow:inset 0 0 0 0 transparent}50%{box-shadow:inset 0 0 22px var(--lv-tint)}}
-.t365-live .frow .pair{display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:0}
-.t365-live .frow .pname{font-family:var(--cond);font-weight:600;font-size:21px;letter-spacing:.04em;display:flex;align-items:center;gap:8px;line-height:1}
-.t365-live .frow .psub{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--dim);line-height:1}
+.t365-live .frow .pair{display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:0;overflow:hidden}
+.t365-live .frow .pname{font-family:var(--cond);font-weight:600;font-size:20px;letter-spacing:.04em;display:flex;align-items:center;gap:8px;line-height:1.05;white-space:nowrap}
+.t365-live .frow .psub{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--dim);line-height:1;white-space:nowrap;text-transform:uppercase}
 .t365-live .frow .pair .lflag{font-family:var(--sans);font-size:10px;font-weight:700;letter-spacing:.14em;
   color:var(--lv-c);border:1px solid var(--lv-c);border-radius:3px;padding:1px 5px}
 .t365-live .dir{font-family:var(--sans);font-weight:600;font-size:12px;letter-spacing:.1em;text-align:center;
@@ -196,8 +197,8 @@
 .t365-live .dir.S{color:var(--short);border:1px solid rgba(255,77,94,.4);background:rgba(255,77,94,.08)}
 .t365-live .dir.L{color:var(--long);border:1px solid rgba(55,217,138,.4);background:rgba(55,217,138,.08)}
 .t365-live .entry{font-family:var(--mono);font-size:16px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
-.t365-live .tps{display:flex;gap:5px}
-.t365-live .tp{width:44px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;
+.t365-live .tps{display:flex;gap:8px}
+.t365-live .tp{width:44px;height:26px;border-radius:5px;display:flex;align-items:center;justify-content:center;
   font-family:var(--mono);font-size:12px;font-weight:500;border:1px solid var(--line)}
 .t365-live .tp.hit{background:rgba(55,217,138,.14);border-color:rgba(55,217,138,.45);color:var(--tp)}
 .t365-live .tp.miss{color:var(--dim);background:#171b22}
