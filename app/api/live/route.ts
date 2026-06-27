@@ -74,14 +74,17 @@ async function getRegime(sql: SqlClient, book: Book) {
 async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSignal[]; latestSignalId: number | null }> {
   try {
     const rows = (await sql`
-      SELECT id, symbol, direction, entry_price, score, triggered_at FROM (
+      SELECT id, symbol, direction, entry_price, score, triggered_at,
+             tp1_alerted, tp2_alerted, tp3_alerted FROM (
         SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol,
-               'short'::text AS direction, entry_price, adjusted_score AS score, triggered_at
+               'short'::text AS direction, entry_price, adjusted_score AS score, triggered_at,
+               tp1_alerted, tp2_alerted, tp3_alerted
         FROM telegram_alerts
         WHERE triggered_at > NOW() - INTERVAL '24 hours' AND (${book} = 'combined' OR ${book} = 'short')
         UNION ALL
         SELECT (EXTRACT(EPOCH FROM triggered_at) * 1000)::bigint AS id, symbol,
-               'long'::text AS direction, entry_price, adjusted_score AS score, triggered_at
+               'long'::text AS direction, entry_price, adjusted_score AS score, triggered_at,
+               tp1_alerted, tp2_alerted, tp3_alerted
         FROM telegram_alerts_long
         WHERE triggered_at > NOW() - INTERVAL '24 hours' AND (${book} = 'combined' OR ${book} = 'long')
       ) a
@@ -107,7 +110,9 @@ async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSi
         pair: String(r.symbol).replace("USDT", ""),
         direction: (r.direction as string) === "long" ? "long" : "short",
         entry: num(r.entry_price),
-        tp1: false, tp2: false, tp3: false,
+        // Live TP state from the monitor's per-trade flags (the fallback path
+        // reads scanner_signals, which lacks these → undefined → false).
+        tp1: Boolean(r.tp1_alerted), tp2: Boolean(r.tp2_alerted), tp3: Boolean(r.tp3_alerted),
         closeResult: null,
         score: num(r.score),
         time: new Date(ms).toISOString(),
@@ -144,7 +149,7 @@ async function getSignals(sql: SqlClient, book: Book): Promise<{ signals: LiveSi
 // Fallback SL magnitude when entry/stop aren't both available to compute it.
 const STOP_LOSS_PCT = 3
 // Favourable move captured at each TP level (same magnitude both directions).
-const TP_CAPTURE: Record<string, number> = { TP1: 1.5, TP2: 2.5, TP3: 4.0 }
+const TP_CAPTURE: Record<string, number> = { TP1: 1.5, TP2: 2.5, TP3: 4.0, TP4: 6.0, TP5: 8.0 }
 
 // ── Closed panel: REAL-TIME. A signal is CLOSED the instant the monitor records
 // a TP touch or stop breach on the alert row (telegram_alerts.closed_at /

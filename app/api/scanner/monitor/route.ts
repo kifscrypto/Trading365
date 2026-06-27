@@ -69,6 +69,8 @@ const TP_FRACTIONS = [
   { level: 1, mult: 0.985, label: '-1.5%' },
   { level: 2, mult: 0.975, label: '-2.5%' },
   { level: 3, mult: 0.96,  label: '-4.0%' },
+  { level: 4, mult: 0.94,  label: '-6.0%' },
+  { level: 5, mult: 0.92,  label: '-8.0%' },
 ] as const
 
 export async function GET(request: Request) {
@@ -97,6 +99,8 @@ export async function GET(request: Request) {
     await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS tp1_alerted BOOLEAN DEFAULT FALSE`
     await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS tp2_alerted BOOLEAN DEFAULT FALSE`
     await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS tp3_alerted BOOLEAN DEFAULT FALSE`
+    await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS tp4_alerted BOOLEAN DEFAULT FALSE`
+    await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS tp5_alerted BOOLEAN DEFAULT FALSE`
     await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS stopped BOOLEAN DEFAULT FALSE`
     // Close metadata read by the live Closed panel (real-time, not the 24h cron).
     await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ`
@@ -114,9 +118,10 @@ export async function GET(request: Request) {
       await sql`
         UPDATE telegram_alerts
         SET closed_at = triggered_at,
-            tp_result = CASE WHEN tp3_alerted THEN 'TP3' WHEN tp2_alerted THEN 'TP2'
+            tp_result = CASE WHEN tp5_alerted THEN 'TP5' WHEN tp4_alerted THEN 'TP4'
+                             WHEN tp3_alerted THEN 'TP3' WHEN tp2_alerted THEN 'TP2'
                              WHEN tp1_alerted THEN 'TP1' WHEN stopped THEN 'SL' END
-        WHERE closed_at IS NULL AND (tp1_alerted OR tp2_alerted OR tp3_alerted OR stopped)
+        WHERE closed_at IS NULL AND (tp1_alerted OR tp2_alerted OR tp3_alerted OR tp4_alerted OR tp5_alerted OR stopped)
       `
     }
 
@@ -125,11 +130,11 @@ export async function GET(request: Request) {
     const open = await sql`
       SELECT id, symbol, exchange, entry_price, stop_price,
              EXTRACT(EPOCH FROM triggered_at) * 1000 AS triggered_ms,
-             tp1_alerted, tp2_alerted, tp3_alerted
+             tp1_alerted, tp2_alerted, tp3_alerted, tp4_alerted, tp5_alerted
       FROM   telegram_alerts
       WHERE  triggered_at > NOW() - INTERVAL '48 hours'
         AND  stopped = FALSE
-        AND  NOT (tp1_alerted AND tp2_alerted AND tp3_alerted)
+        AND  NOT (tp1_alerted AND tp2_alerted AND tp3_alerted AND tp4_alerted AND tp5_alerted)
       ORDER  BY triggered_at DESC
     `
 
@@ -166,6 +171,8 @@ export async function GET(request: Request) {
           1: a.tp1_alerted as boolean,
           2: a.tp2_alerted as boolean,
           3: a.tp3_alerted as boolean,
+          4: a.tp4_alerted as boolean,
+          5: a.tp5_alerted as boolean,
         }
         const newlyHit: (typeof TP_FRACTIONS)[number][] = []
         let stoppedOut = false
@@ -192,7 +199,7 @@ export async function GET(request: Request) {
           // Deepest TP reached overall (already-confirmed levels included).
           const deepestLevel = Math.max(
             best.level,
-            already[3] ? 3 : already[2] ? 2 : already[1] ? 1 : 0,
+            already[5] ? 5 : already[4] ? 4 : already[3] ? 3 : already[2] ? 2 : already[1] ? 1 : 0,
           )
           const text = [
             `✅ TARGET HIT — $${displaySymbol}`,
@@ -209,6 +216,8 @@ export async function GET(request: Request) {
                 tp1_alerted = tp1_alerted OR ${newlyHit.some(t => t.level === 1)},
                 tp2_alerted = tp2_alerted OR ${newlyHit.some(t => t.level === 2)},
                 tp3_alerted = tp3_alerted OR ${newlyHit.some(t => t.level === 3)},
+                tp4_alerted = tp4_alerted OR ${newlyHit.some(t => t.level === 4)},
+                tp5_alerted = tp5_alerted OR ${newlyHit.some(t => t.level === 5)},
                 closed_at   = NOW(),
                 tp_result   = ${'TP' + deepestLevel}
               WHERE id = ${a.id as number}
