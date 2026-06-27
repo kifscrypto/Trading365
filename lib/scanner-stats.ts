@@ -34,6 +34,31 @@ const EMPTY_STATS: ScannerStats = {
   avgMove: null,
 }
 
+// HEADLINE hit rate = REAL fired signals (the alerts members actually receive),
+// not the raw scored-candidate pool. wins / (wins + SL) on resolved alerts —
+// the same number the /live "Signal Hit Rate" shows. The candidate-pool rate
+// (every favourable score>=7 setup, fired or not) badly understates this, so it
+// must NOT drive the advertised TP1 figure. Returns null = nothing resolved yet.
+export async function getFiredHitRate(
+  side: ScannerSide,
+): Promise<{ tp1WinRate: number | null; signalsConfirmed: number }> {
+  const sql = neon(process.env.DATABASE_URL!)
+  try {
+    const rows = side === "short"
+      ? await sql`SELECT COUNT(*) FILTER (WHERE tp_result LIKE 'TP%')::int AS wins,
+                         COUNT(*) FILTER (WHERE tp_result = 'SL')::int  AS sl
+                  FROM telegram_alerts`
+      : await sql`SELECT COUNT(*) FILTER (WHERE tp_result LIKE 'TP%')::int AS wins,
+                         COUNT(*) FILTER (WHERE tp_result = 'SL')::int  AS sl
+                  FROM telegram_alerts_long`
+    const wins = (rows[0]?.wins ?? 0) as number
+    const resolved = wins + ((rows[0]?.sl ?? 0) as number)
+    return { tp1WinRate: resolved > 0 ? (wins / resolved) * 100 : null, signalsConfirmed: wins }
+  } catch {
+    return { tp1WinRate: null, signalsConfirmed: 0 }
+  }
+}
+
 export async function getScannerStats(side: ScannerSide): Promise<ScannerStats> {
   const sql = neon(process.env.DATABASE_URL!)
   try {
@@ -78,11 +103,14 @@ export async function getScannerStats(side: ScannerSide): Promise<ScannerStats> 
 
     const agg = aggRows[0] ?? {}
     const denom = (agg.filtered_with_24h ?? 0) as number
+    // Headline TP1 + confirmed count come from REAL fired alerts; the breadth
+    // stats (directional, total tracked, avg move) stay candidate-pool.
+    const fired = await getFiredHitRate(side)
     return {
-      tp1WinRate:          denom > 0 ? ((agg.tp1_hits as number) / denom) * 100 : null,
+      tp1WinRate:          fired.tp1WinRate,
       directionalAccuracy: denom > 0 ? ((agg.dir_hits as number) / denom) * 100 : null,
       totalSignals:        (agg.total_all ?? 0) as number,
-      signalsConfirmed:    (agg.tp1_hits ?? 0) as number,
+      signalsConfirmed:    fired.signalsConfirmed,
       avgMove:             denom > 0 ? (agg.avg_move as number) : null,
     }
   } catch {

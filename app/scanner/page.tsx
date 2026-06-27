@@ -7,12 +7,13 @@ import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingUp } from "lu
 import { premiumEnabled } from "@/lib/premium"
 import { ScannerNewsletter } from "@/components/scanner-newsletter"
 import { computePnl } from "@/lib/scanner-pnl"
+import { getScannerStats } from "@/lib/scanner-stats"
 import { ScannerPnlCard } from "@/components/scanner-pnl-card"
 
 const BASE_URL = "https://trading365.org"
 
 const META_DESCRIPTION =
-  "66% TP1 hit rate. 87% directional accuracy across 4,700+ tracked signals. Automated altcoin short scanner with real-time Telegram alerts. Only fires during favourable market conditions."
+  "65% TP1 hit rate on fired signals across 7,900+ tracked setups. Automated altcoin short scanner with real-time Telegram alerts. Only fires during favourable market conditions."
 
 const WALLET_ADDRESS = "0x2338748664bfdb1fce28a9ad63ce79d65b54eb2d"
 const TELEGRAM_SUB_HANDLE = "@Trading365Sub"
@@ -62,50 +63,6 @@ const schemaData = {
 }
 
 export const revalidate = 300
-
-interface Stats {
-  tp1WinRate: number | null
-  directionalAccuracy: number | null
-  totalSignals: number
-  signalsConfirmed: number
-  avgMove: number | null
-}
-
-async function getStats(): Promise<Stats> {
-  const sql = neon(process.env.DATABASE_URL!)
-  try {
-    const aggRows = await sql`
-      SELECT
-        COUNT(*) FILTER (
-          WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
-        )::int AS filtered_with_24h,
-        COUNT(*) FILTER (
-          WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change <= -1.5
-        )::int AS tp1_hits,
-        COUNT(*) FILTER (
-          WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change < 0
-        )::int AS down_hits,
-        AVG(o24.pct_change) FILTER (
-          WHERE s.direction = 'short' AND s.market_condition = 'favourable' AND s.score >= 7 AND o24.pct_change IS NOT NULL
-        )::float AS avg_move,
-        (SELECT COUNT(*)::int FROM scanner_signals) AS total_all
-      FROM scanner_signals s
-      LEFT JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
-    `
-
-    const agg = aggRows[0] ?? {}
-    const denom = (agg.filtered_with_24h ?? 0) as number
-    return {
-      tp1WinRate:          denom > 0 ? ((agg.tp1_hits as number) / denom) * 100 : null,
-      directionalAccuracy: denom > 0 ? ((agg.down_hits as number) / denom) * 100 : null,
-      totalSignals:        (agg.total_all ?? 0) as number,
-      signalsConfirmed:    (agg.tp1_hits ?? 0) as number,
-      avgMove:             denom > 0 ? (agg.avg_move as number) : null,
-    }
-  } catch {
-    return { tp1WinRate: null, directionalAccuracy: null, totalSignals: 0, signalsConfirmed: 0, avgMove: null }
-  }
-}
 
 interface RecentWin {
   symbol: string
@@ -198,7 +155,7 @@ const monthlyFeatures = [
 const quarterlyFeatures = ["Same features as monthly", "Priority support"]
 
 export default async function ScannerPage() {
-  const [stats, recentWins, pnl] = await Promise.all([getStats(), getRecentWins(), computePnl()])
+  const [stats, recentWins, pnl] = await Promise.all([getScannerStats("short"), getRecentWins(), computePnl()])
   const { tp1WinRate, directionalAccuracy, totalSignals, signalsConfirmed, avgMove } = stats
   const automated = premiumEnabled()
 

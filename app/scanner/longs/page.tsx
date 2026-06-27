@@ -7,6 +7,7 @@ import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingDown } from "
 import { premiumEnabled } from "@/lib/premium"
 import { ScannerNewsletter } from "@/components/scanner-newsletter"
 import { computePnl } from "@/lib/scanner-pnl"
+import { getFiredHitRate } from "@/lib/scanner-stats"
 import { ScannerPnlCard } from "@/components/scanner-pnl-card"
 
 const BASE_URL = "https://trading365.org"
@@ -97,13 +98,17 @@ async function getStats(): Promise<Stats> {
     const agg = aggRows[0] ?? {}
     const denom = (agg.filtered_with_24h ?? 0) as number
     const ready = denom >= MIN_SAMPLE
+    // Headline TP1 + confirmed = REAL fired long alerts (currently none → null →
+    // "Calibrating"); breadth stats stay candidate-pool. Calibrating reflects the
+    // fired set: no resolved long alerts yet means no honest hit rate to show.
+    const fired = await getFiredHitRate("long")
     return {
-      tp1WinRate:          ready ? ((agg.tp1_hits as number) / denom) * 100 : null,
+      tp1WinRate:          fired.tp1WinRate,
       directionalAccuracy: ready ? ((agg.up_hits as number) / denom) * 100 : null,
       totalSignals:        (agg.total_all ?? 0) as number,
-      signalsConfirmed:    ready ? ((agg.tp1_hits ?? 0) as number) : 0,
+      signalsConfirmed:    fired.signalsConfirmed,
       avgMove:             ready ? (agg.avg_move as number) : null,
-      calibrating:         !ready,
+      calibrating:         fired.tp1WinRate === null,
     }
   } catch {
     return { tp1WinRate: null, directionalAccuracy: null, totalSignals: 0, signalsConfirmed: 0, avgMove: null, calibrating: true }
