@@ -41,7 +41,9 @@
   border:1px solid var(--line);border-radius:12px;position:relative}
 .t365-live .head::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
   background:linear-gradient(180deg,var(--gold),var(--gold-deep))}
-.t365-live .brand{display:flex;align-items:baseline;gap:16px}
+.t365-live .brand{display:flex;align-items:baseline;gap:16px;text-decoration:none;cursor:pointer}
+.t365-live a.brand .url{transition:color .2s}
+.t365-live a.brand:hover .url{color:var(--gold)}
 .t365-live .brand h1{font-family:var(--cond);font-weight:700;font-size:38px;letter-spacing:.04em;
   color:var(--gold);line-height:1;text-shadow:0 0 22px rgba(240,185,74,.25)}
 .t365-live .brand .sub{font-family:var(--cond);font-weight:600;font-size:21px;letter-spacing:.24em;
@@ -200,6 +202,9 @@
 .t365-live .dir.S{color:var(--short);border:1px solid rgba(255,77,94,.4);background:rgba(255,77,94,.08)}
 .t365-live .dir.L{color:var(--long);border:1px solid rgba(55,217,138,.4);background:rgba(55,217,138,.08)}
 .t365-live .entry{font-family:var(--mono);font-size:16px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+/* Paywall the actionable entry price on the public page/stream — visible as a
+   blurred teaser ("subscribe for the level"), unreadable as a number. */
+.t365-live .recent .entry{filter:blur(5px);-webkit-filter:blur(5px);user-select:none;pointer-events:none}
 .t365-live .tps{display:flex;gap:8px}
 .t365-live .tp{width:44px;height:26px;border-radius:5px;display:flex;align-items:center;justify-content:center;
   font-family:var(--mono);font-size:12px;font-weight:500;border:1px solid var(--line)}
