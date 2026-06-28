@@ -11,48 +11,42 @@ function DiscordLogo({ className }: { className?: string }) {
   )
 }
 
-// Prominent homepage CTA to join the Discord (which now also carries the live
-// scanner signals). Hidden if no invite is configured.
+// Compact Join-the-Discord CTA, sized to sit under the hero stats.
+// Hidden if no invite is configured.
 export function DiscordCta() {
   const url = siteConfig.socials.discord
   if (!url) return null
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-12 lg:px-6">
-      <div
-        className="relative overflow-hidden rounded-2xl border px-6 py-10 text-center sm:px-10 sm:py-12"
-        style={{
-          borderColor: "rgba(88,101,242,0.35)",
-          background: "linear-gradient(135deg, rgba(88,101,242,0.18), rgba(88,101,242,0.04))",
-        }}
-      >
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(88,101,242,0.25),transparent_60%)]" />
-        <div className="relative flex flex-col items-center gap-4">
-          <span
-            className="flex h-14 w-14 items-center justify-center rounded-xl"
-            style={{ background: DISCORD_BLURPLE }}
-          >
-            <DiscordLogo className="h-8 w-8 text-white" />
-          </span>
-          <h2 className="text-2xl font-bold text-foreground md:text-3xl text-balance">
-            Join the Trading365 Discord
-          </h2>
-          <p className="max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base">
-            Live scanner signals, exclusive bonus alerts, and a community of 50,000+ traders — free to join.
-          </p>
-          <Button
-            size="lg"
-            asChild
-            className="mt-2 gap-2 px-8 font-semibold text-white hover:opacity-90"
-            style={{ background: DISCORD_BLURPLE }}
-          >
-            <a href={url} target="_blank" rel="noopener noreferrer">
-              <DiscordLogo className="h-5 w-5" />
-              Join the Discord
-            </a>
-          </Button>
+    <div
+      className="mx-auto mt-12 flex w-full max-w-xl flex-col items-center gap-3 rounded-xl border px-5 py-4 text-center sm:flex-row sm:justify-between sm:text-left"
+      style={{
+        borderColor: "rgba(88,101,242,0.35)",
+        background: "linear-gradient(135deg, rgba(88,101,242,0.15), rgba(88,101,242,0.03))",
+      }}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: DISCORD_BLURPLE }}
+        >
+          <DiscordLogo className="h-6 w-6 text-white" />
+        </span>
+        <div>
+          <p className="font-semibold leading-tight text-foreground">Join the Trading365 Discord</p>
+          <p className="text-xs text-muted-foreground">Live scanner signals &amp; exclusive bonus alerts.</p>
         </div>
       </div>
-    </section>
+      <Button
+        asChild
+        className="shrink-0 gap-2 font-semibold text-white hover:opacity-90"
+        style={{ background: DISCORD_BLURPLE }}
+      >
+        <a href={url} target="_blank" rel="noopener noreferrer">
+          <DiscordLogo className="h-4 w-4" />
+          Join the Discord
+        </a>
+      </Button>
+    </div>
   )
 }

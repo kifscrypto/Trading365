@@ -174,14 +174,14 @@ export default async function HomePage() {
               </div>
             ))}
           </div>
+
+          {/* Join Discord — compact CTA under the hero stats */}
+          <DiscordCta />
         </div>
       </section>
 
       {/* Scanner spotlight — live performance */}
       <ScannerSpotlight short={shortStats} long={longStats} />
-
-      {/* Join Discord — prominent CTA (Discord now carries live scanner signals) */}
-      <DiscordCta />
 
       {/* Featured Advertisers */}
       <FeaturedAdvertisers />
