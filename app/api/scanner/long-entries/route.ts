@@ -6,6 +6,7 @@ import {
   type Kline, type SqlClient,
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl, isExcludedSymbol } from '@/app/api/scanner/_config'
+import { discordSignal } from '@/lib/discord'
 
 // Long entry trigger — parallel to /api/scanner/entries, inverted for longs.
 // Reads the long watchlist, fires only in a BULLISH-BTC ('hostile') regime, and
@@ -293,6 +294,21 @@ export async function GET(request: Request) {
 
           // Trade link is a tappable inline button carrying our referral link.
           await sendTelegram(text, { text: `Trade ${displaySymbol} on ${exchangeLabel}`, url: exchangeReferralUrl(exchange) })
+          // Mirror to Discord (styled embed). Never throws — Telegram is unaffected.
+          await discordSignal({
+            direction: 'long', symbol: displaySymbol, exchangeLabel,
+            score: adjustedScore, rawScore,
+            entry: fmtPrice(entryPrice), stopPrice: fmtPrice(stopPrice),
+            stopPct: `-${(((entryPrice - stopPrice) / entryPrice) * 100).toFixed(1)}%`,
+            targets: [
+              { label: 'TP1', price: fmtPrice(tp1), pct: '+1.5%' },
+              { label: 'TP2', price: fmtPrice(tp2), pct: '+2.5%' },
+              { label: 'TP3', price: fmtPrice(tp3), pct: '+4.0%' },
+            ],
+            signals: signalStr,
+            tradeText: `Trade ${displaySymbol} on ${exchangeLabel}`,
+            tradeUrl: exchangeReferralUrl(exchange),
+          })
           triggered.push(displaySymbol)
         } else {
           // Below threshold — log to scanner_signals (direction='long') without alerting

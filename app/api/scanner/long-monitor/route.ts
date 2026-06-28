@@ -6,6 +6,7 @@ import {
   type Kline,
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl } from '@/app/api/scanner/_config'
+import { discordOutcome } from '@/lib/discord'
 
 // Real-time TP-touch monitor for already-alerted LONG signals — mirror of the
 // short monitor (/api/scanner/monitor).
@@ -176,7 +177,16 @@ export async function GET(request: Request) {
             `Target price: $${fmtPrice(entry * best.mult)}`,
             `Signal confirmed 🎯`,
           ].join('\n')
-          if (doSend) await sendTelegram(text, { text: `Trade ${displaySymbol} on ${exchangeLabel}`, url: exchangeReferralUrl(exchange) })
+          if (doSend) {
+            await sendTelegram(text, { text: `Trade ${displaySymbol} on ${exchangeLabel}`, url: exchangeReferralUrl(exchange) })
+            await discordOutcome({
+              win: true,
+              title: text.split('\n')[0],
+              lines: text.split('\n').slice(1),
+              tradeText: `Trade ${displaySymbol} on ${exchangeLabel}`,
+              tradeUrl: exchangeReferralUrl(exchange),
+            })
+          }
           if (doWrite) {
             await sql`
               UPDATE telegram_alerts_long SET

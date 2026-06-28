@@ -31,6 +31,10 @@
     {
       "path": "/api/pay/expiry?cron=true",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/scanner/daily-digest?cron=true",
+      "schedule": "0 13 * * *"
     }
   ]
 }
