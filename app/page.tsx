@@ -115,7 +115,7 @@ export default async function HomePage() {
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,oklch(0.8_0.15_85/0.06),transparent_60%)]" />
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 pt-20 pb-16 text-center lg:px-6 lg:pt-28 lg:pb-20">
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 pt-20 pb-6 text-center lg:px-6 lg:pt-28 lg:pb-8">
           <Link href="/" className="mb-8">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
