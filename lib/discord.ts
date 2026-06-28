@@ -15,8 +15,8 @@ const COLORS = {
 
 type Embed = Record<string, unknown>
 
-async function post(embeds: Embed[], content?: string): Promise<void> {
-  const url = process.env.DISCORD_WEBHOOK_URL
+async function post(embeds: Embed[], content?: string, webhookUrl?: string): Promise<void> {
+  const url = webhookUrl ?? process.env.DISCORD_WEBHOOK_URL
   if (!url) return
   try {
     const res = await fetch(url, {
@@ -162,6 +162,40 @@ export async function discordDigest(d: DiscordDigest): Promise<void> {
     await post([embed])
   } catch (err) {
     console.error('[discord] discordDigest failed:', err)
+  }
+}
+
+export interface DiscordArticle {
+  title: string
+  excerpt: string
+  url: string
+  image?: string | null
+  category?: string | null
+}
+
+// New-article announcement embed — posts to the SEPARATE public articles webhook
+// (DISCORD_ARTICLES_WEBHOOK_URL), not the VIP signals one. No-op if unset.
+export async function discordArticle(a: DiscordArticle): Promise<void> {
+  try {
+    const webhook = process.env.DISCORD_ARTICLES_WEBHOOK_URL
+    if (!webhook) return
+    const embed: Embed = {
+      color: 0x1e88e5, // blue
+      title: a.title,
+      url: a.url,
+      description: a.excerpt || undefined,
+      footer: { text: a.category ? `Trading365 • ${a.category}` : 'Trading365' },
+      timestamp: new Date().toISOString(),
+    }
+    if (a.image) {
+      const img = a.image.startsWith('http')
+        ? a.image
+        : `https://trading365.org${a.image.startsWith('/') ? '' : '/'}${a.image}`
+      embed.image = { url: img }
+    }
+    await post([embed], '📰 **New article published**', webhook)
+  } catch (err) {
+    console.error('[discord] discordArticle failed:', err)
   }
 }
 

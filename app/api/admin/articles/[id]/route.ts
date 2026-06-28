@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { updateArticle, deleteArticle, setArticlePublished } from '@/lib/db'
+import { updateArticle, deleteArticle, setArticlePublished, getArticleById } from '@/lib/db'
 import { pingIndexNow, articleUrl } from '@/lib/indexnow'
+import { announceArticle } from '@/lib/announce-article'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -39,8 +40,23 @@ export async function PATCH(
   try {
     const { id } = await params
     const { published } = await request.json()
+    // Capture the prior state so we only announce a genuine draft→published
+    // transition (not a re-save or an unpublish).
+    const prev = await getArticleById(parseInt(id))
     const article = await setArticlePublished(parseInt(id), published)
-    if (published) pingIndexNow([articleUrl(article.category_slug, article.slug)])
+    if (published) {
+      pingIndexNow([articleUrl(article.category_slug, article.slug)])
+      if (!prev?.published) {
+        // First time this article goes live → announce to Telegram + Discord.
+        await announceArticle({
+          title: article.title,
+          excerpt: article.excerpt,
+          url: articleUrl(article.category_slug, article.slug),
+          image: article.thumbnail,
+          category: article.category,
+        })
+      }
+    }
     return NextResponse.json(article)
   } catch (error: any) {
     console.error('Failed to toggle publish:', error)
