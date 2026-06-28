@@ -17,6 +17,7 @@ import { getAllArticlesFromDB } from "@/lib/data/articles-db"
 import { getScannerStats, getScannerRecentWins } from "@/lib/scanner-stats"
 import { ScannerSpotlight } from "@/components/scanner-spotlight"
 import { ScannerTicker } from "@/components/scanner-ticker"
+import { DiscordCta } from "@/components/discord-cta"
 import { exchanges } from "@/lib/data/exchanges"
 import { generateWebsiteSchema, generateOrganizationStandaloneSchema } from "@/lib/schema"
 import { LOCALE_CODES } from "@/lib/i18n/config"
@@ -178,6 +179,9 @@ export default async function HomePage() {
 
       {/* Scanner spotlight — live performance */}
       <ScannerSpotlight short={shortStats} long={longStats} />
+
+      {/* Join Discord — prominent CTA (Discord now carries live scanner signals) */}
+      <DiscordCta />
 
       {/* Featured Advertisers */}
       <FeaturedAdvertisers />
