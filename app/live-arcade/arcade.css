@@ -16,7 +16,7 @@
 .t365-arcade .arc-rail {
   display: grid !important;
   grid-template-rows: auto auto auto auto minmax(0, 1fr);
-  gap: 11px;
+  gap: 9px;
   min-height: 0;
 }
 
@@ -33,9 +33,10 @@
 .t365-arcade .arc-rail .score { flex: none !important; padding: 12px 18px 11px; }
 .t365-arcade .arc-rail .market .eyebrow,
 .t365-arcade .arc-rail .score .eyebrow { font-size: 12px; letter-spacing: .16em; }
-.t365-arcade .arc-rail .score .hero-stat { margin-top: 6px; }
-.t365-arcade .arc-rail .score .hero-stat .big { font-size: 40px; }
-.t365-arcade .arc-rail .score .split { margin-top: 9px; }
+.t365-arcade .arc-rail .score .hero-stat { margin-top: 5px; }
+.t365-arcade .arc-rail .score .hero-stat .big { font-size: 34px; }
+.t365-arcade .arc-rail .score .split { margin-top: 7px; }
+.t365-arcade .arc-rail .score .split .b { padding: 8px 10px; }
 
 /* compact P&L (returns only) */
 .t365-arcade .arc-pnl { flex: none; padding: 11px 16px 12px; display: flex; flex-direction: column; gap: 8px; }
@@ -46,9 +47,10 @@
   padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;
 }
 .t365-arcade .arc-pcard .apk { font-family: var(--sans); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
-.t365-arcade .arc-pcard .apr { font-family: var(--cond); font-weight: 700; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+.t365-arcade .arc-pcard .apr { font-family: var(--cond); font-weight: 700; font-size: 23px; line-height: 1; font-variant-numeric: tabular-nums; }
 .t365-arcade .arc-pcard .apr.up { color: var(--long); }
 .t365-arcade .arc-pcard .apr.down { color: var(--short); }
+.t365-arcade .arc-pcard .apbal { font-family: var(--mono); font-weight: 500; font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums; }
 .t365-arcade .arc-pcard.s { border-color: #ff4d5e33; }
 .t365-arcade .arc-pcard.l { border-color: #37d98a33; }
 
@@ -64,10 +66,15 @@
 
 /* recent feed — grows to fill the rail; fewer columns + natural row height */
 .t365-arcade .arc-recent { flex: 1 1 0 !important; min-height: 0; padding: 13px 16px 10px; }
-.t365-arcade .arc-recent .rows { display: flex; flex-direction: column; gap: 2px; overflow: hidden; margin-top: 6px; }
+.t365-arcade .arc-recent .rows { display: flex; flex-direction: column; gap: 3px; overflow: hidden; margin-top: 7px; }
 .t365-arcade .arc-recent .fhead,
-.t365-arcade .arc-recent .frow { grid-template-columns: 1fr 58px 92px 30px !important; gap: 9px; }
-.t365-arcade .arc-recent .frow { height: auto !important; min-height: 36px !important; flex: none; }
+.t365-arcade .arc-recent .frow { grid-template-columns: 1fr 58px 96px 30px !important; gap: 9px; }
+.t365-arcade .arc-recent .frow { height: auto !important; min-height: 46px !important; flex: none; }
+/* a touch bigger so the feed reads clearly on stream */
+.t365-arcade .arc-recent .frow .pname { font-size: 21px; }
+.t365-arcade .arc-recent .frow .psub { font-size: 11px; }
+.t365-arcade .arc-recent .frow .entry { font-size: 16px; }
+.t365-arcade .arc-recent .frow .sc { font-size: 17px; }
 
 /* ── right column: game window + ticker ── */
 .t365-arcade .arc-right { display: flex; flex-direction: column; gap: 16px; min-height: 0; }

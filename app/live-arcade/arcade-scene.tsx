@@ -59,6 +59,9 @@ function fmtPct(n: number | null, digits = 0): string {
 function fmtRet(n: number): string {
   return `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)}%`
 }
+function fmtUsd0(n: number): string {
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
+}
 function sideContent(side?: LiveSideRecord) {
   const count = side?.count ?? 0
   if (count < MIN_SAMPLE) return <>building ({count})</>
@@ -336,10 +339,12 @@ export function ArcadeScene() {
                 ] as const).map(({ key, label, cls }) => {
                   const b = pnl?.[key]
                   const ret = b?.returnPct ?? 0
+                  const has = b && b.trades > 0
                   return (
                     <div className={`arc-pcard ${cls}`} key={key}>
                       <div className="apk">{label}</div>
-                      <div className={`apr ${ret >= 0 ? "up" : "down"}`}>{b && b.trades > 0 ? fmtRet(ret) : "—"}</div>
+                      <div className={`apr ${ret >= 0 ? "up" : "down"}`}>{has ? fmtRet(ret) : "—"}</div>
+                      <div className="apbal">{has ? fmtUsd0(b!.balance) : "building"}</div>
                     </div>
                   )
                 })}
