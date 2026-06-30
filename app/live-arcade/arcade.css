@@ -1,0 +1,135 @@
+/* Arcade layout — game-dominant variant of /live. Reuses every base style from
+   live.css via the shared .t365-live scope; this file only re-lays-out the main
+   area into a left scanner rail + a large game-window placeholder + a signal
+   ticker. Variables (--gold, --panel, --dim, etc.) come from live.css. */
+
+/* main area: narrow scanner rail | large game column */
+.t365-arcade .arc-main {
+  display: grid;
+  grid-template-columns: 432px 1fr;
+  gap: 16px;
+  min-height: 0;
+}
+/* Grid rail: four content-sized panels + a recent feed that fills the rest.
+   (A grid sidesteps the reused .col flexbox, where the panels' inherited
+   flex-grow values fought over the spare height.) */
+.t365-arcade .arc-rail {
+  display: grid !important;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  gap: 11px;
+  min-height: 0;
+}
+
+/* Natural heights for the fixed panels; only the recent feed grows to fill.
+   (flex:0 lets a panel be crushed to nothing — use flex:none.) */
+.t365-arcade .arc-rail .market { flex: none !important; padding: 12px 18px 10px; }
+/* don't let the price rows stretch/space-out (live.css makes them flex:1) */
+.t365-arcade .arc-rail .market .rows { flex: none !important; justify-content: flex-start !important; margin-top: 6px; gap: 2px; }
+.t365-arcade .arc-rail .market .mrow { min-height: 0; padding: 3px 6px; }
+/* smaller price typography so 5 majors fit a short rail panel */
+.t365-arcade .arc-rail .market .mrow .sym { font-size: 16px; }
+.t365-arcade .arc-rail .market .mrow .px { font-size: 15px; }
+.t365-arcade .arc-rail .market .mrow .chg { font-size: 13px; }
+.t365-arcade .arc-rail .score { flex: none !important; padding: 12px 18px 11px; }
+.t365-arcade .arc-rail .market .eyebrow,
+.t365-arcade .arc-rail .score .eyebrow { font-size: 12px; letter-spacing: .16em; }
+.t365-arcade .arc-rail .score .hero-stat { margin-top: 6px; }
+.t365-arcade .arc-rail .score .hero-stat .big { font-size: 40px; }
+.t365-arcade .arc-rail .score .split { margin-top: 9px; }
+
+/* compact P&L (returns only) */
+.t365-arcade .arc-pnl { flex: none; padding: 11px 16px 12px; display: flex; flex-direction: column; gap: 8px; }
+.t365-arcade .arc-pnl .eyebrow { font-size: 12px; letter-spacing: .16em; }
+.t365-arcade .arc-pnl-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.t365-arcade .arc-pcard {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px;
+  padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;
+}
+.t365-arcade .arc-pcard .apk { font-family: var(--sans); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.t365-arcade .arc-pcard .apr { font-family: var(--cond); font-weight: 700; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+.t365-arcade .arc-pcard .apr.up { color: var(--long); }
+.t365-arcade .arc-pcard .apr.down { color: var(--short); }
+.t365-arcade .arc-pcard.s { border-color: #ff4d5e33; }
+.t365-arcade .arc-pcard.l { border-color: #37d98a33; }
+
+/* compact regime strip */
+.t365-arcade .arc-regime { flex: none; padding: 13px 16px; display: flex; flex-direction: column; gap: 11px; }
+.t365-arcade .arc-reg-top { display: flex; align-items: center; gap: 11px; }
+.t365-arcade .arc-orb {
+  width: 14px; height: 14px; border-radius: 50%; background: var(--acc, var(--gold)); flex: none;
+  box-shadow: 0 0 14px var(--acc-glow, rgba(240,185,74,.45));
+}
+.t365-arcade .arc-state { font-family: var(--cond); font-weight: 700; font-size: 19px; letter-spacing: .12em; color: var(--text); }
+.t365-arcade .arc-next { margin-left: auto; font-family: var(--mono); font-size: 13px; color: var(--dim); letter-spacing: .04em; }
+
+/* recent feed — grows to fill the rail; fewer columns + natural row height */
+.t365-arcade .arc-recent { flex: 1 1 0 !important; min-height: 0; padding: 13px 16px 10px; }
+.t365-arcade .arc-recent .rows { display: flex; flex-direction: column; gap: 2px; overflow: hidden; margin-top: 6px; }
+.t365-arcade .arc-recent .fhead,
+.t365-arcade .arc-recent .frow { grid-template-columns: 1fr 58px 92px 30px !important; gap: 9px; }
+.t365-arcade .arc-recent .frow { height: auto !important; min-height: 36px !important; flex: none; }
+
+/* ── right column: game window + ticker ── */
+.t365-arcade .arc-right { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+
+.t365-arcade .gameframe {
+  flex: 1; min-height: 0; position: relative; border-radius: 14px; overflow: hidden;
+  background:
+    radial-gradient(120% 120% at 50% 0%, #15191f 0%, #0b0d11 60%, #070809 100%);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 0 0 1px rgba(240,185,74,.06), inset 0 0 120px rgba(0,0,0,.6);
+}
+/* subtle inset hatch so an un-keyed/empty frame still reads as intentional */
+.t365-arcade .gameframe::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(45deg, rgba(255,255,255,.012) 0 12px, transparent 12px 24px);
+}
+/* keyed (chroma-fill) mode: strip everything but the flat colour for a clean key */
+.t365-arcade .gameframe.keyed { box-shadow: none; border-color: transparent; }
+.t365-arcade .gameframe.keyed::before { display: none; }
+.t365-arcade .gameframe.keyed .gf-corner { display: none; }
+.t365-arcade .gf-corner {
+  position: absolute; width: 34px; height: 34px; pointer-events: none; z-index: 2;
+  border-color: var(--gold); border-style: solid; border-width: 0;
+  filter: drop-shadow(0 0 6px rgba(240,185,74,.4));
+}
+.t365-arcade .gf-corner.tl { top: 14px; left: 14px; border-top-width: 3px; border-left-width: 3px; border-top-left-radius: 6px; }
+.t365-arcade .gf-corner.tr { top: 14px; right: 14px; border-top-width: 3px; border-right-width: 3px; border-top-right-radius: 6px; }
+.t365-arcade .gf-corner.bl { bottom: 14px; left: 14px; border-bottom-width: 3px; border-left-width: 3px; border-bottom-left-radius: 6px; }
+.t365-arcade .gf-corner.br { bottom: 14px; right: 14px; border-bottom-width: 3px; border-right-width: 3px; border-bottom-right-radius: 6px; }
+.t365-arcade .gf-label {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center;
+}
+.t365-arcade .gf-eyebrow { font-family: var(--sans); font-weight: 600; font-size: 16px; letter-spacing: .42em; color: var(--gold); text-transform: uppercase; opacity: .85; }
+.t365-arcade .gf-title { font-family: var(--cond); font-weight: 700; font-size: 92px; line-height: .9; letter-spacing: .06em; color: #20262f; text-shadow: 0 1px 0 rgba(255,255,255,.03); }
+.t365-arcade .gf-note { font-family: var(--mono); font-size: 14px; letter-spacing: .12em; color: var(--dim); text-transform: uppercase; }
+
+/* signal ticker */
+.t365-arcade .arc-ticker {
+  flex: none; height: 84px; display: flex; align-items: center; gap: 0;
+  background: linear-gradient(180deg, var(--panel) 0%, #111419 100%);
+  border: 1px solid var(--line); border-radius: 12px; overflow: hidden; position: relative;
+}
+.t365-arcade .arc-ticker-label {
+  flex: none; align-self: stretch; display: flex; align-items: center; padding: 0 22px;
+  font-family: var(--cond); font-weight: 700; font-size: 19px; letter-spacing: .14em; color: var(--gold);
+  background: linear-gradient(90deg, #15140f, #121319); border-right: 1px solid var(--line);
+  text-transform: uppercase; white-space: nowrap;
+}
+.t365-arcade .arc-ticker.firing .arc-ticker-label { color: #fff; background: linear-gradient(90deg, var(--acc), #121319); }
+.t365-arcade .arc-ticker .tk-fire { animation: arcFireBlink .7s steps(2) infinite; }
+@keyframes arcFireBlink { 0%,100% { opacity: 1 } 50% { opacity: .4 } }
+.t365-arcade .arc-ticker-track { flex: 1; overflow: hidden; position: relative; height: 100%; }
+.t365-arcade .arc-ticker-run {
+  position: absolute; top: 0; left: 0; height: 100%; display: flex; align-items: center; gap: 0;
+  white-space: nowrap; animation: arcMarquee 34s linear infinite; will-change: transform;
+}
+@keyframes arcMarquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+.t365-arcade .tk-chip { display: inline-flex; align-items: center; gap: 11px; padding: 0 26px; border-right: 1px solid var(--line-soft); height: 38px; }
+.t365-arcade .tk-chip b { font-family: var(--cond); font-weight: 700; font-size: 15px; letter-spacing: .06em; padding: 2px 8px; border-radius: 5px; }
+.t365-arcade .tk-chip b.L { color: var(--long); background: #37d98a18; }
+.t365-arcade .tk-chip b.S { color: var(--short); background: #ff4d5e18; }
+.t365-arcade .tk-chip .tk-pair { font-family: var(--cond); font-weight: 600; font-size: 19px; letter-spacing: .03em; color: var(--text); }
+.t365-arcade .tk-chip .tk-entry { font-family: var(--mono); font-size: 14px; color: var(--muted); }
+.t365-arcade .tk-chip .tk-sc { font-family: var(--mono); font-size: 13px; color: var(--dim); }

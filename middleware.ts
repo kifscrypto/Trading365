@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server"
 // (The page is showcased only during live streams via the ?k= URL — it is NOT
 // linked publicly.)
 export const config = {
-  matcher: ["/live", "/api/live"],
+  matcher: ["/live", "/live-arcade", "/api/live"],
 }
 
 function notFound() {
@@ -27,7 +27,7 @@ export function middleware(req: NextRequest) {
   }
 
   const res = NextResponse.next()
-  if (req.nextUrl.pathname === "/live") {
+  if (req.nextUrl.pathname.startsWith("/live")) {
     res.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive")
   }
   return res
