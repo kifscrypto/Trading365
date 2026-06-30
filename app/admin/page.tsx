@@ -649,6 +649,12 @@ export default function AdminPage() {
             Affiliate Links →
           </button>
           <button
+            onClick={() => router.push('/admin/affiliate-earnings')}
+            className="text-sm text-amber-400 hover:text-amber-300 font-medium"
+          >
+            Affiliate Earnings →
+          </button>
+          <button
             onClick={() => router.push('/admin/categories')}
             className="text-sm text-amber-400 hover:text-amber-300 font-medium"
           >
