@@ -15,15 +15,30 @@ async function sendTelegram(text: string): Promise<void> {
     console.error('[daily-digest] missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID')
     return
   }
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
-    })
-    if (!res.ok) console.error('[daily-digest] telegram error:', JSON.stringify(await res.json()))
-  } catch (err) {
-    console.error('[daily-digest] telegram send failed:', err)
+  // The digest shares a cron slot with the signal routes, so it can land in a
+  // burst that trips Telegram's per-chat rate limit (429). Honour retry_after
+  // and try once more rather than silently dropping the daily report.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+      })
+      if (res.ok) return
+      const body = await res.json().catch(() => ({}))
+      if (res.status === 429 && attempt === 0) {
+        const retryAfter = Number(body?.parameters?.retry_after) || 2
+        console.error(`[daily-digest] telegram 429, retrying after ${retryAfter}s`)
+        await new Promise((r) => setTimeout(r, (retryAfter + 1) * 1000))
+        continue
+      }
+      console.error('[daily-digest] telegram error:', JSON.stringify(body))
+      return
+    } catch (err) {
+      console.error('[daily-digest] telegram send failed:', err)
+      return
+    }
   }
 }
 

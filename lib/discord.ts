@@ -18,15 +18,30 @@ type Embed = Record<string, unknown>
 async function post(embeds: Embed[], content?: string, webhookUrl?: string): Promise<void> {
   const url = webhookUrl ?? process.env.DISCORD_WEBHOOK_URL
   if (!url) return
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'Trading365 Scanner', content, embeds }),
-    })
-    if (!res.ok) console.error('[discord] webhook error:', res.status, await res.text())
-  } catch (err) {
-    console.error('[discord] send failed:', err)
+  // When several scanner crons fire in the same slot they hammer one webhook and
+  // Discord replies 429. Honour retry_after and try once more so a message
+  // (notably the daily digest) isn't silently dropped in the burst.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'Trading365 Scanner', content, embeds }),
+      })
+      if (res.ok) return
+      if (res.status === 429 && attempt === 0) {
+        const body = await res.json().catch(() => ({}) as { retry_after?: number })
+        const retryAfter = Number(body?.retry_after) || 2
+        console.error(`[discord] webhook 429, retrying after ${retryAfter}s`)
+        await new Promise((r) => setTimeout(r, (retryAfter + 0.5) * 1000))
+        continue
+      }
+      console.error('[discord] webhook error:', res.status, await res.text())
+      return
+    } catch (err) {
+      console.error('[discord] send failed:', err)
+      return
+    }
   }
 }
 

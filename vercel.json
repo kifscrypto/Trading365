@@ -34,7 +34,7 @@
     },
     {
       "path": "/api/scanner/daily-digest?cron=true",
-      "schedule": "0 13 * * *"
+      "schedule": "3 13 * * *"
     }
   ]
 }
