@@ -24,6 +24,10 @@ const CTA_MSGS = [
   `Long or short, every fire hits the premium group in real time`,
 ]
 
+// Preferred-partner slot in the bottom band. Blank for now — set `name` (and an
+// optional `msg`) to fill it; the box stays reserved/visible while empty.
+const PARTNER = { name: "", msg: "" }
+
 const REG: Record<Verdict, { state: string; c: string }> = {
   long: { state: "LONG BOOK · LIVE", c: "#37d98a" },
   short: { state: "SHORT BOOK · LIVE", c: "#ff4d5e" },
@@ -52,6 +56,10 @@ function fmtAgo(iso: string): string {
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h`
   return `${Math.floor(hrs / 24)}d`
+}
+function fmtHM(iso: string): string {
+  const d = new Date(iso)
+  return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
 }
 function fmtPct(n: number | null, digits = 0): string {
   return n === null || !Number.isFinite(n) ? "—" : `${n.toFixed(digits)}%`
@@ -351,23 +359,17 @@ export function ArcadeScene() {
               </div>
             </section>
 
-            {/* Slim regime state line */}
-            <section className="panel arc-regime">
-              <div className="arc-reg-top">
-                <span className="arc-orb" />
-                <span className="arc-state">{reg.state}</span>
-                <span className="arc-next">scan {nextScan}</span>
-              </div>
-            </section>
-
-            {/* Recent signals */}
+            {/* Recent signals — the headline panel of the rail */}
             <section className="panel feed recent arc-recent">
-              <div className="eyebrow" style={{ marginBottom: 4 }}>Recent Signals · Live</div>
+              <div className="arc-recent-head">
+                <span className="eyebrow">Recent Signals · Live</span>
+                <span className="arc-scan">next scan {nextScan}</span>
+              </div>
               <div className="fhead">
                 <span>Pair</span><span>Side</span><span className="r">Entry</span><span className="r">Sc</span>
               </div>
               <div className="rows">
-                {signals.slice(0, 6).map((s) => {
+                {signals.slice(0, 8).map((s) => {
                   const firing = firingId === s.id
                   const held = heldId === s.id
                   const profit = s.tp1 || s.tp2 || s.tp3
@@ -413,6 +415,7 @@ export function ArcadeScene() {
                       <b className={s.direction === "long" ? "L" : "S"}>{s.direction === "long" ? "LONG" : "SHORT"}</b>
                       <span className="tk-pair">{s.pair}</span>
                       <span className="tk-entry">@ {fmtEntry(s.entry)}</span>
+                      <span className="tk-time">{fmtHM(s.time)} · {fmtAgo(s.time)} ago</span>
                       <span className="tk-sc">sc {s.score}</span>
                     </span>
                   ))}
@@ -433,6 +436,17 @@ export function ArcadeScene() {
               ))}
             </div>
           </footer>
+          <div className="partner">
+            <span className="plabel">Preferred Partner</span>
+            {PARTNER.name ? (
+              <>
+                <span className="pname">{PARTNER.name}</span>
+                {PARTNER.msg && <span className="pmsg">↳ {PARTNER.msg}</span>}
+              </>
+            ) : (
+              <span className="pname arc-partner-empty">—</span>
+            )}
+          </div>
           <div className="qrcard">
             <div className="qbox"><div id="arcqr" /></div>
             <div className="qt">

@@ -15,7 +15,7 @@
    flex-grow values fought over the spare height.) */
 .t365-arcade .arc-rail {
   display: grid !important;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 9px;
   min-height: 0;
 }
@@ -64,17 +64,21 @@
 .t365-arcade .arc-state { font-family: var(--cond); font-weight: 700; font-size: 19px; letter-spacing: .12em; color: var(--text); }
 .t365-arcade .arc-next { margin-left: auto; font-family: var(--mono); font-size: 13px; color: var(--dim); letter-spacing: .04em; }
 
-/* recent feed — grows to fill the rail; fewer columns + natural row height */
-.t365-arcade .arc-recent { flex: 1 1 0 !important; min-height: 0; padding: 13px 16px 10px; }
-.t365-arcade .arc-recent .rows { display: flex; flex-direction: column; gap: 3px; overflow: hidden; margin-top: 7px; }
+/* recent feed — the headline panel of the rail; grows to fill all the space
+   freed by dropping the regime strip */
+.t365-arcade .arc-recent { flex: 1 1 0 !important; min-height: 0; padding: 14px 16px 12px; }
+.t365-arcade .arc-recent-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.t365-arcade .arc-recent-head .arc-scan { font-family: var(--mono); font-size: 12px; letter-spacing: .03em; color: var(--dim); white-space: nowrap; }
+.t365-arcade .arc-recent .rows { display: flex; flex-direction: column; gap: 4px; overflow: hidden; margin-top: 8px; }
 .t365-arcade .arc-recent .fhead,
-.t365-arcade .arc-recent .frow { grid-template-columns: 1fr 58px 96px 30px !important; gap: 9px; }
-.t365-arcade .arc-recent .frow { height: auto !important; min-height: 46px !important; flex: none; }
-/* a touch bigger so the feed reads clearly on stream */
-.t365-arcade .arc-recent .frow .pname { font-size: 21px; }
-.t365-arcade .arc-recent .frow .psub { font-size: 11px; }
-.t365-arcade .arc-recent .frow .entry { font-size: 16px; }
-.t365-arcade .arc-recent .frow .sc { font-size: 17px; }
+.t365-arcade .arc-recent .frow { grid-template-columns: 1fr 60px 100px 32px !important; gap: 10px; }
+.t365-arcade .arc-recent .frow { height: auto !important; min-height: 50px !important; flex: none; }
+/* bigger type — this is one of the most important panels on the stream */
+.t365-arcade .arc-recent .frow .pname { font-size: 23px; }
+.t365-arcade .arc-recent .frow .psub { font-size: 12px; }
+.t365-arcade .arc-recent .frow .entry { font-size: 17px; }
+.t365-arcade .arc-recent .frow .sc { font-size: 19px; }
+.t365-arcade .arc-recent .frow .dir { font-size: 14px; }
 
 /* ── right column: game window + ticker ── */
 .t365-arcade .arc-right { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
@@ -139,4 +143,8 @@
 .t365-arcade .tk-chip b.S { color: var(--short); background: #ff4d5e18; }
 .t365-arcade .tk-chip .tk-pair { font-family: var(--cond); font-weight: 600; font-size: 19px; letter-spacing: .03em; color: var(--text); }
 .t365-arcade .tk-chip .tk-entry { font-family: var(--mono); font-size: 14px; color: var(--muted); }
+.t365-arcade .tk-chip .tk-time { font-family: var(--mono); font-size: 13px; color: var(--gold); letter-spacing: .02em; }
+
+/* blank preferred-partner slot — reserved + visible until a partner is set */
+.t365-arcade .partner .arc-partner-empty { color: var(--dim); }
 .t365-arcade .tk-chip .tk-sc { font-family: var(--mono); font-size: 13px; color: var(--dim); }
