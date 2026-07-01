@@ -96,6 +96,16 @@
   background: transparent;
   border: 1px solid var(--line);
 }
+/* OBS transparency: the game window can only be see-through if NONE of its
+   ancestors paint an opaque background. Strip the global body fill, the
+   .t365-live void colour, the .stage gradient and the scanline veil on this
+   route so a gameplay/camera layer placed BEHIND this browser source shows
+   through the window. The opaque chrome panels (market/score/wins/ticker/
+   header/footer) keep their own backgrounds and stay visible. */
+:where(html, body):has(.t365-arcade) { background: transparent !important; }
+.t365-arcade { background: transparent; }
+.t365-arcade .stage { background: transparent; }
+.t365-arcade .stage::after { display: none; }
 /* keyed (chroma-fill) mode: strip everything but the flat colour for a clean key */
 .t365-arcade .gameframe.keyed { box-shadow: none; border-color: transparent; }
 .t365-arcade .gameframe.keyed::before { display: none; }
