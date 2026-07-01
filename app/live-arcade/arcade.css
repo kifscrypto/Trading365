@@ -79,6 +79,10 @@
 .t365-arcade .arc-recent .frow .entry { font-size: 17px; }
 .t365-arcade .arc-recent .frow .sc { font-size: 19px; }
 .t365-arcade .arc-recent .frow .dir { font-size: 14px; }
+/* Recent Wins variant: 3-column layout (Pair · Side · Result) with a bold TP result */
+.t365-arcade .arc-wins .fhead,
+.t365-arcade .arc-wins .frow { grid-template-columns: 1fr 62px 128px !important; }
+.t365-arcade .arc-wins .frow .res { font-size: 21px; font-weight: 600; }
 
 /* ── right column: game window + ticker ── */
 .t365-arcade .arc-right { display: flex; flex-direction: column; gap: 16px; min-height: 0; }

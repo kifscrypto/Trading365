@@ -254,6 +254,8 @@ export function ArcadeScene() {
   const rec = data?.record
   const pnl = data?.pnl
   const signals = data?.signals ?? []
+  // Recent Wins panel: matured signals that closed in profit (newest first).
+  const wins = (data?.closed ?? []).filter((c) => c.win)
   const totalClosed =
     book === "short" ? (rec?.short.count ?? 0) :
     book === "long"  ? (rec?.long.count ?? 0) :
@@ -359,35 +361,27 @@ export function ArcadeScene() {
               </div>
             </section>
 
-            {/* Recent signals — the headline panel of the rail */}
-            <section className="panel feed recent arc-recent">
+            {/* Recent wins — the headline panel of the rail */}
+            <section className="panel feed recent arc-recent arc-wins">
               <div className="arc-recent-head">
-                <span className="eyebrow">Recent Signals · Live</span>
+                <span className="eyebrow">Recent Wins · TP Hits</span>
                 <span className="arc-scan">next scan {nextScan}</span>
               </div>
               <div className="fhead">
-                <span>Pair</span><span>Side</span><span className="r">Entry</span><span className="r">Sc</span>
+                <span>Pair</span><span>Side</span><span className="r">Result</span>
               </div>
               <div className="rows">
-                {signals.slice(0, 8).map((s) => {
-                  const firing = firingId === s.id
-                  const held = heldId === s.id
-                  const profit = s.tp1 || s.tp2 || s.tp3
-                  let cls = firing ? "frow firerow live" : held ? "frow held" : `frow${s.live ? " live" : ""}`
-                  if (profit) cls += " profit"
-                  return (
-                    <div className={cls} key={s.id}>
-                      <span className="pair">
-                        <span className="pname">{s.pair}{(s.live || firing) && <span className="lflag">● LIVE</span>}</span>
-                        <span className="psub">{s.exchange} · {fmtAgo(s.time)}</span>
-                      </span>
-                      <span className={`dir ${s.direction === "long" ? "L" : "S"}`}>{s.direction === "long" ? "LONG" : "SHORT"}</span>
-                      <span className="entry">{fmtEntry(s.entry)}</span>
-                      <span className="sc">{s.score}</span>
-                    </div>
-                  )
-                })}
-                {signals.length === 0 && <div className="frow"><span className="pair" style={{ color: "var(--dim)" }}>No open signals</span></div>}
+                {wins.slice(0, 8).map((c) => (
+                  <div className="frow profit" key={c.id}>
+                    <span className="pair">
+                      <span className="pname">{c.pair}</span>
+                      <span className="psub">{fmtAgo(c.time)} ago</span>
+                    </span>
+                    <span className={`dir ${c.direction === "long" ? "L" : "S"}`}>{c.direction === "long" ? "LONG" : "SHORT"}</span>
+                    <span className="res win">{c.result}</span>
+                  </div>
+                ))}
+                {wins.length === 0 && <div className="frow"><span className="pair" style={{ color: "var(--dim)" }}>No wins yet</span></div>}
               </div>
             </section>
           </div>
