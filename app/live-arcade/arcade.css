@@ -18,6 +18,10 @@
   grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 9px;
   min-height: 0;
+  /* Solid backing so the inter-panel gaps don't show the transparent stream
+     layer through the rail — only the main game window stays see-through. */
+  background: var(--void);
+  border-radius: 12px;
 }
 
 /* Natural heights for the fixed panels; only the recent feed grows to fill.
