@@ -110,6 +110,12 @@
 .t365-arcade { background: transparent; }
 .t365-arcade .stage { background: transparent; }
 .t365-arcade .stage::after { display: none; }
+/* The global site header/footer are body-level siblings of the fixed overlay;
+   the old opaque backdrop hid them, but with the OBS-transparent backdrop they
+   show through. Hide them on this route. Child combinator (`body > …`) so only
+   the site chrome is hit — the arcade's own nested .head / footer.cta are safe. */
+body:has(.t365-arcade) > header,
+body:has(.t365-arcade) > footer { display: none !important; }
 /* keyed (chroma-fill) mode: strip everything but the flat colour for a clean key */
 .t365-arcade .gameframe.keyed { box-shadow: none; border-color: transparent; }
 .t365-arcade .gameframe.keyed::before { display: none; }
