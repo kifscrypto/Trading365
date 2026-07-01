@@ -85,15 +85,12 @@
 
 .t365-arcade .gameframe {
   flex: 1; min-height: 0; position: relative; border-radius: 14px; overflow: hidden;
-  background:
-    radial-gradient(120% 120% at 50% 0%, #15191f 0%, #0b0d11 60%, #070809 100%);
+  /* Transparent stream hole: run this page as an OBS browser source (transparency
+     enabled) and place the gameplay capture on the layer BEHIND it — the gameplay
+     shows through here while the surrounding overlay chrome stays opaque. The gold
+     corner brackets + thin border remain as an alignment guide. */
+  background: transparent;
   border: 1px solid var(--line);
-  box-shadow: inset 0 0 0 1px rgba(240,185,74,.06), inset 0 0 120px rgba(0,0,0,.6);
-}
-/* subtle inset hatch so an un-keyed/empty frame still reads as intentional */
-.t365-arcade .gameframe::before {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: repeating-linear-gradient(45deg, rgba(255,255,255,.012) 0 12px, transparent 12px 24px);
 }
 /* keyed (chroma-fill) mode: strip everything but the flat colour for a clean key */
 .t365-arcade .gameframe.keyed { box-shadow: none; border-color: transparent; }
@@ -108,13 +105,6 @@
 .t365-arcade .gf-corner.tr { top: 14px; right: 14px; border-top-width: 3px; border-right-width: 3px; border-top-right-radius: 6px; }
 .t365-arcade .gf-corner.bl { bottom: 14px; left: 14px; border-bottom-width: 3px; border-left-width: 3px; border-bottom-left-radius: 6px; }
 .t365-arcade .gf-corner.br { bottom: 14px; right: 14px; border-bottom-width: 3px; border-right-width: 3px; border-bottom-right-radius: 6px; }
-.t365-arcade .gf-label {
-  position: absolute; inset: 0; z-index: 1;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center;
-}
-.t365-arcade .gf-eyebrow { font-family: var(--sans); font-weight: 600; font-size: 16px; letter-spacing: .42em; color: var(--gold); text-transform: uppercase; opacity: .85; }
-.t365-arcade .gf-title { font-family: var(--cond); font-weight: 700; font-size: 92px; line-height: .9; letter-spacing: .06em; color: #20262f; text-shadow: 0 1px 0 rgba(255,255,255,.03); }
-.t365-arcade .gf-note { font-family: var(--mono); font-size: 14px; letter-spacing: .12em; color: var(--dim); text-transform: uppercase; }
 
 /* signal ticker */
 .t365-arcade .arc-ticker {

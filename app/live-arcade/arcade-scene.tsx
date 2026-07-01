@@ -397,13 +397,6 @@ export function ArcadeScene() {
             <div className={`gameframe${chroma ? " keyed" : ""}`} style={chroma ? { background: chroma } : undefined}>
               <span className="gf-corner tl" /><span className="gf-corner tr" />
               <span className="gf-corner bl" /><span className="gf-corner br" />
-              {!chroma && (
-                <div className="gf-label">
-                  <div className="gf-eyebrow">MEME ASYLUM · ARCADE</div>
-                  <div className="gf-title">GAMEPLAY</div>
-                  <div className="gf-note">live capture · composite in OBS</div>
-                </div>
-              )}
             </div>
 
             <div className={`arc-ticker${fireMsg ? " firing" : ""}`}>
