@@ -24,7 +24,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: 'Trading365 - Trade Smarter. Earn Bigger.',
+    default: 'Trading365 — Crypto Exchange Reviews, Comparisons & Bonuses',
     template: '%s | Trading365',
   },
   description: 'Expert crypto exchange reviews, comparisons, and exclusive bonus deals. Find the best trading platforms with unbiased analysis and real user insights.',
