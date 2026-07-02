@@ -95,7 +95,7 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   return {
     title: pageTitle,
     description: pageDescription,
-    keywords: article.metaKeywords ?? undefined,
+    // meta keywords intentionally omitted (DB field retained for internal use).
     alternates: {
       canonical: canonicalUrl,
     },

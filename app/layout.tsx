@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     template: '%s | Trading365',
   },
   description: 'Expert crypto exchange reviews, comparisons, and exclusive bonus deals. Find the best trading platforms with unbiased analysis and real user insights.',
-  keywords: ['crypto exchange', 'bitcoin trading', 'exchange reviews', 'crypto bonuses', 'no KYC exchange', 'trading platform comparison'],
+  // meta keywords intentionally omitted — ignored by Google, leaks targeting.
   alternates: {
     canonical: BASE_URL,
   },
