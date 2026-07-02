@@ -20,7 +20,7 @@ import { ScannerSpotlight } from "@/components/scanner-spotlight"
 import { ScannerTickerLive } from "@/components/scanner-ticker-live"
 import { DiscordCta } from "@/components/discord-cta"
 import { exchanges } from "@/lib/data/exchanges"
-import { generateWebsiteSchema, generateOrganizationStandaloneSchema } from "@/lib/schema"
+import { generateWebsiteSchema } from "@/lib/schema"
 
 const BASE_URL = 'https://trading365.org'
 
@@ -90,16 +90,11 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* WebSite schema. Organization schema is emitted sitewide from the root layout. */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(generateWebsiteSchema()),
-        }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(generateOrganizationStandaloneSchema()),
         }}
       />
       {/* Live scanner wins ticker — client-only, keeps symbols out of SSR HTML */}

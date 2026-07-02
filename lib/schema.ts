@@ -1,5 +1,6 @@
 import type { Article, Exchange } from "@/lib/data/types"
 import { siteConfig } from "@/lib/data/site-config"
+import { authorHref } from "@/lib/data/authors"
 
 const BASE_URL = siteConfig.url
 
@@ -41,6 +42,7 @@ export function generateOrganizationSchema() {
     sameAs: [
       siteConfig.socials.facebook,
       siteConfig.socials.twitter,
+      siteConfig.socials.discord,
       siteConfig.socials.youtube,
       siteConfig.socials.telegram,
     ].filter(Boolean),
@@ -59,6 +61,7 @@ export function generateOrganizationStandaloneSchema() {
     sameAs: [
       siteConfig.socials.facebook,
       siteConfig.socials.twitter,
+      siteConfig.socials.discord,
       siteConfig.socials.youtube,
       siteConfig.socials.telegram,
     ].filter(Boolean),
@@ -92,6 +95,7 @@ export function generateArticleSchema(article: Article, isReview = false) {
     author: {
       "@type": "Person",
       name: article.author,
+      ...(authorHref(article.author) ? { url: `${BASE_URL}${authorHref(article.author)}` } : {}),
     },
     publisher: generateOrganizationSchema(),
     mainEntityOfPage: {

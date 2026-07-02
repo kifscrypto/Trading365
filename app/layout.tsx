@@ -6,6 +6,7 @@ import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
 import { GoogleAnalytics } from '@/components/google-analytics'
 import { PageTracker } from '@/components/page-tracker'
+import { generateOrganizationStandaloneSchema } from '@/lib/schema'
 import { ExitIntentPopup } from '@/components/exit-intent-popup'
 import './globals.css'
 
@@ -58,6 +59,11 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <meta name="naver-site-verification" content="1790ce3ad7df54aff5e6fd5ac1c784a6c5da2264" />
+        {/* Sitewide Organization schema */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(generateOrganizationStandaloneSchema()) }}
+        />
         <link rel="alternate" type="application/rss+xml" title="Trading365 RSS Feed" href="/feed.xml" />
         <link rel="alternate" type="text/plain" title="Trading365 LLM Index" href="/llms.txt" />
         <link rel="alternate" type="text/plain" title="Trading365 LLM Full Dataset" href="/llms-full.txt" />
