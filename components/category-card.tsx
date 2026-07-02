@@ -31,7 +31,7 @@ export function CategoryCard({
         <h3 className="font-semibold text-foreground">{title}</h3>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       </div>
-      <p className="text-xs font-medium text-primary">{count} articles</p>
+      <p className="text-xs font-medium text-primary">{count} {count === 1 ? "article" : "articles"}</p>
     </Link>
   )
 }

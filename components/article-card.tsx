@@ -40,12 +40,12 @@ export function ArticleCard({
             className="object-cover transition-transform duration-500 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent" />
-          {rating && (
+          {rating ? (
             <div className="absolute top-3 right-3 flex items-center gap-1 rounded-md bg-background/80 backdrop-blur-sm px-2 py-1">
               <span className="text-xs font-bold text-primary">{rating}</span>
               <span className="text-xs text-primary/70">/10</span>
             </div>
-          )}
+          ) : null}
         </div>
       )}
       <div className="flex flex-1 flex-col gap-3 p-5">
@@ -56,12 +56,12 @@ export function ArticleCard({
           >
             {category}
           </Badge>
-          {!thumbnail && rating && (
+          {!thumbnail && rating ? (
             <div className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5">
               <span className="text-xs font-bold text-primary">{rating}</span>
               <span className="text-xs text-primary/70">/10</span>
             </div>
-          )}
+          ) : null}
         </div>
         <h3 className="text-base font-semibold leading-snug text-foreground transition-colors group-hover:text-primary text-balance">
           {title}

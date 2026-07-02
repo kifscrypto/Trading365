@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import Link from "next/link"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 
 const BASE_URL = "https://trading365.org"
@@ -52,9 +53,9 @@ export default function TermsPage() {
           <h2 className="mb-2 text-base font-semibold text-foreground">3. No Financial Advice</h2>
           <p>
             Nothing on this website constitutes financial, investment, or trading advice. All content is for informational purposes only. You are solely responsible for any trading or investment decisions you make. Please read our{" "}
-            <a href="/disclaimer" className="text-primary underline underline-offset-2 hover:text-primary/80">
+            <Link href="/disclaimer" className="text-primary underline underline-offset-2 hover:text-primary/80">
               Disclaimer
-            </a>{" "}
+            </Link>{" "}
             for full details.
           </p>
         </section>

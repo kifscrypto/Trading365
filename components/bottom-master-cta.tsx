@@ -2,6 +2,7 @@ import Link from "next/link"
 import { ExternalLink, ShieldCheck } from "lucide-react"
 
 export function BottomMasterCTA() {
+  const updated = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })
   return (
     <div
       className="rounded-lg border-2 border-[#eab308] overflow-hidden"
@@ -28,7 +29,7 @@ export function BottomMasterCTA() {
           <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] text-zinc-400">
             <span className="flex items-center gap-1">
               <ShieldCheck className="h-3 w-3 text-[#22c55e]" />
-              Updated for April 2026
+              Updated for {updated}
             </span>
             <span className="text-zinc-600">•</span>
             <span className="flex items-center gap-1">

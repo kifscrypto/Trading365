@@ -154,7 +154,7 @@ export function SiteFooter() {
             Trading365 is an independent review platform. Some links on this site are affiliate links, meaning we may earn a commission at no extra cost to you. Cryptocurrency trading involves substantial risk of loss. Past performance is not indicative of future results. Always do your own research before making investment decisions.
           </p>
           <p className="text-xs text-muted-foreground shrink-0">
-            {"2024-2026 Trading365. All rights reserved."}
+            {`© 2024–${new Date().getFullYear()} Trading365. All rights reserved.`}
           </p>
         </div>
       </div>
