@@ -66,7 +66,7 @@ DO NOT flag: ## headings, **bold**, *italic*, | tables, --- separators, - list i
 Scoring: start at 100, subtract 15 per error-severity issue, subtract 5 per warning-severity issue, floor at 0.`
 
       const message = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-opus-4-8',
         max_tokens: 4000,
         messages: [{
           role: 'user',
@@ -119,7 +119,7 @@ ${truncated}`,
       : 'Fix the issues in this Markdown article content. Preserve all valid Markdown syntax — headings, bold, italic, tables, lists, and horizontal rules must remain as-is. Only fix the specific issues listed.'
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-opus-4-8',
       max_tokens: 4000,
       messages: [{
         role: 'user',

@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       : ''
 
     const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-opus-4-8',
       max_tokens: 8000,
       system: `You are an article editor. Your output IS the article — nothing else.
 

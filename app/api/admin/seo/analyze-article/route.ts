@@ -72,16 +72,26 @@ Do NOT prioritise: word count, "covering every topic", generic SEO completeness.
 
 ---
 
-SCORING (out of 100):
-- 30% Conversion strength (verdict clarity, CTA placement, objection handling)
-- 25% Search intent alignment (does it answer what the user actually wants?)
-- 20% Content quality (clarity, repetition, specificity)
-- 15% Internal linking (relevant, well-placed, not excessive)
-- 10% Authority signals (experience, specificity, credibility)
+GOOGLE ALIGNMENT (judge against current Google guidance, not a legacy checklist):
+- People-first / Helpful Content: written to satisfy a real person's goal, not to game search. Reward original insight, genuine first-hand experience and a decision the reader can act on; penalise thin, rehashed, "written-for-search" filler and AI-slop padding.
+- E-E-A-T: Experience (real hands-on use), Expertise, Authoritativeness, Trust. First-hand specifics and accurate, verifiable claims raise trust; vague or generic copy lowers it.
+- Search intent: match what the searcher actually wants so they leave satisfied without needing another result.
+- Spam-policy compliance: no keyword stuffing, no scaled low-value content, no thin affiliate pages with little added value. A genuine, useful review is fine.
 
-Before assigning score, ask: "Would this page realistically compete in the top 3 Google results for this query?"
-→ If YES: score must be 80+
-→ Do NOT under-score strong pages due to minor issues
+SCORING (out of 100) - weight the factors above through that lens:
+- 30% Conversion strength (verdict clarity, CTA placement, objection handling)
+- 25% Search-intent alignment (answers what the searcher wants; satisfies without needing another page)
+- 20% Content quality and helpfulness (clarity, originality, no repetition/filler, specificity)
+- 15% Internal linking (relevant, well-placed, not excessive)
+- 10% E-E-A-T / trust signals (first-hand experience, specificity, accuracy, credibility)
+
+SCORE BANDS - use the FULL scale, do not cluster in the 80s:
+- 90-100: excellent - would realistically win a top-3 position; clear verdict, strong intent match, real experience, only cosmetic nits
+- 80-89: strong - top-3 capable but 1-2 fixable gaps hold it back
+- 70-79: solid but middling - competitive only after real work
+- 50-69: weak - intent, trust or conversion problems
+- below 50: not competitive / critical errors
+Do NOT under-score a genuinely strong page for minor issues: if it meets the 90-100 description, score it 90+.
 
 DO NOT penalise: missing irrelevant sections (staking, earn, etc.)
 ONLY penalise missing content if it directly impacts decision-making, conversion, or search intent.
@@ -201,7 +211,7 @@ SITE PAGES (for internal link suggestions):
 ${siteUrls || 'None available'}`
 
     const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-opus-4-8',
       max_tokens: 4000,
       messages: [{ role: 'user', content: promptContent }],
     })

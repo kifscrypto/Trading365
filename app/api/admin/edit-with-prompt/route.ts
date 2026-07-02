@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       : 'The content is Markdown. Preserve all Markdown syntax — headings, bold, italic, tables, lists, code blocks, horizontal rules.'
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-opus-4-8',
       max_tokens: 8000,
       messages: [{
         role: 'user',

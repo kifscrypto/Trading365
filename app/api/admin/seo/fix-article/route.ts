@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     const truncatedContent = normalisedContent.slice(0, 18000)
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-opus-4-8',
       max_tokens: 4000,
       system: 'You output only a valid JSON array of find-replace patches. No explanation, no markdown fences, no preamble. Output starts with [ and ends with ].',
       messages: [{

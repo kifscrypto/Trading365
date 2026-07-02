@@ -222,7 +222,7 @@ OUTLINE TO FOLLOW:
 ${outline}`
 
     const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-opus-4-8',
       max_tokens: 8000,
       messages: [{ role: 'user', content: promptContent }],
     })

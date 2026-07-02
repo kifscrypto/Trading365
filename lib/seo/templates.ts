@@ -141,14 +141,26 @@ CONTENT GOAL:
 2. Rank for the informational query + related long-tail / FAQ queries
 3. Earn featured snippets where possible
 
+GOOGLE ALIGNMENT (judge against current Google guidance, not a legacy checklist):
+- People-first / Helpful Content: genuinely the most useful, original answer for the query - not thin, rehashed, or written just to rank. Reward first-hand insight and clarity; penalise AI-slop filler and padding.
+- E-E-A-T: Experience, Expertise, Authoritativeness, Trust - accurate, balanced, verifiable; no fabricated stats.
+- Search intent: match the informational query so the reader leaves satisfied; snippet/FAQ-ready where relevant.
+- Spam-policy compliance: no keyword stuffing, no scaled low-value content.
+
 SCORING (out of 100):
 - 30% Search-intent & answer quality (leads with the answer; directly satisfies the query)
 - 25% Topical depth & accuracy (covers what readers need; correct; balanced; no fabricated stats)
-- 20% Clarity & structure (scannable headings, examples, no fluff/repetition)
+- 20% Clarity & helpfulness (scannable, original, examples, no fluff/repetition)
 - 15% SEO & snippet readiness (FAQ present; headings target related queries; definitions/lists/tables where useful)
-- 10% Internal linking (relevant links to related Trading365 guides/reviews where natural)
+- 10% E-E-A-T / trust (accuracy, balance, credibility)
 
-Before scoring, ask: "Would this realistically compete in the top 3 for the informational query?" If YES → score 80+. Do NOT under-score a strong educational page for lacking conversion elements.
+SCORE BANDS - use the FULL scale, do not cluster in the 80s:
+- 90-100: excellent - top-3 capable; complete, original, clearly the best answer, only cosmetic nits
+- 80-89: strong - top-3 capable with 1-2 fixable gaps
+- 70-79: solid but middling
+- 50-69: weak (intent, accuracy or clarity problems)
+- below 50: not competitive / critical errors
+Do NOT under-score a strong educational page for lacking conversion elements; if it meets the 90-100 description, score it 90+.
 
 DO NOT PENALISE (CRITICAL — these are CORRECT for educational content):
 - Missing CTAs, sign-up prompts, or "best for" verdicts
