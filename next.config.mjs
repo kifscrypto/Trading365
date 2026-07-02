@@ -1,3 +1,30 @@
+// ============================================================================
+// LEGACY_WORDPRESS_REDIRECTS — pattern-based 301 scaffold for old WP URLs.
+// These are best-guess prefix/pattern matches mapped to the closest current
+// destination. Specific old-URL redirects live in nextConfig.redirects() below
+// and take precedence (they are listed first).
+// TODO: Populate exact sources from the GSC 404 report + Wayback Machine.
+// ============================================================================
+const LEGACY_WORDPRESS_REDIRECTS = [
+  // Exchange reviews (destinations verified against current article paths)
+  { source: '/:s(weex-review.*)',      destination: '/no-kyc/weex-review',            permanent: true },
+  { source: '/:s(bingx-review.*)',     destination: '/reviews/bingx-review',          permanent: true },
+  { source: '/:s(blofin.*)',           destination: '/no-kyc/blofin-review',          permanent: true },
+  { source: '/:s(xt-review.*)',        destination: '/reviews/xt-review',             permanent: true },
+  { source: '/:s(xt-com.*)',           destination: '/reviews/xt-review',             permanent: true },
+  // Comparisons / guides
+  { source: '/:s(bybit-vs-bingx.*)',   destination: '/comparisons/bybit-vs-bingx',    permanent: true },
+  // NOTE: crypto-prop-trading actually lives under /reviews, not /comparisons.
+  { source: '/:s(crypto-prop-trading.*)', destination: '/reviews/crypto-prop-trading', permanent: true },
+  { source: '/:s(cex-vs-dex.*)',       destination: '/comparisons/cex-vs-dex',        permanent: true },
+  // WordPress taxonomy / archive patterns
+  { source: '/category/:path*',        destination: '/reviews',                       permanent: true },
+  { source: '/tag/:path*',             destination: '/',                              permanent: true },
+  // WordPress date-permalink pattern /YYYY/MM/slug — exact slug match is a TODO
+  // (can't query the DB from static config), so fall back to /reviews.
+  { source: '/:year(\\d{4})/:month(\\d{2})/:slug*', destination: '/reviews',          permanent: true },
+]
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
@@ -215,6 +242,9 @@ const nextConfig = {
         destination: '/about',
         permanent: true,
       },
+
+      // Pattern-based legacy WordPress fallbacks (specific rules above win).
+      ...LEGACY_WORDPRESS_REDIRECTS,
     ]
   },
 }
