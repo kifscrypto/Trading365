@@ -24,8 +24,17 @@ const CATEGORIES = [
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// Slug = short keyword phrase, not full title.
 function slugify(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return s
+    .toLowerCase()
+    .replace(/['’]/g, '')      // strip apostrophes BEFORE hyphenation: "what's" -> "whats"
+    .replace(/[^a-z0-9]+/g, '-')     // non-alphanumerics -> hyphen
+    .replace(/^-|-$/g, '')           // trim leading/trailing hyphens
+    .split('-')
+    .filter(Boolean)
+    .slice(0, 6)                     // truncate to max 6 words
+    .join('-')
 }
 
 function extractTitle(text: string) {
