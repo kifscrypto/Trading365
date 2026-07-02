@@ -29,7 +29,6 @@ function InlineMarkdown({ text }: { text: string }) {
 }
 
 const BASE_URL = 'https://trading365.org'
-const OG_IMAGE = `${BASE_URL}/trading365-crypto-exchange-reviews.jpg`
 
 // Expanded descriptions (130–155 chars) for categories with previously short descriptions
 const DESCRIPTION_OVERRIDES: Record<string, string> = {
@@ -64,7 +63,7 @@ export async function getCategoryMetadata(category: string): Promise<Metadata> {
       card: 'summary_large_image',
       title: `${cat.title} | Trading365`,
       description,
-      images: [OG_IMAGE],
+      images: [ogImage],
     },
   }
 }
