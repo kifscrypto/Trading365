@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   },
 }
 
-const DEAL_ORDER = ["weex", "bydfi", "bitunix"]
+const DEAL_ORDER = ["weex", "bybit", "bitunix"]
 const topExchanges = DEAL_ORDER.map((slug) => exchanges.find((e) => e.slug === slug)!).filter(Boolean)
 const bonusDeals = topExchanges.map((ex, i) => ({
   name: ex.name,
