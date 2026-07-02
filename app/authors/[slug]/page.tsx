@@ -5,46 +5,62 @@ import { ArrowLeft, Linkedin } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 
+import { AUTHORS, getAuthorBySlug } from "@/lib/data/authors"
+import { siteConfig } from "@/lib/data/site-config"
+
 const BASE_URL = "https://trading365.org"
+const OG_IMAGE = `${BASE_URL}/trading365-crypto-exchange-reviews.jpg`
 
-type AuthorProfile = {
-  name: string
-  slug: string
-  role: string
-  bio: string
-  expertise: string[]
-  linkedIn?: string
+export function generateStaticParams() {
+  return AUTHORS.map((a) => ({ slug: a.slug }))
 }
-
-const AUTHORS: AuthorProfile[] = [
-  {
-    name: "Trading365 Team",
-    slug: "trading365-team",
-    role: "Editorial Team",
-    bio: "The Trading365 editorial team consists of active crypto traders and financial writers with hands-on experience across the exchanges we review. Every review, comparison, and guide is written and verified by people who actually use these platforms — not outsourced content farms. We hold ourselves to a simple standard: if we wouldn't trade on it, we won't recommend it.",
-    expertise: ["Crypto Exchange Reviews", "Derivatives & Leverage Trading", "No-KYC Platforms", "Fee Optimisation", "Crypto Bonuses & Promotions"],
-    linkedIn: "",
-  },
-]
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const author = AUTHORS.find(a => a.slug === slug)
-  if (!author) return { title: "Author Not Found" }
+  const author = getAuthorBySlug(slug)
+  if (!author) return { title: "Author Not Found", robots: { index: false, follow: false } }
+  const title = `${author.name} — ${author.role} | Trading365`
+  const description = author.bio.slice(0, 155)
+  const url = `${BASE_URL}/authors/${slug}`
   return {
-    title: `${author.name} — ${author.role} | Trading365`,
-    description: author.bio.slice(0, 155),
-    alternates: { canonical: `${BASE_URL}/authors/${slug}` },
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "profile",
+      title,
+      description,
+      url,
+      images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: author.name }],
+      siteName: "Trading365",
+    },
+    twitter: { card: "summary_large_image", title, description, images: [OG_IMAGE] },
   }
 }
 
 export default async function AuthorPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const author = AUTHORS.find(a => a.slug === slug)
+  const author = getAuthorBySlug(slug)
   if (!author) notFound()
+
+  const personSchema = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: author.name,
+    url: `${BASE_URL}/authors/${author.slug}`,
+    jobTitle: author.role,
+    description: author.bio,
+    knowsAbout: author.expertise,
+    worksFor: { "@type": "Organization", name: siteConfig.name, url: BASE_URL },
+    ...(author.linkedIn ? { sameAs: [author.linkedIn] } : {}),
+  }
 
   return (
     <div className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
+      />
       <section className="border-b border-border bg-secondary/30">
         <div className="mx-auto max-w-3xl px-4 py-10 lg:px-6">
           <Breadcrumbs items={[{ label: "Authors" }, { label: author.name }]} />
@@ -83,6 +99,21 @@ export default async function AuthorPage({ params }: { params: Promise<{ slug: s
             {author.expertise.map(e => (
               <Badge key={e} variant="secondary">{e}</Badge>
             ))}
+          </div>
+        </div>
+
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Follow Trading365</h2>
+          <div className="flex flex-wrap gap-3 text-sm">
+            {siteConfig.socials.twitter && (
+              <a href={siteConfig.socials.twitter} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">X (Twitter)</a>
+            )}
+            {siteConfig.socials.discord && (
+              <a href={siteConfig.socials.discord} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Discord</a>
+            )}
+            {siteConfig.socials.facebook && (
+              <a href={siteConfig.socials.facebook} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Facebook</a>
+            )}
           </div>
         </div>
 
