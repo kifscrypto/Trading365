@@ -33,7 +33,7 @@ export function FeaturedAdvertisers() {
                   key={ad.name}
                   href={ad.href}
                   target={isExternal ? "_blank" : undefined}
-                  rel={isExternal ? "noopener noreferrer sponsored" : undefined}
+                  rel={isExternal ? "sponsored nofollow noopener noreferrer" : undefined}
                   className="group flex items-center gap-3 rounded-lg border border-border bg-card/50 px-4 py-3 transition-all hover:border-primary/30 hover:bg-card"
                 >
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">

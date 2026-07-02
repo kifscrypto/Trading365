@@ -1,4 +1,5 @@
-import { CheckCircle2, ExternalLink } from "lucide-react"
+import { CheckCircle2, ExternalLink, ArrowRight } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
 interface BonusCardProps {
@@ -7,9 +8,10 @@ interface BonusCardProps {
   features: string[]
   tag?: string
   referralLink: string
+  reviewLink?: string
 }
 
-export function BonusCard({ name, bonus, features, tag, referralLink }: BonusCardProps) {
+export function BonusCard({ name, bonus, features, tag, referralLink, reviewLink }: BonusCardProps) {
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:border-primary/40 hover:shadow-[0_0_30px_-5px] hover:shadow-primary/10">
       {tag && (
@@ -40,13 +42,22 @@ export function BonusCard({ name, bonus, features, tag, referralLink }: BonusCar
           ))}
         </ul>
       </div>
-      <div className="mt-auto border-t border-border p-4">
-        <a href={referralLink} target="_blank" rel="noopener noreferrer sponsored">
+      <div className="mt-auto border-t border-border p-4 flex flex-col gap-2">
+        <a href={referralLink} target="_blank" rel="sponsored nofollow noopener noreferrer">
           <Button className="w-full gap-2 font-semibold" size="sm">
             Claim Now
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>
         </a>
+        {reviewLink && (
+          <Link
+            href={reviewLink}
+            className="inline-flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            Read the {name} review
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        )}
       </div>
     </div>
   )

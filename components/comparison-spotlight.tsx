@@ -2,28 +2,31 @@ import { CheckCircle2, XCircle, ArrowRight, ExternalLink } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { getExchangeBySlug } from "@/lib/data/exchanges"
 
-interface ExchangeRow {
-  name: string
-  rating: number
-  fees: string
-  kyc: boolean
-  leverage: string
-  bonus: string
-  referralLink: string
-  copyTrading: boolean
-  rank: number
-}
+// Single source of truth: ratings/fees/links are pulled from the canonical
+// exchange data so the homepage grid can never diverge from the review pages
+// or the Review structured data. Order = display rank.
+const GRID_SLUGS = ["weex", "bydfi", "bitunix", "blofin", "toobit", "coinex", "bingx"]
 
-const exchanges: ExchangeRow[] = [
-  { name: "WEEX", rating: 8.8, fees: "0.02% / 0.06%", kyc: false, leverage: "400x", bonus: "$10,000 USDT", referralLink: "https://www.weex.com/events/promo/0fee?vipCode=cx5n&qrType=activity", copyTrading: true, rank: 1 },
-  { name: "BYDFi", rating: 8.5, fees: "0.01% / 0.06%", kyc: false, leverage: "200x", bonus: "$1,500 USDT", referralLink: "https://partner.bydfi.com/register?vipCode=KifsCrypto", copyTrading: true, rank: 2 },
-  { name: "Bitunix", rating: 8.3, fees: "0.02% / 0.06%", kyc: false, leverage: "125x", bonus: "$400", referralLink: "https://www.bitunix.com/register?vipCode=VP7Q", copyTrading: true, rank: 3 },
-  { name: "BloFin", rating: 8.2, fees: "0.02% / 0.06%", kyc: false, leverage: "150x", bonus: "$5,000 USDT", referralLink: "https://partner.blofin.com/d/KIFSCrypto", copyTrading: false, rank: 4 },
-  { name: "Toobit", rating: 8.0, fees: "0.02% / 0.1%", kyc: false, leverage: "100x", bonus: "$5,000 USDT", referralLink: "https://www.toobit.com/t/JOM3yF", copyTrading: true, rank: 5 },
-  { name: "CoinEx", rating: 8.1, fees: "0.02% / 0.06%", kyc: false, leverage: "100x", bonus: "Varies", referralLink: "https://www.coinex.com/register?rc=ycq7e&channel=Referral", copyTrading: false, rank: 6 },
-  { name: "BingX", rating: 8.4, fees: "0.02% / 0.05%", kyc: true, leverage: "150x", bonus: "$5,000 USDT", referralLink: "https://bingx.com/en/rewards?ref=MSK9FA", copyTrading: true, rank: 7 },
-]
+const exchanges = GRID_SLUGS
+  .map((slug, i) => {
+    const ex = getExchangeBySlug(slug)
+    if (!ex) return null
+    return {
+      name: ex.name,
+      rating: ex.rating,
+      fees: `${ex.fees.maker} / ${ex.fees.taker}`,
+      kyc: ex.kyc,
+      leverage: ex.leverage,
+      bonus: ex.bonus,
+      referralLink: ex.referralLink,
+      reviewUrl: ex.fullReview,
+      copyTrading: ex.copyTrading,
+      rank: i + 1,
+    }
+  })
+  .filter((e): e is NonNullable<typeof e> => e !== null)
 
 export function ComparisonSpotlight() {
   return (
@@ -71,12 +74,15 @@ export function ComparisonSpotlight() {
               >
                 <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">{ex.rank}</td>
                 <td className="px-4 py-3.5">
-                  <div className="flex items-center gap-2">
+                  <Link href={ex.reviewUrl} className="group/name flex items-center gap-2">
                     <div className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary text-xs font-bold text-foreground">
                       {ex.name.charAt(0)}
                     </div>
-                    <span className="font-medium text-foreground">{ex.name}</span>
-                  </div>
+                    <span className="flex flex-col">
+                      <span className="font-medium text-foreground group-hover/name:text-primary transition-colors">{ex.name}</span>
+                      <span className="text-[11px] text-muted-foreground group-hover/name:text-primary/80 transition-colors">Read review</span>
+                    </span>
+                  </Link>
                 </td>
                 <td className="px-4 py-3.5">
                   <div className="flex items-center gap-1.5">
@@ -105,7 +111,7 @@ export function ComparisonSpotlight() {
                 </td>
                 <td className="px-4 py-3.5 text-right font-semibold text-primary text-xs">{ex.bonus}</td>
                 <td className="px-4 py-3.5 text-center">
-                  <a href={ex.referralLink} target="_blank" rel="noopener noreferrer sponsored">
+                  <a href={ex.referralLink} target="_blank" rel="sponsored nofollow noopener noreferrer">
                     <Button variant="outline" size="sm" className="h-7 gap-1 px-2.5 text-xs border-primary/30 text-primary hover:bg-primary/10">
                       Join
                       <ExternalLink className="h-3 w-3" />

@@ -3,11 +3,11 @@
 import { slugifyHeading } from "@/lib/utils/heading"
 import { ExternalLink, ShieldCheck } from "lucide-react"
 
-// Domains that get rel="nofollow sponsored"
+// Domains that get rel="sponsored nofollow"
 const AFFILIATE_DOMAINS = [
   'mexc.com','bydfi.com','bingx.com','bitunix.com','blofin.com','coinex.com',
   'toobit.com','xt.com','weex.com','kcex.com','bybit.com','okx.com','bitget',
-  'kucoin.com','primexbt','gate.io','kraken.com',
+  'kucoin.com','primexbt','gate.io','kraken.com','ourbit.com','hyperliquid',
 ]
 
 // Domains that get a "Verified Partner" badge
@@ -28,11 +28,34 @@ function isVerifiedPartner(url: string) {
   return VERIFIED_PARTNER_DOMAINS.some(d => url.toLowerCase().includes(d))
 }
 
+// Internal links get no rel. External affiliate links get sponsored+nofollow;
+// all other external links (editorial citations) get plain nofollow.
+function isInternalHref(url: string) {
+  const lower = url.toLowerCase()
+  return url.startsWith('/') || url.startsWith('#') || url.startsWith('mailto:') || lower.includes('trading365.org')
+}
+
 function relAttr(url: string) {
-  if (url.startsWith('/') || url.startsWith('#')) return undefined
+  if (isInternalHref(url)) return undefined
   return isAffiliateUrl(url)
-    ? "nofollow noopener noreferrer sponsored"
-    : "noopener noreferrer"
+    ? "sponsored nofollow noopener noreferrer"
+    : "nofollow noopener noreferrer"
+}
+
+// Rewrite <a> tags in raw HTML (TipTap) article bodies: strip any existing
+// rel/target and add the correct rel + target="_blank" for every external link.
+// Internal (trading365.org / relative / anchors / mailto) links are left alone.
+function rewriteExternalLinks(html: string): string {
+  return html.replace(/<a\b([^>]*)>/gi, (full, attrs) => {
+    const hrefMatch = attrs.match(/href\s*=\s*["']([^"']*)["']/i)
+    if (!hrefMatch) return full
+    if (isInternalHref(hrefMatch[1])) return full
+    const rel = isAffiliateUrl(hrefMatch[1])
+      ? "sponsored nofollow noopener noreferrer"
+      : "nofollow noopener noreferrer"
+    const cleaned = attrs.replace(/\s(rel|target)\s*=\s*["'][^"']*["']/gi, '')
+    return `<a${cleaned} rel="${rel}" target="_blank">`
+  })
 }
 
 function parseInlineMarkdown(text: string): React.ReactNode[] {
@@ -189,7 +212,7 @@ export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
     return (
       <div
         className="article-prose"
-        dangerouslySetInnerHTML={{ __html: addHeadingIds(content) }}
+        dangerouslySetInnerHTML={{ __html: rewriteExternalLinks(addHeadingIds(content)) }}
       />
     )
   }

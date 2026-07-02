@@ -1,4 +1,5 @@
-import { ExternalLink, Check, TrendingUp } from "lucide-react"
+import { ExternalLink, Check, TrendingUp, ArrowRight } from "lucide-react"
+import Link from "next/link"
 
 interface ConversionCardProps {
   title: string
@@ -38,15 +39,26 @@ export function ConversionCard({ title, savingsMetric, perks, ctaLink, ctaText, 
           {exchangeName && (
             <p className="text-xs text-zinc-400 text-center">Exclusive via Trading365</p>
           )}
-          <a
-            href={ctaLink}
-            target="_blank"
-            rel="nofollow noopener noreferrer sponsored"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#eab308] px-5 py-3 text-sm font-bold text-black transition-opacity hover:opacity-90 text-center"
-          >
-            {ctaText}
-            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-          </a>
+          {ctaLink.startsWith("/") ? (
+            // Internal CTA — keep link equity on-site, use prefetch, no rel/target.
+            <Link
+              href={ctaLink}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#eab308] px-5 py-3 text-sm font-bold text-black transition-opacity hover:opacity-90 text-center"
+            >
+              {ctaText}
+              <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+            </Link>
+          ) : (
+            <a
+              href={ctaLink}
+              target="_blank"
+              rel="nofollow noopener noreferrer sponsored"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#eab308] px-5 py-3 text-sm font-bold text-black transition-opacity hover:opacity-90 text-center"
+            >
+              {ctaText}
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+            </a>
+          )}
           <p style={{ fontSize: 10, opacity: 0.6 }} className="text-zinc-300 text-center leading-snug">
             {socialProof ?? "Trusted by pro traders securing VIP fee tiers via Trading365"}
           </p>
