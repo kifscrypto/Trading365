@@ -87,16 +87,29 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const loc = getLocale(locale)
   if (!loc) return {}
 
-  const hreflangAlternates: Record<string, string> = { 'x-default': BASE_URL, 'en': BASE_URL }
-  for (const lc of LOCALE_CODES) hreflangAlternates[lc] = `${BASE_URL}/${lc}`
+  const title = `Trading365 — ${loc.name}`
+  const description = `Crypto exchange reviews and comparisons in ${loc.fullName}.`
+  const url = `${BASE_URL}/${locale}`
+  const ogImage = `${BASE_URL}/trading365-crypto-exchange-reviews.jpg`
 
   return {
-    title: `Trading365 — ${loc.name}`,
-    description: `Crypto exchange reviews and comparisons in ${loc.fullName}.`,
+    title,
+    description,
+    // Locale landing pages are noindex (translations are partial). English is unaffected.
+    // No hreflang while locales are noindex.
+    robots: { index: false, follow: true },
     alternates: {
-      canonical: `${BASE_URL}/${locale}`,
-      languages: hreflangAlternates,
+      canonical: url,
     },
+    openGraph: {
+      type: "website",
+      title,
+      description,
+      url,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
+      siteName: "Trading365",
+    },
+    twitter: { card: "summary_large_image", title, description, images: [ogImage] },
   }
 }
 

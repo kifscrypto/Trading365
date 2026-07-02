@@ -1,7 +1,5 @@
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
-import { getTranslationLocalesBySlug } from "@/lib/db"
 import { categories } from "@/lib/data/categories"
-import { LOCALES } from "@/lib/i18n/config"
 import type { MetadataRoute } from "next"
 
 const BASE_URL = "https://trading365.org"
@@ -17,10 +15,9 @@ function parseArticleDate(dateStr: string): string {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [articles, translationMap] = await Promise.all([
-    getAllArticlesFromDB(),
-    getTranslationLocalesBySlug().catch(() => ({} as Record<string, string[]>)),
-  ])
+  // English-only sitemap. Locale routes (/es, /pt, …) are noindex, so they are
+  // intentionally excluded here along with any hreflang alternates to them.
+  const articles = await getAllArticlesFromDB()
   const now = new Date().toISOString()
 
   // Static pages
@@ -31,7 +28,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE_URL}/compare`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
     { url: `${BASE_URL}/bonuses`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${BASE_URL}/join-our-newsletter`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    // /join-our-newsletter is intentionally noindex (thin lead-capture) — omitted.
     { url: `${BASE_URL}/disclaimer`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
     { url: `${BASE_URL}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
     { url: `${BASE_URL}/terms`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
@@ -58,25 +55,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   })
 
-  // Language landing pages (/es, /pt, /de, etc.)
-  const localePages: MetadataRoute.Sitemap = LOCALES.map((loc) => ({
-    url: `${BASE_URL}/${loc.code}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.7,
-  }))
-
-  // Localised article pages — only include articles that are actually translated
-  const localeArticlePages: MetadataRoute.Sitemap = LOCALES.flatMap((loc) =>
-    articles
-      .filter((article) => translationMap[article.slug]?.includes(loc.code))
-      .map((article) => ({
-        url: `${BASE_URL}/${loc.code}/${article.categorySlug}/${article.slug}`,
-        lastModified: now,
-        changeFrequency: "monthly" as const,
-        priority: 0.5,
-      }))
-  )
-
-  return [...staticPages, ...categoryPages, ...articlePages, ...localePages, ...localeArticlePages]
+  return [...staticPages, ...categoryPages, ...articlePages]
 }

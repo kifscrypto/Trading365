@@ -8,6 +8,8 @@ import { isValidLocale, getLocale } from "@/lib/i18n/config"
 import { ArticleContent } from "@/components/article-content"
 import { ShareButton } from "@/components/share-button"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
+import { generateOrganizationSchema, toISODate } from "@/lib/schema"
+import { getCategoryBySlug } from "@/lib/data/categories"
 import { ArrowLeft } from "lucide-react"
 
 const BASE_URL = "https://trading365.org"
@@ -34,24 +36,32 @@ export async function generateMetadata({
   // The page component below will 301 wrong-category URLs to the canonical.
   const canonicalCategory = originalArticle?.category_slug || category
   const canonicalUrl = `${BASE_URL}/${locale}/${canonicalCategory}/${slug}`
+  const pageTitle = `${title} | Trading365 ${loc.name}`
+
+  const ogImage = `${BASE_URL}/api/og?${new URLSearchParams({ title, category: loc.name }).toString()}`
 
   return {
-    title: `${title} | Trading365 ${loc.name}`,
+    title: pageTitle,
     description,
+    // Translated article pages are noindex (partial translations). English is unaffected.
+    // No hreflang while locales are noindex.
+    robots: { index: false, follow: true },
     alternates: {
       canonical: canonicalUrl,
     },
     openGraph: {
       type: "article",
-      title: `${title} | Trading365 ${loc.name}`,
+      title: pageTitle,
       description,
       url: canonicalUrl,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
       siteName: "Trading365",
     },
     twitter: {
       card: "summary_large_image",
-      title: `${title} | Trading365 ${loc.name}`,
+      title: pageTitle,
       description,
+      images: [ogImage],
     },
   }
 }
@@ -83,8 +93,44 @@ export default async function LocaleArticlePage({
 
   const exchange = getExchangeBySlug(slug.replace(/-review.*$/, ""))
 
+  const canonicalCategory = originalArticle?.category_slug || category
+  const canonicalUrl = `${BASE_URL}/${locale}/${canonicalCategory}/${slug}`
+  const cat = getCategoryBySlug(canonicalCategory)
+
+  const articleSchema = {
+    "@context": "https://schema.org",
+    "@type": exchange ? "ReviewNewsArticle" : "Article",
+    headline: translation.title,
+    description: translation.excerpt,
+    inLanguage: locale,
+    ...(originalArticle?.thumbnail ? { image: `${BASE_URL}${originalArticle.thumbnail}` } : {}),
+    ...(originalArticle?.date ? { datePublished: toISODate(originalArticle.date) } : {}),
+    ...(originalArticle?.date ? { dateModified: toISODate(originalArticle.updated_date || originalArticle.date) } : {}),
+    ...(originalArticle?.author ? { author: { "@type": "Person", name: originalArticle.author } } : {}),
+    publisher: generateOrganizationSchema(),
+    mainEntityOfPage: { "@type": "WebPage", "@id": canonicalUrl },
+  }
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: `${BASE_URL}/${locale}` },
+      ...(cat ? [{ "@type": "ListItem", position: 2, name: cat.title, item: `${BASE_URL}/${locale}/${canonicalCategory}` }] : []),
+      { "@type": "ListItem", position: cat ? 3 : 2, name: translation.title },
+    ],
+  }
+
   return (
     <main className="min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
       <div className="border-b border-border bg-secondary/30">
         <div className="mx-auto max-w-4xl px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">

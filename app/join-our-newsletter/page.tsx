@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://trading365.org/join-our-newsletter",
   },
+  // Thin lead-capture page (just the newsletter widget) — keep it out of the index.
+  robots: { index: false, follow: true },
 }
 
 export default function NewsletterPage() {

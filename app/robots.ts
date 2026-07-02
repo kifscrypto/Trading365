@@ -6,9 +6,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        // Only block the API routes — never block /_next/ as it
+        // Block API and admin routes — never block /_next/ as it
         // prevents Googlebot from fetching JS/CSS needed to render pages
-        disallow: ["/api/"],
+        disallow: ["/api/", "/admin/"],
       },
     ],
     sitemap: "https://trading365.org/sitemap.xml",

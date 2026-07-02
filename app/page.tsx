@@ -2,6 +2,7 @@ export const revalidate = 300
 
 import type { Metadata } from "next"
 import Link from "next/link"
+import Image from "next/image"
 import { ArrowRight, Star, Zap, ShieldOff, Gift } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,17 +21,13 @@ import { ScannerTicker } from "@/components/scanner-ticker"
 import { DiscordCta } from "@/components/discord-cta"
 import { exchanges } from "@/lib/data/exchanges"
 import { generateWebsiteSchema, generateOrganizationStandaloneSchema } from "@/lib/schema"
-import { LOCALE_CODES } from "@/lib/i18n/config"
 
 const BASE_URL = 'https://trading365.org'
 
-const _hreflangAlternates: Record<string, string> = { 'x-default': BASE_URL, 'en': BASE_URL }
-for (const lc of LOCALE_CODES) _hreflangAlternates[lc] = `${BASE_URL}/${lc}`
-
+// No hreflang while locale routes are noindex — see app/sitemap.ts.
 export const metadata: Metadata = {
   alternates: {
     canonical: BASE_URL,
-    languages: _hreflangAlternates,
   },
 }
 
@@ -42,6 +39,7 @@ const bonusDeals = topExchanges.map((ex, i) => ({
   features: ex.pros.slice(0, 4),
   tag: i === 0 ? "Best Deal" : undefined,
   referralLink: ex.referralLink,
+  reviewLink: ex.fullReview,
 }))
 
 export default async function HomePage() {
@@ -117,14 +115,13 @@ export default async function HomePage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,oklch(0.8_0.15_85/0.06),transparent_60%)]" />
         <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 pt-20 pb-6 text-center lg:px-6 lg:pt-28 lg:pb-8">
           <Link href="/" className="mb-8">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src="/images/logo-wide.png"
               alt="Trading365 - Trade Smarter. Earn Bigger."
               width={280}
               height={70}
-              className="mx-auto"
-              style={{ width: "280px", height: "auto" }}
+              priority
+              className="mx-auto h-auto w-[280px]"
             />
           </Link>
           <Badge variant="outline" className="mb-6 border-primary/30 text-primary">

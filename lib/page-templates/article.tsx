@@ -33,7 +33,6 @@ import { ArticleCard } from "@/components/article-card"
 import { getCategoryBySlug } from "@/lib/data/categories"
 import { getAllArticlesFromDB, getArticleBySlugFromDB, getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
-import { getTranslatedLocalesForSlug } from "@/lib/db"
 import { ShareButton } from "@/components/share-button"
 import {
   generateArticleSchema,
@@ -43,6 +42,7 @@ import {
 } from "@/lib/schema"
 import { ReviewSchema } from "@/components/review-schema"
 import { slugifyHeading } from "@/lib/utils/heading"
+import { authorHref } from "@/lib/data/authors"
 import { ConversionCard } from "@/components/conversion-card"
 import { StickyMobileCTA } from "@/components/sticky-mobile-cta"
 import { ContextualSidebarBanner } from "@/components/contextual-sidebar-banner"
@@ -76,10 +76,7 @@ const TITLE_OVERRIDES: Record<string, string> = {
 }
 
 export async function getArticleMetadata(category: string, slug: string): Promise<Metadata> {
-  const [article, translatedLocales] = await Promise.all([
-    getArticleBySlugFromDB(slug),
-    getTranslatedLocalesForSlug(slug).catch(() => [] as string[]),
-  ])
+  const article = await getArticleBySlugFromDB(slug)
   if (!article) return { title: 'Article Not Found' }
 
   // Always build canonical from the article's true categorySlug, never the URL category.
@@ -93,21 +90,14 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   const ogImage = `${BASE_URL}/api/og?${ogParams.toString()}`
   const pageDescription = article.metaDescription ?? article.excerpt
 
-  const hreflangAlternates: Record<string, string> = {
-    'x-default': canonicalUrl,
-    'en': canonicalUrl,
-  }
-  for (const lc of translatedLocales) {
-    hreflangAlternates[lc] = `${BASE_URL}/${lc}/${canonicalCategory}/${slug}`
-  }
-
+  // No hreflang emitted while locale routes are noindex — noindexed pages must
+  // not be advertised as alternates. hreflang returns in a later phase.
   return {
     title: pageTitle,
     description: pageDescription,
     keywords: article.metaKeywords ?? undefined,
     alternates: {
       canonical: canonicalUrl,
-      languages: hreflangAlternates,
     },
     openGraph: {
       type: 'article',
@@ -280,12 +270,16 @@ export default async function ArticlePageContent({ category, slug }: { category:
               <span className="flex items-center gap-1.5">
                 <User className="h-3.5 w-3.5" />
                 <span>By{" "}
-                  <Link
-                    href={`/authors/${article.author.toLowerCase().replace(/\s+/g, "-")}`}
-                    className="hover:text-primary underline underline-offset-2 transition-colors"
-                  >
-                    {article.author}
-                  </Link>
+                  {authorHref(article.author) ? (
+                    <Link
+                      href={authorHref(article.author)!}
+                      className="hover:text-primary underline underline-offset-2 transition-colors"
+                    >
+                      {article.author}
+                    </Link>
+                  ) : (
+                    <span className="text-foreground">{article.author}</span>
+                  )}
                 </span>
               </span>
               <span className="flex items-center gap-1.5">

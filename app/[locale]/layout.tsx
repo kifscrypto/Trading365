@@ -14,5 +14,17 @@ export default async function LocaleLayout({
 }) {
   const { locale } = await params
   if (!isValidLocale(locale)) notFound()
-  return <>{children}</>
+  return (
+    <>
+      {/* The root <html lang> is fixed to "en"; correct it to the active locale
+          for translated pages so screen readers and search engines read the
+          right language. Runs before paint. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `document.documentElement.lang=${JSON.stringify(locale)}`,
+        }}
+      />
+      {children}
+    </>
+  )
 }
