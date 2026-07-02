@@ -15,9 +15,9 @@ import { TrustBar } from "@/components/trust-bar"
 import { FeaturedAdvertisers } from "@/components/featured-advertisers"
 import { PromoBanner } from "@/components/promo-banner"
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
-import { getScannerStats, getScannerRecentWins } from "@/lib/scanner-stats"
+import { getScannerStats } from "@/lib/scanner-stats"
 import { ScannerSpotlight } from "@/components/scanner-spotlight"
-import { ScannerTicker } from "@/components/scanner-ticker"
+import { ScannerTickerLive } from "@/components/scanner-ticker-live"
 import { DiscordCta } from "@/components/discord-cta"
 import { exchanges } from "@/lib/data/exchanges"
 import { generateWebsiteSchema, generateOrganizationStandaloneSchema } from "@/lib/schema"
@@ -44,18 +44,13 @@ const bonusDeals = topExchanges.map((ex, i) => ({
 
 export default async function HomePage() {
   const allArticles = await getAllArticlesFromDB()
-  // Live scanner data for the hero ticker + spotlight band (shared with the
-  // scanner pages so the advertised numbers can never diverge).
-  const [shortStats, longStats, shortWins, longWins] = await Promise.all([
+  // Scanner spotlight numbers only (safe to SSR). The "Live Wins" ticker fetches
+  // its own data client-side (ScannerTickerLive) so win symbols stay out of the
+  // initial HTML.
+  const [shortStats, longStats] = await Promise.all([
     getScannerStats("short"),
     getScannerStats("long"),
-    getScannerRecentWins("short", 10),
-    getScannerRecentWins("long", 10),
   ])
-  // Interleave short/long wins so the ticker shows both, newest-ish first.
-  const tickerWins = [...shortWins, ...longWins]
-    .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime())
-    .slice(0, 16)
   const featuredArticles = allArticles.slice(0, 6)
   const reviewCount = allArticles.filter((a) => a.categorySlug === "reviews").length
   const comparisonCount = allArticles.filter((a) => a.categorySlug === "comparisons").length
@@ -107,8 +102,8 @@ export default async function HomePage() {
           __html: JSON.stringify(generateOrganizationStandaloneSchema()),
         }}
       />
-      {/* Live scanner wins ticker */}
-      <ScannerTicker wins={tickerWins} />
+      {/* Live scanner wins ticker — client-only, keeps symbols out of SSR HTML */}
+      <ScannerTickerLive />
 
       {/* Hero */}
       <section className="relative overflow-hidden">
