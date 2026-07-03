@@ -31,7 +31,7 @@ import { ProsConsList } from "@/components/pros-cons-list"
 import { ArticleContent } from "@/components/article-content"
 import { ArticleCard } from "@/components/article-card"
 import { getCategoryBySlug } from "@/lib/data/categories"
-import { getAllArticlesFromDB, getArticleBySlugFromDB, getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
+import { getAllArticlesFromDB, getArticleBySlugFromDB, getArticleForPreviewFromDB, getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
 import { ShareButton } from "@/components/share-button"
 import {
@@ -139,16 +139,18 @@ function stripQuickFacts(content: string): string {
   return sections.filter(s => !/^## Quick\s*Facts/i.test(s)).join('')
 }
 
-export default async function ArticlePageContent({ category, slug }: { category: string; slug: string }) {
-  const article = await getArticleBySlugFromDB(slug)
+export default async function ArticlePageContent({ category, slug, preview = false, previewPublished = false }: { category: string; slug: string; preview?: boolean; previewPublished?: boolean }) {
+  // In preview mode we fetch drafts too (token already validated by the caller).
+  const article = preview ? await getArticleForPreviewFromDB(slug) : await getArticleBySlugFromDB(slug)
   const cat = getCategoryBySlug(category)
   if (!article || !cat) notFound()
 
   // Guard against duplicate-content URLs: if the URL category doesn't match the
   // article's canonical category in the DB, 301 to the canonical URL. The metadata
   // function already emits the correct canonical, so search engines have the right
-  // signal even before this redirect resolves.
-  if (article.categorySlug && article.categorySlug !== category) {
+  // signal even before this redirect resolves. Skipped in preview — the preview
+  // URL is /preview/[slug] and must not redirect into the public /category/slug.
+  if (!preview && article.categorySlug && article.categorySlug !== category) {
     permanentRedirect(`/${article.categorySlug}/${slug}`)
   }
 
@@ -210,6 +212,16 @@ export default async function ArticlePageContent({ category, slug }: { category:
 
   return (
     <>
+      {preview && (
+        <div className="sticky top-0 z-50 border-b border-yellow-500/40 bg-yellow-500/15 px-4 py-2.5 text-center backdrop-blur">
+          <p className="text-sm font-medium text-yellow-300">
+            <span className="mr-2 rounded bg-yellow-500/30 px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide">Draft Preview</span>
+            {previewPublished
+              ? "This is a private preview of a published article."
+              : "This article is not published yet — private review link, please don’t share publicly."}
+          </p>
+        </div>
+      )}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

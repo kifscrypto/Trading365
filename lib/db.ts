@@ -1,6 +1,12 @@
 import { neon } from '@neondatabase/serverless'
+import { randomBytes } from 'node:crypto'
 
 export const sql = neon(process.env.DATABASE_URL!)
+
+/** URL-safe per-article secret used to share unpublished drafts for client review. */
+export function newPreviewToken(): string {
+  return randomBytes(24).toString('base64url')
+}
 
 export type ArticleRow = {
   id: number
@@ -24,6 +30,7 @@ export type ArticleRow = {
   meta_description: string | null
   meta_keywords: string | null
   published: boolean
+  preview_token: string | null
   created_at: string
   updated_at: string
 }
@@ -55,6 +62,24 @@ export async function getArticleBySlug(slug: string): Promise<ArticleRow | null>
   return rows[0] ?? null
 }
 
+/**
+ * Fetch an article by slug REGARDLESS of published state — used only by the
+ * token-gated preview route so clients can review drafts before publishing.
+ */
+export async function getArticleForPreviewBySlug(slug: string): Promise<ArticleRow | null> {
+  const rows = await sql`
+    SELECT * FROM articles WHERE slug = ${slug} LIMIT 1
+  `
+  return rows[0] ?? null
+}
+
+/** Rotate an article's preview token, invalidating any previously shared link. */
+export async function regeneratePreviewToken(id: number): Promise<string> {
+  const token = newPreviewToken()
+  await sql`UPDATE articles SET preview_token = ${token}, updated_at = NOW() WHERE id = ${id}`
+  return token
+}
+
 export async function getArticlesByCategory(categorySlug: string): Promise<ArticleRow[]> {
   return await sql`
     SELECT * FROM articles
@@ -80,19 +105,20 @@ export async function setArticlePublished(id: number, published: boolean): Promi
   return rows[0]
 }
 
-export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' | 'updated_at'>): Promise<ArticleRow> {
+export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' | 'updated_at' | 'preview_token'>): Promise<ArticleRow> {
   const rows = await sql`
     INSERT INTO articles (
       slug, title, excerpt, content, category, category_slug,
       date, updated_date, read_time, author, rating, thumbnail, tags, faqs, pros, cons,
-      meta_title, meta_description, meta_keywords
+      meta_title, meta_description, meta_keywords, preview_token
     ) VALUES (
       ${data.slug}, ${data.title}, ${data.excerpt}, ${data.content},
       ${data.category}, ${data.category_slug}, ${data.date}, ${data.updated_date ?? null},
       ${data.read_time}, ${data.author}, ${data.rating}, ${data.thumbnail},
       ${data.tags}, ${JSON.stringify(data.faqs ?? [])},
       ${JSON.stringify(data.pros ?? [])}, ${JSON.stringify(data.cons ?? [])},
-      ${data.meta_title ?? null}, ${data.meta_description ?? null}, ${data.meta_keywords ?? null}
+      ${data.meta_title ?? null}, ${data.meta_description ?? null}, ${data.meta_keywords ?? null},
+      ${newPreviewToken()}
     )
     RETURNING *
   `

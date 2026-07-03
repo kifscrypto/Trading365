@@ -46,6 +46,7 @@ export default function AdminPage() {
   const [articleSearch, setArticleSearch] = useState('')
   const [articleCategory, setArticleCategory] = useState('all')
   const [articleStatus, setArticleStatus] = useState<'all' | 'published' | 'draft'>('all')
+  const [copiedPreviewId, setCopiedPreviewId] = useState<number | null>(null)
   const [articleSort, setArticleSort] = useState<'newest' | 'az'>('newest')
   const [translatedLocales, setTranslatedLocales] = useState<Record<string, string[]>>({})
 
@@ -251,6 +252,30 @@ export default function AdminPage() {
       }
     } catch (err) {
       console.error('Failed to delete article')
+    }
+  }
+
+  async function handleCopyPreviewLink(article: any) {
+    if (!article.preview_token) { alert('No preview token yet — try re-saving the article.'); return }
+    const url = `${window.location.origin}/preview/${article.slug}?key=${article.preview_token}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedPreviewId(article.id)
+      setTimeout(() => setCopiedPreviewId(prev => prev === article.id ? null : prev), 1800)
+    } catch {
+      // Clipboard blocked (e.g. non-HTTPS) — show the link so it can be copied manually.
+      prompt('Copy this preview link:', url)
+    }
+  }
+
+  async function handleRegeneratePreviewToken(id: number) {
+    if (!confirm('Regenerate the preview link? Any link already shared for this article will stop working.')) return
+    try {
+      const res = await fetch(`/api/admin/articles/${id}/preview-token`, { method: 'POST' })
+      if (res.ok) fetchArticles()
+      else alert('Failed to regenerate preview link.')
+    } catch {
+      alert('Failed to regenerate preview link.')
     }
   }
 
@@ -1339,6 +1364,20 @@ export default function AdminPage() {
                           className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
                         >
                           Edit
+                        </button>
+                        <button
+                          onClick={() => handleCopyPreviewLink(article)}
+                          title="Copy a private link clients can use to review this article before it's published"
+                          className="px-3 py-1 bg-teal-700 text-teal-50 rounded text-sm hover:bg-teal-600"
+                        >
+                          {copiedPreviewId === article.id ? 'Copied!' : 'Copy preview link'}
+                        </button>
+                        <button
+                          onClick={() => handleRegeneratePreviewToken(article.id)}
+                          title="Regenerate the preview link (invalidates any previously shared link)"
+                          className="px-2 py-1 bg-zinc-700 text-zinc-200 rounded text-sm hover:bg-zinc-600"
+                        >
+                          ↻
                         </button>
                         <button
                           onClick={() => handleTogglePublish(article.id, article.published)}

@@ -3,7 +3,7 @@
  * Converts snake_case DB rows to the camelCase Article shape used by the UI.
  * Falls back to static articles.ts data when DB is unavailable.
  */
-import { getAllArticles, getPublishedArticles, getArticleBySlug as dbGetBySlug, getArticlesByCategory, getPublishedArticlesByCategory } from '@/lib/db'
+import { getAllArticles, getPublishedArticles, getArticleBySlug as dbGetBySlug, getArticleForPreviewBySlug, getArticlesByCategory, getPublishedArticlesByCategory } from '@/lib/db'
 import { articles as staticArticles } from '@/lib/data/articles'
 import type { Article } from '@/lib/data/types'
 import type { ArticleRow } from '@/lib/db'
@@ -61,6 +61,17 @@ export async function getArticleBySlugFromDB(slug: string): Promise<Article | nu
     } catch {
       // DB unavailable
     }
+  }
+  return staticArticles.find((a) => a.slug === slug) ?? null
+}
+
+/** Like getArticleBySlugFromDB but returns drafts too — preview route only. */
+export async function getArticleForPreviewFromDB(slug: string): Promise<Article | null> {
+  try {
+    const row = await getArticleForPreviewBySlug(slug)
+    if (row) return rowToArticle(row)
+  } catch {
+    // DB unavailable — fall through to static
   }
   return staticArticles.find((a) => a.slug === slug) ?? null
 }
