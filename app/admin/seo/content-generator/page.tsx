@@ -1504,7 +1504,7 @@ export default function ArticleStudioPage() {
               >
                 View on site →
               </a>
-              <a href={`/admin/articles/${pubDone.id}`} className="text-xs text-zinc-400 hover:text-zinc-300">
+              <a href={`/admin?edit=${pubDone.slug}`} className="text-xs text-zinc-400 hover:text-zinc-300">
                 Edit in admin →
               </a>
             </div>

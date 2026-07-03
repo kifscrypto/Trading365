@@ -26,6 +26,9 @@ export default function AdminPage() {
   const [articles, setArticles] = useState([])
   const [showArticles, setShowArticles] = useState(false)
   const [editingArticle, setEditingArticle] = useState(null)
+  // Slug to auto-open in the editor, from a ?edit=<slug> deep link (e.g. the
+  // content generator's "Edit in admin" button after publishing).
+  const [pendingEditSlug, setPendingEditSlug] = useState<string | null>(null)
   const [imageUploading, setImageUploading] = useState(false)
   const [thumbnailPreview, setThumbnailPreview] = useState('')
   const [formError, setFormError] = useState('')
@@ -107,6 +110,25 @@ export default function AdminPage() {
   useEffect(() => {
     checkAuth()
   }, [])
+
+  // Capture a ?edit=<slug> deep link on mount (before the URL is cleaned).
+  useEffect(() => {
+    const edit = new URLSearchParams(window.location.search).get('edit')
+    if (edit) setPendingEditSlug(edit)
+  }, [])
+
+  // Once the article list has loaded, open the requested article in the editor.
+  useEffect(() => {
+    if (!pendingEditSlug || !(articles as any[]).length) return
+    const match = (articles as any[]).find((a) => a.slug === pendingEditSlug)
+    if (match) {
+      handleEditArticle(match)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    setPendingEditSlug(null)
+    // Clean the URL so a refresh doesn't re-trigger the auto-open.
+    window.history.replaceState(null, '', '/admin')
+  }, [pendingEditSlug, articles])
 
   async function checkAuth() {
     try {
