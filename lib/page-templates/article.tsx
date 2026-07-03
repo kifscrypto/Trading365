@@ -33,6 +33,7 @@ import { ArticleCard } from "@/components/article-card"
 import { getCategoryBySlug } from "@/lib/data/categories"
 import { getAllArticlesFromDB, getArticleBySlugFromDB, getArticleForPreviewFromDB, getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
+import { resolveAffiliateCta } from "@/lib/affiliate-cta"
 import { ShareButton } from "@/components/share-button"
 import {
   generateArticleSchema,
@@ -158,6 +159,11 @@ export default async function ArticlePageContent({ category, slug, preview = fal
   const exchangeSlug = slug.replace(/-review.*$/, "")
   const exchange = getExchangeBySlug(exchangeSlug)
 
+  // For reviews of exchanges NOT in the static list, fall back to the admin-managed
+  // affiliate_links table so the page still gets a "Visit X" CTA. Roundups/negative
+  // pieces resolve to null and keep the generic bonuses fallback.
+  const affiliateCta = !exchange && category === "reviews" ? await resolveAffiliateCta(slug) : null
+
   // Related articles (same category, excluding current)
   const allCategoryArticles = await getArticlesByCategoryFromDB(category)
   const related = allCategoryArticles
@@ -192,14 +198,23 @@ export default async function ArticlePageContent({ category, slug, preview = fal
     return [{ headingId: h.id, exchangeName: ex.name, ctaLink: ex.referralLink, label: "Maker Rebate — Activate Now" }]
   })
 
-  // Derive primary CTA for conversion card + sticky banner
-  const primaryCtaLink = exchange?.referralLink ?? "/bonuses"
-  const primaryCtaText = exchange ? `Start Trading on ${exchange.name}` : "View Top Bonuses"
+  // Derive primary CTA for conversion card + sticky banner. Order of preference:
+  // rich static exchange → DB affiliate link (reviews only) → generic bonuses.
+  const primaryCtaLink = exchange?.referralLink ?? affiliateCta?.url ?? "/bonuses"
+  const primaryCtaText = exchange
+    ? `Start Trading on ${exchange.name}`
+    : affiliateCta
+    ? `Visit ${affiliateCta.name}`
+    : "View Top Bonuses"
   const conversionPerks = exchange
     ? (article.pros?.length ? article.pros : (exchange.pros ?? [])).slice(0, 4)
+    : affiliateCta && article.pros?.length
+    ? article.pros.slice(0, 4)
     : ["0% maker fees on top exchanges", "Up to 400x leverage", "No-KYC required", "Exclusive sign-up bonuses"]
   const conversionTitle = exchange
     ? `${exchange.bonus} — Available via Trading365`
+    : affiliateCta
+    ? `Start Trading on ${affiliateCta.name}`
     : "Claim Exclusive Trading Bonuses"
   const savingsMetric = exchange?.bonus ?? "Exclusive Bonus"
 
@@ -369,6 +384,28 @@ export default async function ArticlePageContent({ category, slug, preview = fal
               </div>
             )}
 
+            {/* Visit CTA for reviews whose exchange isn't in the static list —
+                no Quick Facts data exists, so this is a lean link-only card. */}
+            {!exchange && affiliateCta && (
+              <div className="mb-8 flex flex-col gap-4 rounded-xl border border-border bg-card p-6 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-base font-semibold text-foreground">Start Trading on {affiliateCta.name}</p>
+                  <p className="text-sm text-muted-foreground">Sign up through Trading365’s partner link.</p>
+                </div>
+                <a
+                  href={affiliateCta.url}
+                  target="_blank"
+                  rel="nofollow noopener noreferrer sponsored"
+                  className="shrink-0"
+                >
+                  <Button className="gap-2 font-semibold">
+                    Visit {affiliateCta.name}
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </a>
+              </div>
+            )}
+
             {/* Pros/Cons — use DB values if present, otherwise fall back to exchange data */}
             {(article.pros?.length || article.cons?.length || exchange) && (
               <div className="mb-4">
@@ -386,7 +423,7 @@ export default async function ArticlePageContent({ category, slug, preview = fal
               perks={conversionPerks}
               ctaLink={primaryCtaLink}
               ctaText={primaryCtaText}
-              exchangeName={exchange?.name}
+              exchangeName={exchange?.name ?? affiliateCta?.name}
             />
 
             {/* Article Body — with regional card injection and 400-word CTA */}
@@ -407,12 +444,18 @@ export default async function ArticlePageContent({ category, slug, preview = fal
 
             {/* Verdict Closer — before FAQs */}
             <ConversionCard
-              title={exchange ? `Make Your Move on ${exchange.name}` : "Ready to Act on the Research?"}
+              title={
+                exchange
+                  ? `Make Your Move on ${exchange.name}`
+                  : affiliateCta
+                  ? `Make Your Move on ${affiliateCta.name}`
+                  : "Ready to Act on the Research?"
+              }
               savingsMetric={savingsMetric}
               perks={conversionPerks}
               ctaLink={primaryCtaLink}
               ctaText={primaryCtaText}
-              exchangeName={exchange?.name}
+              exchangeName={exchange?.name ?? affiliateCta?.name}
             />
 
             {/* FAQ Section */}
