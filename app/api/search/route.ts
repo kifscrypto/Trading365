@@ -13,7 +13,10 @@ export async function GET(request: Request) {
   const term = `%${q}%`
 
   const results = await sql`
-    SELECT slug, title, category, excerpt
+    -- Return category_slug (the URL segment: "reviews", "bonuses") as `category`.
+    -- The plain `category` column is a display label ("Exchange Reviews") and does
+    -- NOT match any route, so linking to /${category}/${slug} 404'd to the homepage.
+    SELECT slug, title, category_slug AS category, excerpt
     FROM articles
     WHERE published = true
       AND (title ILIKE ${term} OR excerpt ILIKE ${term})
