@@ -226,7 +226,7 @@ export async function GET(request: Request) {
         if (emaBounce) entrySignals.push('ema_bounce_hl')
 
         const entryPrice    = parseFloat(klines[klines.length - 1][4])
-        // Protective stop = last swing low, clamped to 2–4% below entry.
+        // Protective stop = last swing low, clamped to 3–6% below entry.
         const stopPrice     = clampStop(entryPrice, swingLow(klines), 'long')
         const adjustedScore = (item.adjusted_score ?? item.score ?? 0) as number
         const displaySymbol = sym.replace('USDT', '')

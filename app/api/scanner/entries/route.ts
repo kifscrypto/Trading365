@@ -158,6 +158,37 @@ export async function GET(request: Request) {
       })
     }
 
+    // Circuit breaker — suppress short signals when the trailing 7-day avg 24h
+    // move has been positive for >48h. This catches altcoin decoupling events
+    // where BTC is bearish but altcoins pump regardless (the scoring model
+    // can't detect this, but the aggregate outcome data can).
+    const breaker = await sql`
+      SELECT
+        ROUND(AVG(o24.pct_change)::numeric, 2) AS avg_7d_move,
+        COUNT(*)::int AS sample
+      FROM scanner_signals s
+      JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
+      WHERE s.direction = 'short'
+        AND s.market_condition = 'favourable'
+        AND s.score >= 7
+        AND s.scanned_at > NOW() - INTERVAL '7 days'
+    `
+    const avg7d = Number(breaker[0]?.avg_7d_move ?? 0)
+    const sample7d = (breaker[0]?.sample ?? 0) as number
+    // Only trip when we have enough data (>30 samples) and the average is
+    // clearly positive (>0.5% to avoid trigger-happy flips on noise).
+    if (sample7d > 30 && avg7d > 0.5) {
+      console.log(`[Scanner] Circuit breaker: avg 7d move = ${avg7d}% (n=${sample7d}) — suppressing all signals (altcoin decoupling detected)`)
+      return NextResponse.json({
+        ok:                  true,
+        checked:              watchlist.length,
+        triggered:            0,
+        suppressed_by_breaker: true,
+        avg_7d_move:          avg7d,
+        note:                 `Circuit breaker active — avg 7d short move +${avg7d}% indicates altcoin decoupling`,
+      })
+    }
+
     const triggered: string[] = []
 
     // Process in batches of 10

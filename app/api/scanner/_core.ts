@@ -143,18 +143,20 @@ export function swingLow(klines: Kline[], lookback = 10): number {
 }
 
 /**
- * Clamp a protective stop to a 2–4% distance from entry. The raw swing extreme can
- * sit too tight (<2% → stopped out by noise) or too wide (>4% → oversized risk);
- * this bounds it. Longs stop BELOW entry (2–4% below); shorts stop ABOVE (2–4% above).
+ * Clamp a protective stop to a 3–6% distance from entry. The raw swing extreme can
+ * sit too tight (<3% → stopped out by noise) or too wide (>6% → oversized risk);
+ * this bounds it. Longs stop BELOW entry (3–6% below); shorts stop ABOVE (3–6% above).
+ * Widened from 2–4% after the Jul 2026 altcoin decoupling event demonstrated that
+ * 4% stops were too tight during high-volatility altcoin pumps.
  */
 export function clampStop(entry: number, rawStop: number, direction: 'short' | 'long'): number {
   if (direction === 'long') {
-    const nearest  = entry * 0.98  // min 2% below entry
-    const furthest = entry * 0.96  // max 4% below entry
+    const nearest  = entry * 0.97  // min 3% below entry
+    const furthest = entry * 0.94  // max 6% below entry
     return Math.min(Math.max(rawStop, furthest), nearest)
   }
-  const nearest  = entry * 1.02    // min 2% above entry
-  const furthest = entry * 1.04    // max 4% above entry
+  const nearest  = entry * 1.03    // min 3% above entry
+  const furthest = entry * 1.06    // max 6% above entry
   return Math.max(Math.min(rawStop, furthest), nearest)
 }
 
@@ -924,9 +926,13 @@ export function applyBtcSentiment(
   // for longs — so 'hostile' always means bullish BTC.
   let fav = 0, hos = 0
 
-  // 1) STRUCTURE IS KING — 4H price vs EMA50 sets the primary direction (±2).
-  if (s.btcStructure === 'bearish')      { sentimentFlags.push('btc_bearish'); fav += 2 }
-  else if (s.btcStructure === 'bullish') { sentimentFlags.push('btc_bullish'); hos += 2 }
+  // 1) STRUCTURE IS KING — 4H price vs EMA50 sets the primary direction (±3).
+  // Weighted higher than all secondary signals combined (±2 max each) so that
+  // fear-index, funding, and daily lag can never override a clear structural
+  // regime. When the 4H trend is bullish, the market is NOT favourable for
+  // shorts regardless of how fearful FNG or bearish the daily EMA200 may be.
+  if (s.btcStructure === 'bearish')      { sentimentFlags.push('btc_bearish'); fav += 3 }
+  else if (s.btcStructure === 'bullish') { sentimentFlags.push('btc_bullish'); hos += 3 }
 
   // 2) FNG — CONFIRMATORY ONLY, capped at +1 (no extreme +2 tier). Fear confirms
   //    a bearish trend, greed confirms a bullish one — it never overrides structure.
