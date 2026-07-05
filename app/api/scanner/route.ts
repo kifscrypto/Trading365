@@ -16,7 +16,7 @@ interface ScanResult extends RawResult {
   btc_dominance: number
   btc_funding: number
   btc_dom_trend: string
-  market_condition: 'favourable' | 'neutral' | 'hostile'
+  market_condition: 'downtrend' | 'neutral' | 'uptrend'
   sentiment_flags: string[]
 }
 

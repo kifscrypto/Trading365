@@ -145,10 +145,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, checked: 0, triggered: 0, note: 'watchlist empty' })
     }
 
-    // Hard regime gate — only fire signals when the BTC sentiment regime is favourable.
+    // Hard regime gate — only fire signals when the BTC sentiment regime is downtrend (bearish).
     // market_condition is computed by the watchlist builder and shared across all rows in a cycle.
     const marketCondition = (watchlist[0].market_condition as string) ?? 'neutral'
-    if (marketCondition !== 'favourable') {
+    if (marketCondition !== 'downtrend') {
       console.log(`[Scanner] Regime gate: ${marketCondition} — suppressing all signals`)
       return NextResponse.json({
         ok:                   true,
@@ -169,7 +169,7 @@ export async function GET(request: Request) {
       FROM scanner_signals s
       JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
       WHERE s.direction = 'short'
-        AND s.market_condition = 'favourable'
+        AND s.market_condition = 'downtrend'
         AND s.score >= 7
         AND s.scanned_at > NOW() - INTERVAL '7 days'
     `

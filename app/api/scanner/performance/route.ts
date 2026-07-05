@@ -50,8 +50,8 @@ export async function GET(request: Request) {
 
   try {
     // Regime-gated product set, direction-aware:
-    //   short → direction='short' AND market_condition='favourable'
-    //   long  → direction='long'  AND market_condition='hostile' AND scanned after the rewrite
+    //   short → direction='short' AND market_condition='downtrend'
+    //   long  → direction='long'  AND market_condition='uptrend' AND scanned after the rewrite
     //   both  → either of the above
     // The single param-guarded predicate covers all three cases. Long signals are
     // floored at the 2026-06-18 rewrite date so pre-rewrite long signals (a
@@ -80,9 +80,9 @@ export async function GET(request: Request) {
         AND s.score >= ${minScore}
         AND (${exchange} = 'all' OR s.exchange = ${exchange})
         AND (
-          (${direction} IN ('short', 'both') AND s.direction = 'short' AND s.market_condition = 'favourable')
+          (${direction} IN ('short', 'both') AND s.direction = 'short' AND s.market_condition = 'downtrend')
           OR
-          (${direction} IN ('long', 'both')  AND s.direction = 'long'  AND s.market_condition = 'hostile' AND s.scanned_at > '2026-06-18')
+          (${direction} IN ('long', 'both')  AND s.direction = 'long'  AND s.market_condition = 'uptrend' AND s.scanned_at > '2026-06-18')
         )
       ORDER BY s.scanned_at DESC
     `
@@ -135,7 +135,7 @@ export async function GET(request: Request) {
         SELECT COUNT(*)::int AS n FROM scanner_watchlist
         WHERE created_at > NOW() - (${days}::integer * INTERVAL '1 day')
           AND adjusted_score >= 7
-          AND market_condition <> 'favourable'
+          AND market_condition <> 'downtrend'
           AND (${exchange} = 'all' OR exchange = ${exchange})
       ` as Array<{ n: number }>
       regimeFired += f?.n ?? 0
@@ -156,7 +156,7 @@ export async function GET(request: Request) {
           SELECT COUNT(*)::int AS n FROM scanner_long_watchlist
           WHERE created_at > NOW() - (${days}::integer * INTERVAL '1 day')
             AND adjusted_score >= 7
-            AND market_condition <> 'hostile'
+            AND market_condition <> 'uptrend'
             AND (${exchange} = 'all' OR exchange = ${exchange})
         ` as Array<{ n: number }>
         regimeSuppressed += s?.n ?? 0

@@ -17,7 +17,7 @@ interface ScanResult {
   btc_dominance: number | null
   btc_funding: number | null
   btc_dom_trend: string | null
-  market_condition: 'favourable' | 'neutral' | 'hostile' | null
+  market_condition: 'downtrend' | 'neutral' | 'uptrend' | null
   sentiment_flags: string[] | null
 }
 
@@ -26,7 +26,7 @@ interface SentimentSummary {
   btcDominance: number
   domTrend: 'up' | 'down' | 'flat'
   btcFunding: number
-  marketCondition: 'favourable' | 'neutral' | 'hostile'
+  marketCondition: 'downtrend' | 'neutral' | 'uptrend'
   sentimentFlags: string[]
 }
 
@@ -51,8 +51,8 @@ const SIGNAL_LABELS: Record<string, string> = {
   rsi_bull_div:       'RSI Div',
 }
 
-// Sentiment flags reframed for LONGS: a regime that's 'hostile' (bullish BTC) is
-// GOOD for longs, so the short-perspective fav/hos types are inverted here.
+// Sentiment flags reframed for LONGS: an 'uptrend' (bullish BTC) regime is
+// GOOD for longs, so the short-perspective types are inverted here.
 const SENTIMENT_FLAG_LABELS: Record<string, { label: string; type: 'fav' | 'hos' }> = {
   extreme_greed:   { label: 'F&G extreme greed (≥75) — euphoric, risky to chase longs',  type: 'hos' },
   greed:           { label: 'F&G greed (≥60) — bullish but extended',                     type: 'hos' },
@@ -71,10 +71,10 @@ const SENTIMENT_FLAG_LABELS: Record<string, { label: string; type: 'fav' | 'hos'
   dom_falling:     { label: 'BTC dominance falling — alts gaining, longs favoured',        type: 'fav' },
 }
 
-// Regime, from the LONG perspective: 'hostile' (bullish BTC) is when longs fire.
+// Regime, from the LONG perspective: 'uptrend' (bullish BTC) is when longs fire.
 const REGIME = {
-  hostile:    { label: 'bullish', good: true },
-  favourable: { label: 'bearish', good: false },
+  uptrend:    { label: 'bullish', good: true },
+  downtrend:  { label: 'bearish', good: false },
   neutral:    { label: 'neutral', good: false },
 } as const
 
@@ -137,10 +137,10 @@ function SentimentBar({ s }: { s: SentimentSummary }) {
   const domArrow = s.domTrend === 'up' ? '↑' : s.domTrend === 'down' ? '↓' : '→'
   const domColor = s.domTrend === 'down' ? 'text-emerald-400' : s.domTrend === 'up' ? 'text-zinc-500' : 'text-zinc-600'
 
-  // Long perspective: bullish (hostile) regime is GOOD → green.
+  // Long perspective: uptrend (bullish) regime is GOOD → green.
   const mcColor = regime.good
     ? 'bg-green-950 border-green-800 text-green-300 hover:bg-green-900'
-    : s.marketCondition === 'favourable'
+    : s.marketCondition === 'downtrend'
     ? 'bg-red-950 border-red-800 text-red-300 hover:bg-red-900'
     : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
 
@@ -256,7 +256,7 @@ export default function LongScannerPage() {
     )
   }
 
-  const longsActive = sentiment?.marketCondition === 'hostile'
+  const longsActive = sentiment?.marketCondition === 'uptrend'
 
   return (
     <div className="min-h-screen bg-zinc-950 p-6 font-mono">
@@ -316,7 +316,7 @@ export default function LongScannerPage() {
         </div>
       </div>
 
-      {/* Regime banner — longs only fire in a bullish (hostile) BTC regime */}
+      {/* Regime banner — longs only fire in an uptrend (bullish) BTC regime */}
       {sentiment && (
         longsActive ? (
           <div className="mb-4 px-4 py-3 rounded-lg bg-green-950/60 border border-green-800 text-green-300 text-xs font-mono">

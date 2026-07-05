@@ -35,7 +35,7 @@ import type { SqlClient } from "@/app/api/scanner/_core"
  * directly and NEVER the raw 24h move. A stopped-out trade's loss is the stop %.
  *
  * The eligible signal set mirrors the live track record + scanner-stats exactly
- * (short = favourable regime, score ≥ 7; long = hostile regime, score ≥ 7, post
+ * (short = downtrend regime, score ≥ 7; long = uptrend regime, score ≥ 7, post
  * 2026-06-18 rewrite) so the simulated P&L can never contradict the headline
  * win rates shown beside it.
  *
@@ -46,7 +46,7 @@ import type { SqlClient } from "@/app/api/scanner/_core"
  */
 
 export const PNL_START_BALANCE = 1000
-export const PNL_POSITION_FRACTION = 0.1 // 10% of running balance per trade
+export const PNL_POSITION_FRACTION = 0.5 // 50% of running balance per trade
 
 // Tiered scale-out: tranche weights (must sum to 1) and the favourable move at
 // which each take-profit fills. Aggressive back-weighting — more size rides the
@@ -241,9 +241,9 @@ export async function computePnl(sql?: SqlClient): Promise<PnlResult> {
       JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
       WHERE s.score >= 7
         AND (
-          (s.direction = 'short' AND s.market_condition = 'favourable')
+          (s.direction = 'short' AND s.market_condition = 'downtrend')
           OR
-          (s.direction = 'long'  AND s.market_condition = 'hostile' AND s.scanned_at > '2026-06-18')
+          (s.direction = 'long'  AND s.market_condition = 'uptrend' AND s.scanned_at > '2026-06-18')
         )
       ORDER BY s.scanned_at ASC, s.id ASC
     `) as Array<Record<string, unknown>>

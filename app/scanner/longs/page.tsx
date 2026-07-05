@@ -69,7 +69,7 @@ interface Stats {
 // meaningless — show "Calibrating" instead of broadcasting a noisy percentage.
 const MIN_SAMPLE = 50
 
-// Stats are the LONG product: direction='long', hostile (bullish BTC) regime,
+// Stats are the LONG product: direction='long', uptrend (bullish BTC) regime,
 // score ≥ 8 (the entry-alert threshold). TP1 = +1.5% within 24h; directional
 // accuracy = price rose (>0).
 async function getStats(): Promise<Stats> {
@@ -78,16 +78,16 @@ async function getStats(): Promise<Stats> {
     const aggRows = await sql`
       SELECT
         COUNT(*) FILTER (
-          WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change IS NOT NULL
+          WHERE s.market_condition = 'uptrend' AND s.score >= 8 AND o24.pct_change IS NOT NULL
         )::int AS filtered_with_24h,
         COUNT(*) FILTER (
-          WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change >= 1.5
+          WHERE s.market_condition = 'uptrend' AND s.score >= 8 AND o24.pct_change >= 1.5
         )::int AS tp1_hits,
         COUNT(*) FILTER (
-          WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change > 0
+          WHERE s.market_condition = 'uptrend' AND s.score >= 8 AND o24.pct_change > 0
         )::int AS up_hits,
         AVG(o24.pct_change) FILTER (
-          WHERE s.market_condition = 'hostile' AND s.score >= 8 AND o24.pct_change IS NOT NULL
+          WHERE s.market_condition = 'uptrend' AND s.score >= 8 AND o24.pct_change IS NOT NULL
         )::float AS avg_move,
         (SELECT COUNT(*)::int FROM scanner_signals WHERE direction = 'long' AND scanned_at > '2026-06-18') AS total_all
       FROM scanner_signals s
@@ -123,7 +123,7 @@ interface RecentWin {
 }
 
 // Recent long wins — drawn from the SAME product as the headline stats
-// (direction='long', hostile regime, score >= 7) so the feed can never contradict
+// (direction='long', uptrend regime, score >= 7) so the feed can never contradict
 // the advertised win rate. A win = TP1+ (price rose >= 1.5% within 24h).
 async function getRecentWins(): Promise<RecentWin[]> {
   const sql = neon(process.env.DATABASE_URL!)
@@ -135,7 +135,7 @@ async function getRecentWins(): Promise<RecentWin[]> {
       FROM scanner_signals s
       JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
       WHERE s.direction = 'long'
-        AND s.market_condition = 'hostile'
+        AND s.market_condition = 'uptrend'
         AND s.score >= 8
         AND o24.pct_change >= 1.5
         AND s.scanned_at > NOW() - INTERVAL '30 days'

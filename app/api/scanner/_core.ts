@@ -267,7 +267,7 @@ export function scoreKlines(
  * Thesis: don't buy strength, buy the dip in a confirmed uptrend. "Daily looks
  * great, 4h temporarily weak, sitting on support → buy the dip not the breakout."
  * The old model rewarded extension (price above 50EMA, higher-highs, rising
- * volume) and bought local tops that mean-reverted (−3.4% avg in the hostile,
+ * volume) and bought local tops that mean-reverted (−3.4% avg in the uptrend,
  * score≥7 product). This model rewards proximity to support inside an uptrend.
  *
  * Raw factors total ~17; applyBtcSentiment clamps the adjusted score to 15.
@@ -916,20 +916,20 @@ export function applyBtcSentiment(
   direction: 'short' | 'long' = 'short',
 ): {
   adjustedScore: number
-  marketCondition: 'favourable' | 'neutral' | 'hostile'
+  marketCondition: 'downtrend' | 'neutral' | 'uptrend'
   sentimentFlags: string[]
 } {
   const sentimentFlags: string[] = []
-  // Trend-following regime (absolute, from the SHORT perspective): favourable =
-  // bearish BTC, hostile = bullish BTC. Structure leads; FNG only confirms. The
-  // LABEL is shared by both directions — only the score delta below is inverted
-  // for longs — so 'hostile' always means bullish BTC.
+  // Trend-following regime (absolute): downtrend = bearish BTC, uptrend = bullish
+  // BTC. Structure leads; FNG only confirms. The LABEL is shared by both
+  // directions — only the score delta below is inverted for longs — so 'uptrend'
+  // always means bullish BTC.
   let fav = 0, hos = 0
 
   // 1) STRUCTURE IS KING — 4H price vs EMA50 sets the primary direction (±3).
   // Weighted higher than all secondary signals combined (±2 max each) so that
   // fear-index, funding, and daily lag can never override a clear structural
-  // regime. When the 4H trend is bullish, the market is NOT favourable for
+  // regime. When the 4H trend is bullish, the market is NOT in a downtrend for
   // shorts regardless of how fearful FNG or bearish the daily EMA200 may be.
   if (s.btcStructure === 'bearish')      { sentimentFlags.push('btc_bearish'); fav += 3 }
   else if (s.btcStructure === 'bullish') { sentimentFlags.push('btc_bullish'); hos += 3 }
@@ -952,16 +952,16 @@ export function applyBtcSentiment(
   if (s.btcStructureDaily === 'bearish')      { sentimentFlags.push('btc_below_d200'); fav += 1 }
   else if (s.btcStructureDaily === 'bullish') { sentimentFlags.push('btc_above_d200'); hos += 1 }
 
-  const marketCondition: 'favourable' | 'neutral' | 'hostile' =
-    hos >= 2 && hos >= fav ? 'hostile' :
-    fav >= 2               ? 'favourable' :
+  const marketCondition: 'downtrend' | 'neutral' | 'uptrend' =
+    hos >= 2 && hos >= fav ? 'uptrend' :
+    fav >= 2               ? 'downtrend' :
                              'neutral'
 
-  // Score delta is inverted by direction: shorts want a 'favourable' (bearish/greedy
-  // BTC) regime, longs want a 'hostile' (bullish BTC) regime.
+  // Score delta is inverted by direction: shorts want a 'downtrend' (bearish BTC)
+  // regime, longs want an 'uptrend' (bullish BTC) regime.
   const delta = direction === 'long'
-    ? (marketCondition === 'favourable' ? -2 : marketCondition === 'hostile'    ? 1 : 0)
-    : (marketCondition === 'hostile'    ? -2 : marketCondition === 'favourable' ? 1 : 0)
+    ? (marketCondition === 'downtrend' ? -2 : marketCondition === 'uptrend' ? 1 : 0)
+    : (marketCondition === 'uptrend'   ? -2 : marketCondition === 'downtrend' ? 1 : 0)
   return {
     adjustedScore:  Math.max(0, Math.min(15, rawScore + delta)),
     marketCondition,

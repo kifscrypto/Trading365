@@ -27,7 +27,7 @@ function ShortSide({ stats, totalAllSignals }: SideProps) {
       </div>
       <div>
         <p className="text-4xl font-bold tabular-nums text-primary lg:text-5xl">{fmtPct(stats.tp1WinRate)}</p>
-        <p className="mt-1 text-xs text-muted-foreground">TP1 hit rate · favourable regime</p>
+        <p className="mt-1 text-xs text-muted-foreground">TP1 hit rate · downtrend regime</p>
       </div>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>
@@ -61,7 +61,7 @@ function LongSide({ stats, totalAllSignals }: SideProps) {
       </div>
       <div>
         <p className="text-4xl font-bold tabular-nums text-emerald-400 lg:text-5xl">{fmtPct(stats.tp1WinRate)}</p>
-        <p className="mt-1 text-xs text-muted-foreground">TP1 hit rate · hostile regime</p>
+        <p className="mt-1 text-xs text-muted-foreground">TP1 hit rate · uptrend regime</p>
       </div>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>

@@ -24,9 +24,9 @@ function PctCell({ val, direction }: { val: number | null; direction: string }) 
 }
 
 const marketClass: Record<string, string> = {
-  favourable: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-  neutral:    'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
-  hostile:    'bg-red-500/10 text-red-400 border-red-500/30',
+  downtrend: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+  neutral:   'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+  uptrend:   'bg-red-500/10 text-red-400 border-red-500/30',
 }
 
 const SIGNAL_LABELS: Record<string, string> = {
@@ -75,8 +75,8 @@ const SIGNAL_LABELS: Record<string, string> = {
 type Direction = 'short' | 'long' | 'both'
 
 const DIRECTION_LABELS: Record<Direction, string> = {
-  short: 'fired vs suppressed (favourable only)',
-  long:  'fired vs suppressed (hostile only)',
+  short: 'fired vs suppressed (downtrend only)',
+  long:  'fired vs suppressed (uptrend only)',
   both:  'fired vs suppressed (regime-gated)',
 }
 

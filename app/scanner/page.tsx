@@ -73,7 +73,7 @@ interface RecentWin {
 }
 
 // Recent confirmed wins — sourced from the SAME dataset as the headline win
-// rate (favourable regime, score ≥ 7, 24h outcome ≤ −1.5% = TP1), so the feed
+// rate (downtrend regime, score ≥ 7, 24h outcome ≤ −1.5% = TP1), so the feed
 // can never contradict the advertised numbers.
 async function getRecentWins(): Promise<RecentWin[]> {
   const sql = neon(process.env.DATABASE_URL!)
@@ -85,7 +85,7 @@ async function getRecentWins(): Promise<RecentWin[]> {
       FROM scanner_signals s
       JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
       WHERE s.direction = 'short'
-        AND s.market_condition = 'favourable'
+        AND s.market_condition = 'downtrend'
         AND s.score >= 7
         AND o24.pct_change <= -1.5
         AND s.scanned_at > NOW() - INTERVAL '30 days'
@@ -135,7 +135,7 @@ const features = [
     icon: ShieldCheck,
     title: "BTC Sentiment Filter",
     description:
-      "Signals are completely suppressed during neutral and hostile market conditions — the scanner only fires when the macro supports the trade.",
+      "Signals are completely suppressed during neutral and uptrend market conditions — the scanner only fires when the macro supports the trade.",
   },
   {
     icon: Bell,

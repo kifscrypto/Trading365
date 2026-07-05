@@ -19,8 +19,8 @@ const ALT_BREADTH = [
 // market_condition (gate OUTPUT category) → broadcast verdict. The only
 // gate-derived value allowed out; gate INPUTS are never read.
 function toVerdict(mc: string | null | undefined): Verdict {
-  if (mc === "favourable") return "short"
-  if (mc === "hostile") return "long"
+  if (mc === "downtrend") return "short"
+  if (mc === "uptrend") return "long"
   return "neutral"
 }
 

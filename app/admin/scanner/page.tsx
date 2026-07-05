@@ -17,7 +17,7 @@ interface ScanResult {
   btc_dominance: number | null
   btc_funding: number | null
   btc_dom_trend: string | null
-  market_condition: 'favourable' | 'neutral' | 'hostile' | null
+  market_condition: 'downtrend' | 'neutral' | 'uptrend' | null
   sentiment_flags: string[] | null
 }
 
@@ -26,7 +26,7 @@ interface SentimentSummary {
   btcDominance: number
   domTrend: 'up' | 'down' | 'flat'
   btcFunding: number
-  marketCondition: 'favourable' | 'neutral' | 'hostile'
+  marketCondition: 'downtrend' | 'neutral' | 'uptrend'
   sentimentFlags: string[]
 }
 
@@ -131,9 +131,9 @@ function SentimentBar({ s }: { s: SentimentSummary }) {
   const domArrow = s.domTrend === 'up' ? '↑' : s.domTrend === 'down' ? '↓' : '→'
   const domColor = s.domTrend === 'up' ? 'text-amber-400' : s.domTrend === 'down' ? 'text-zinc-500' : 'text-zinc-600'
 
-  const mcColor = s.marketCondition === 'hostile'
+  const mcColor = s.marketCondition === 'uptrend'
     ? 'bg-red-950 border-red-800 text-red-300 hover:bg-red-900'
-    : s.marketCondition === 'favourable'
+    : s.marketCondition === 'downtrend'
     ? 'bg-green-950 border-green-800 text-green-300 hover:bg-green-900'
     : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'
 
@@ -309,9 +309,9 @@ export default function ScannerPage() {
       </div>
 
       {/* Hostile banner */}
-      {sentiment?.marketCondition === 'hostile' && (
+      {sentiment?.marketCondition === 'uptrend' && (
         <div className="mb-4 px-4 py-3 rounded-lg bg-red-950/60 border border-red-800 text-red-300 text-xs font-mono">
-          ⚠ BTC sentiment hostile — short conviction reduced. Scores adjusted.
+          ⚠ BTC uptrend — short conviction reduced. Scores adjusted.
         </div>
       )}
 

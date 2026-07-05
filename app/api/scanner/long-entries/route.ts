@@ -9,7 +9,7 @@ import { exchangeReferralUrl, isExcludedSymbol } from '@/app/api/scanner/_config
 import { discordSignal } from '@/lib/discord'
 
 // Long entry trigger — parallel to /api/scanner/entries, inverted for longs.
-// Reads the long watchlist, fires only in a BULLISH-BTC ('hostile') regime, and
+// Reads the long watchlist, fires only in a BULLISH-BTC ('uptrend') regime, and
 // alerts on bullish 1H entry triggers. Fired alerts are recorded in a SEPARATE
 // telegram_alerts_long table so the short monitor cron (short-only TP logic) is
 // never fed long rows. Existing short scanner code is untouched.
@@ -168,9 +168,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, checked: 0, triggered: 0, note: 'watchlist empty' })
     }
 
-    // Hard regime gate — longs ONLY fire when the BTC regime is 'hostile' (bullish BTC).
+    // Hard regime gate — longs ONLY fire when the BTC regime is 'uptrend' (bullish BTC).
     const marketCondition = (watchlist[0].market_condition as string) ?? 'neutral'
-    if (marketCondition !== 'hostile') {
+    if (marketCondition !== 'uptrend') {
       console.log(`[Long Scanner] Regime gate: ${marketCondition} — suppressing all long signals`)
       return NextResponse.json({
         ok:                   true,
