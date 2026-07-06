@@ -137,7 +137,7 @@ export default function FeaturedAdmin() {
                         <input
                           value={filter[m.slot] ?? ''}
                           onChange={e => setFilter(f => ({ ...f, [m.slot]: e.target.value }))}
-                          placeholder={`Add ${m.kind} — ${available.length} available…`}
+                          placeholder={`Add ${m.kind} — ${available.length} of ${opts.length} not yet added…`}
                           className="mb-2 w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded text-sm focus:outline-none focus:border-zinc-500 placeholder-zinc-500"
                         />
                         <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
