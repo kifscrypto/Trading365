@@ -62,6 +62,7 @@ export async function GET() {
           tradingPairs: { value: o?.trading_pairs ?? "", def: e.tradingPairs },
           makerFee: { value: o?.maker_fee ?? "", def: e.fees.maker },
           kyc: { value: o?.kyc ?? null, def: e.kyc },
+          logo: { value: o?.logo ?? "", def: e.logo ?? "" },
         },
       }
     })
@@ -122,12 +123,12 @@ export async function PUT(request: Request) {
   const f = fields ?? {}
   const kyc = f.kyc === true || f.kyc === false ? f.kyc : null
   await sql`
-    INSERT INTO exchange_overrides (slug, bonus, bonus_details, rating, leverage, trading_pairs, maker_fee, kyc, updated_at)
-    VALUES (${slug}, ${str(f.bonus)}, ${str(f.bonusDetails)}, ${num(f.rating)}, ${str(f.leverage)}, ${int(f.tradingPairs)}, ${str(f.makerFee)}, ${kyc}, NOW())
+    INSERT INTO exchange_overrides (slug, bonus, bonus_details, rating, leverage, trading_pairs, maker_fee, kyc, logo, updated_at)
+    VALUES (${slug}, ${str(f.bonus)}, ${str(f.bonusDetails)}, ${num(f.rating)}, ${str(f.leverage)}, ${int(f.tradingPairs)}, ${str(f.makerFee)}, ${kyc}, ${str(f.logo)}, NOW())
     ON CONFLICT (slug) DO UPDATE SET
       bonus = EXCLUDED.bonus, bonus_details = EXCLUDED.bonus_details, rating = EXCLUDED.rating,
       leverage = EXCLUDED.leverage, trading_pairs = EXCLUDED.trading_pairs, maker_fee = EXCLUDED.maker_fee,
-      kyc = EXCLUDED.kyc, updated_at = NOW()
+      kyc = EXCLUDED.kyc, logo = EXCLUDED.logo, updated_at = NOW()
   `
   if (typeof affiliateUrl === "string") {
     const name = exchanges.find((e) => e.slug === slug)?.name ?? slug

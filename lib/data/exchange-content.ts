@@ -24,6 +24,7 @@ export interface ExchangeOverrideRow {
   trading_pairs: number | null
   maker_fee: string | null
   kyc: boolean | null
+  logo: string | null
 }
 
 // Full record for a DB-only (admin-added) exchange.
@@ -59,9 +60,12 @@ export async function ensureExchangeOverridesTable(): Promise<void> {
       trading_pairs INTEGER,
       maker_fee     TEXT,
       kyc           BOOLEAN,
+      logo          TEXT,
       updated_at    TIMESTAMP DEFAULT NOW()
     )
   `
+  // Table may predate the logo column — add it on the fly.
+  await sql`ALTER TABLE exchange_overrides ADD COLUMN IF NOT EXISTS logo TEXT`
 }
 
 export async function ensureCustomExchangesTable(): Promise<void> {
@@ -94,6 +98,7 @@ export async function ensureCustomExchangesTable(): Promise<void> {
 function applyOverride(ex: Exchange, ov: ExchangeOverrideRow | undefined, url: string | undefined): Exchange {
   return {
     ...ex,
+    logo: ov?.logo ?? ex.logo,
     referralLink: url || ex.referralLink,
     bonus: ov?.bonus ?? ex.bonus,
     bonusDetails: ov?.bonus_details ?? ex.bonusDetails,

@@ -11,12 +11,12 @@ interface Item {
   defaultReferralLink: string
   fields: {
     bonus: FieldVal; bonusDetails: FieldVal; rating: FieldVal; leverage: FieldVal
-    tradingPairs: FieldVal; makerFee: FieldVal; kyc: FieldVal
+    tradingPairs: FieldVal; makerFee: FieldVal; kyc: FieldVal; logo: FieldVal
   }
 }
 type Edit = {
   bonus: string; bonusDetails: string; rating: string; leverage: string
-  tradingPairs: string; makerFee: string; kyc: boolean | null; affiliateUrl: string
+  tradingPairs: string; makerFee: string; kyc: boolean | null; affiliateUrl: string; logo: string
 }
 interface CustomItem {
   slug: string; name: string; logo: string; rating: string | number; makerFee: string; takerFee: string
@@ -36,6 +36,42 @@ const LBL = 'block text-xs text-zinc-400 mb-1'
 
 function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+// Logo preview + upload (reuses /api/admin/upload-image → Vercel Blob URL) + paste-URL fallback.
+function LogoInput({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  async function upload(file: File) {
+    setBusy(true); setErr('')
+    const fd = new FormData()
+    fd.append('file', file)
+    const r = await fetch('/api/admin/upload-image', { method: 'POST', body: fd })
+    setBusy(false)
+    if (r.ok) { const d = await r.json(); onChange(d.url) }
+    else { const d = await r.json().catch(() => ({})); setErr(d.error || 'Upload failed') }
+  }
+  return (
+    <div>
+      <label className={LBL}>Logo</label>
+      <div className="flex items-center gap-3">
+        {value ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={value} alt="" className="h-10 w-10 rounded bg-white object-contain p-1 shrink-0" />
+        ) : (
+          <div className="h-10 w-10 shrink-0 rounded bg-zinc-800 border border-zinc-700 grid place-items-center text-[10px] text-zinc-600">none</div>
+        )}
+        <label className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded text-sm text-zinc-200 cursor-pointer hover:bg-zinc-700 shrink-0">
+          {busy ? 'Uploading…' : 'Upload'}
+          <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) upload(f) }} />
+        </label>
+        {value && <button type="button" onClick={() => onChange('')} className="text-xs text-zinc-500 hover:text-zinc-300 shrink-0">Clear</button>}
+      </div>
+      <input className={`${IN} mt-2`} value={value} onChange={e => onChange(e.target.value)}
+        placeholder="…or paste an image URL / /images/exchanges/x.png" />
+      {err && <p className="text-red-400 text-xs mt-1">{err}</p>}
+    </div>
+  )
 }
 
 // Full field set for a custom (DB-only) exchange — reused by the add form and per-row edit.
@@ -96,12 +132,11 @@ function CustomFields({ v, set, slugLocked }: { v: CustomItem; set: <K extends k
         <input className={IN} value={v.headquarters} onChange={e => set('headquarters', e.target.value)} placeholder="Seychelles" />
       </div>
       <div>
-        <label className={LBL}>Logo path / URL</label>
-        <input className={IN} value={v.logo} onChange={e => set('logo', e.target.value)} placeholder="/images/exchanges/x.png" />
-      </div>
-      <div>
         <label className={LBL}>Review URL <span className="text-zinc-600">(optional)</span></label>
         <input className={IN} value={v.reviewUrl} onChange={e => set('reviewUrl', e.target.value)} placeholder="/reviews/x-review" />
+      </div>
+      <div className="md:col-span-2">
+        <LogoInput value={v.logo} onChange={val => set('logo', val)} />
       </div>
       <div className="md:col-span-2">
         <label className={LBL}>Pros <span className="text-zinc-600">(one per line)</span></label>
@@ -154,6 +189,7 @@ export default function ExchangesAdmin() {
           makerFee: String(it.fields.makerFee.value ?? ''),
           kyc: (it.fields.kyc.value as boolean | null) ?? null,
           affiliateUrl: it.affiliateUrl ?? '',
+          logo: String(it.fields.logo?.value ?? ''),
         }
       }
       setEdits(e)
@@ -180,7 +216,7 @@ export default function ExchangesAdmin() {
         slug,
         fields: {
           bonus: ed.bonus, bonusDetails: ed.bonusDetails, rating: ed.rating, leverage: ed.leverage,
-          tradingPairs: ed.tradingPairs, makerFee: ed.makerFee, kyc: ed.kyc,
+          tradingPairs: ed.tradingPairs, makerFee: ed.makerFee, kyc: ed.kyc, logo: ed.logo,
         },
         affiliateUrl: ed.affiliateUrl,
       }),
@@ -358,6 +394,9 @@ export default function ExchangesAdmin() {
                           <option value="required">Required</option>
                           <option value="no">Not Required</option>
                         </select>
+                      </div>
+                      <div className="md:col-span-2">
+                        <LogoInput value={ed.logo} onChange={v => set(it.slug, 'logo', v)} />
                       </div>
                       <div className="md:col-span-2">
                         <label className={LBL}>Affiliate URL <span className="text-zinc-600">(shared with Affiliate Links admin)</span></label>
