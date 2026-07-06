@@ -46,7 +46,7 @@ import type { SqlClient } from "@/app/api/scanner/_core"
  */
 
 export const PNL_START_BALANCE = 1000
-export const PNL_POSITION_FRACTION = 0.5 // 50% of running balance per trade
+export const PNL_POSITION_FRACTION = 0.1 // 10% of running balance per trade
 
 // Tiered scale-out: tranche weights (must sum to 1) and the favourable move at
 // which each take-profit fills. Aggressive back-weighting — more size rides the
@@ -65,8 +65,7 @@ const TP5_MOVE = 8.0
 // House stop used to cap a loss when a signal has no stored stop_price (e.g.
 // pre-2026-06-21 signals, logged before stop tracking existed). Matches the live
 // page's STOP_LOSS_PCT fallback so the two surfaces agree.
-// Widened from 3→5 after the Jul 2026 altcoin decoupling event.
-const STOP_LOSS_FALLBACK_PCT = 5
+const STOP_LOSS_FALLBACK_PCT = 3
 
 export const PNL_LABEL =
   "Simulated P&L — $1,000 start, 10% position sizing, all signals followed"

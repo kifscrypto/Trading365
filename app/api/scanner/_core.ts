@@ -143,20 +143,20 @@ export function swingLow(klines: Kline[], lookback = 10): number {
 }
 
 /**
- * Clamp a protective stop to a 3–6% distance from entry. The raw swing extreme can
- * sit too tight (<3% → stopped out by noise) or too wide (>6% → oversized risk);
- * this bounds it. Longs stop BELOW entry (3–6% below); shorts stop ABOVE (3–6% above).
- * Widened from 2–4% after the Jul 2026 altcoin decoupling event demonstrated that
- * 4% stops were too tight during high-volatility altcoin pumps.
+ * Clamp a protective stop to a 2–4% distance from entry. The raw swing extreme can
+ * sit too tight (<2% → stopped out by noise) or too wide (>4% → oversized risk);
+ * this bounds it. Longs stop BELOW entry (2–4% below); shorts stop ABOVE (2–4% above).
+ * (The Jul 2026 decoupling losses were a regime problem — shorts firing into a
+ * bullish BTC — fixed by the ±3 sentiment reweighting, not by widening stops.)
  */
 export function clampStop(entry: number, rawStop: number, direction: 'short' | 'long'): number {
   if (direction === 'long') {
-    const nearest  = entry * 0.97  // min 3% below entry
-    const furthest = entry * 0.94  // max 6% below entry
+    const nearest  = entry * 0.98  // min 2% below entry
+    const furthest = entry * 0.96  // max 4% below entry
     return Math.min(Math.max(rawStop, furthest), nearest)
   }
-  const nearest  = entry * 1.03    // min 3% above entry
-  const furthest = entry * 1.06    // max 6% above entry
+  const nearest  = entry * 1.02    // min 2% above entry
+  const furthest = entry * 1.04    // max 4% above entry
   return Math.max(Math.min(rawStop, furthest), nearest)
 }
 
