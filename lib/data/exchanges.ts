@@ -4,6 +4,7 @@ export const exchanges: Exchange[] = [
   {
     slug: "mexc",
     name: "MEXC",
+    logo: "/images/exchanges/mexc.png",
     rating: 9.2,
     fees: { maker: "0.00%", taker: "0.01%" },
     kyc: false,
@@ -140,6 +141,7 @@ export const exchanges: Exchange[] = [
   {
     slug: "bitunix",
     name: "Bitunix",
+    logo: "/images/exchanges/bitunix.ico",
     rating: 8.3,
     fees: { maker: "0.02%", taker: "0.06%" },
     kyc: false,
@@ -473,6 +475,7 @@ export const exchanges: Exchange[] = [
   {
     slug: "okx",
     name: "OKX",
+    logo: "/images/exchanges/okx.png",
     rating: 8.7,
     fees: { maker: "0.02%", taker: "0.05%" },
     kyc: true,
@@ -516,6 +519,7 @@ export const exchanges: Exchange[] = [
   {
     slug: "bitget",
     name: "Bitget",
+    logo: "/images/exchanges/bitget.png",
     rating: 8.5,
     fees: { maker: "0.02%", taker: "0.06%" },
     kyc: true,
@@ -602,6 +606,7 @@ export const exchanges: Exchange[] = [
   {
     slug: "primexbt",
     name: "PrimeXBT",
+    logo: "/images/exchanges/primexbt.png",
     rating: 8.0,
     fees: { maker: "0.01%", taker: "0.02%" },
     kyc: false,
@@ -652,6 +657,7 @@ export const exchanges: Exchange[] = [
   {
     slug: "gateio",
     name: "Gate.io",
+    logo: "/images/exchanges/gateio.png",
     rating: 8.1,
     fees: { maker: "0.02%", taker: "0.05%" },
     kyc: true,
@@ -742,6 +748,7 @@ export const exchanges: Exchange[] = [
   {
     slug: "lbank",
     name: "LBank",
+    logo: "/images/exchanges/lbank.webp",
     rating: 7.2,
     fees: { maker: "0.10%", taker: "0.10%" },
     kyc: true,
