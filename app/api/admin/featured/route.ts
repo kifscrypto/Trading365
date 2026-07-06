@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
+import { revalidatePath } from "next/cache"
 import {
   FEATURED_SLOTS,
   FEATURED_DEFAULTS,
@@ -16,6 +17,13 @@ async function checkAuth() {
 }
 
 const VALID_SLOTS = new Set(FEATURED_SLOTS.map((s) => s.slot))
+
+// Which cached pages to refresh immediately when a slot is saved.
+const AFFECTED_PATHS: Record<string, string[]> = {
+  homepage_deals: ["/"],
+  featured_articles: ["/"],
+  bonus_pins: ["/bonuses"],
+}
 
 export async function GET() {
   if (!(await checkAuth())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -57,5 +65,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "items must be an array of slug strings" }, { status: 400 })
   }
   await setFeaturedSlot(slot as FeaturedSlot, items)
+  // Refresh the cached page(s) so the change shows immediately, not after ISR lapses.
+  for (const path of AFFECTED_PATHS[slot] ?? []) revalidatePath(path)
   return NextResponse.json({ ok: true, slot, items })
 }
