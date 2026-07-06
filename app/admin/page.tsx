@@ -541,11 +541,34 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/edit-with-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: formData.content, prompt: editPrompt }),
+        body: JSON.stringify({
+          content: formData.content,
+          prompt: editPrompt,
+          title: formData.title,
+          excerpt: formData.excerpt,
+          meta_title: formData.meta_title,
+          meta_description: formData.meta_description,
+          meta_keywords: formData.meta_keywords,
+          pros,
+          cons,
+          faqs,
+        }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Edit failed')
-      setFormData(prev => ({ ...prev, content: json.content }))
+      // Apply only the fields the model changed (body, excerpt, SEO, pros/cons, faqs).
+      const e = json.edits ?? (typeof json.content === 'string' ? { content: json.content } : {})
+      setFormData(prev => ({
+        ...prev,
+        content: typeof e.content === 'string' ? e.content : prev.content,
+        excerpt: typeof e.excerpt === 'string' ? e.excerpt : prev.excerpt,
+        meta_title: typeof e.meta_title === 'string' ? e.meta_title : prev.meta_title,
+        meta_description: typeof e.meta_description === 'string' ? e.meta_description : prev.meta_description,
+        meta_keywords: typeof e.meta_keywords === 'string' ? e.meta_keywords : prev.meta_keywords,
+      }))
+      if (Array.isArray(e.pros)) setPros(e.pros)
+      if (Array.isArray(e.cons)) setCons(e.cons)
+      if (Array.isArray(e.faqs)) setFaqs(e.faqs)
       setEditPromptDone(true)
       setEditPrompt('')
     } catch (err: any) {
