@@ -2,7 +2,7 @@ export const revalidate = 300
 
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ExternalLink, Star, Shield, Zap, Gift, CheckCircle2 } from "lucide-react"
+import { ExternalLink, Star, Shield, Zap, Gift, CheckCircle2, Trophy, Flame, TrendingUp, BadgeCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +10,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs"
 import { NewsletterCta } from "@/components/newsletter-cta"
 import { ArticleCard } from "@/components/article-card"
 import { exchanges } from "@/lib/data/exchanges"
+import { getFeaturedSlot } from "@/lib/data/featured"
 import { getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
 import { generateItemListSchema, generateFAQSchema } from "@/lib/schema"
 
@@ -43,7 +44,8 @@ export const metadata: Metadata = {
 
 export default async function BonusesPage() {
   const bonusArticles = await getArticlesByCategoryFromDB("bonuses")
-  const pinnedSlugs = ["weex", "bydfi", "bitunix"]
+  // Pinned order is editable at /admin/featured (falls back to the defaults).
+  const pinnedSlugs = await getFeaturedSlot("bonus_pins")
   const topExchanges = exchanges
     .filter((e) => e.bonus && e.bonus !== "N/A" && !e.defunct)
     .sort((a, b) => {
@@ -52,8 +54,10 @@ export default async function BonusesPage() {
       if (ai !== -1 && bi !== -1) return ai - bi
       if (ai !== -1) return -1
       if (bi !== -1) return 1
-      return 0
+      return b.rating - a.rating
     })
+  const top3 = topExchanges.slice(0, 3)
+  const rest = topExchanges.slice(3)
 
   const itemListSchema = generateItemListSchema(
     topExchanges.map((ex) => ({
@@ -98,149 +102,204 @@ export default async function BonusesPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
       {/* Hero */}
-      <section className="border-b border-border bg-gradient-to-b from-primary/5 to-transparent">
-        <div className="mx-auto max-w-7xl px-4 pt-8 pb-12 lg:px-6">
+      <section className="relative overflow-hidden border-b border-border">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,oklch(0.8_0.15_85/0.10),transparent_60%)]" />
+        <div className="relative mx-auto max-w-7xl px-4 pt-8 pb-14 lg:px-6">
           <Breadcrumbs items={[{ label: "Bonuses & Deals" }]} />
-          <div className="mt-6 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Gift className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl text-balance">
-                Best Crypto Exchange Bonuses
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Updated February 2026
-              </p>
+          <div className="mt-8 flex flex-col items-start gap-4">
+            <Badge variant="outline" className="gap-1.5 border-primary/30 text-primary">
+              <Flame className="h-3.5 w-3.5" />
+              Updated weekly · February 2026
+            </Badge>
+            <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl text-balance">
+              Claim the Biggest{" "}
+              <span className="text-primary">Crypto Bonuses</span>
+            </h1>
+            <p className="max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
+              Hand-picked, verified sign-up offers with our exclusive referral codes — the
+              highest bonuses you can get, in one place. Deposit, trade, and stack the rewards.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              {[
+                { icon: BadgeCheck, label: "Verified weekly" },
+                { icon: Shield, label: "Exclusive referral codes" },
+                { icon: Zap, label: "No-KYC options" },
+                { icon: Gift, label: "$100k+ in bonuses listed" },
+              ].map((t) => (
+                <span key={t.label} className="flex items-center gap-2 text-muted-foreground">
+                  <t.icon className="h-4 w-4 text-primary" />
+                  {t.label}
+                </span>
+              ))}
             </div>
           </div>
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
-            Maximize your starting capital with our verified collection of the best
-            crypto exchange sign-up bonuses. All links below are exclusive referral
-            codes that give you the highest available bonus.
-          </p>
         </div>
       </section>
 
-      {/* Bonus Cards Grid */}
+      {/* Top 3 Spotlight */}
       <section className="mx-auto max-w-7xl px-4 py-12 lg:px-6">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {topExchanges.map((exchange, i) => (
-            <Card
-              key={exchange.slug}
-              className="group relative overflow-hidden border-border bg-card transition-all duration-300 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
-            >
-              {i === 0 && (
-                <div className="absolute top-0 right-0">
-                  <Badge className="rounded-none rounded-bl-lg bg-primary text-primary-foreground font-semibold text-xs px-3 py-1">
-                    Best Deal
-                  </Badge>
-                </div>
-              )}
-              <CardHeader className="pb-3">
+        <div className="mb-8">
+          <Badge variant="outline" className="mb-3 gap-1.5 border-primary/30 text-primary">
+            <Trophy className="h-3.5 w-3.5" />
+            This Week&apos;s Top 3
+          </Badge>
+          <h2 className="text-2xl font-bold text-foreground text-balance md:text-3xl">
+            Biggest Bonuses Right Now
+          </h2>
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {top3.map((exchange, i) => {
+            const rank = [
+              { label: "Best Deal", cls: "bg-primary text-primary-foreground", ring: "border-primary/40 shadow-lg shadow-primary/10" },
+              { label: "#2 Pick", cls: "bg-secondary text-foreground", ring: "border-border" },
+              { label: "#3 Pick", cls: "bg-secondary text-foreground", ring: "border-border" },
+            ][i]
+            return (
+              <div
+                key={exchange.slug}
+                className={`group relative flex flex-col overflow-hidden rounded-2xl border bg-gradient-to-b from-primary/[0.07] to-card p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 ${rank.ring}`}
+              >
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl font-bold text-foreground">
-                    {exchange.name}
-                  </CardTitle>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${rank.cls}`}>
+                    {i === 0 && <Trophy className="h-3.5 w-3.5" />}
+                    {rank.label}
+                  </span>
                   <div className="flex items-center gap-1 text-primary">
                     <Star className="h-4 w-4 fill-primary" />
-                    <span className="text-sm font-bold">
-                      {exchange.rating.toFixed(1)}
-                    </span>
+                    <span className="text-sm font-bold">{exchange.rating.toFixed(1)}</span>
                   </div>
                 </div>
+
+                <h3 className="mt-4 text-2xl font-bold text-foreground">{exchange.name}</h3>
                 <p className="text-xs text-muted-foreground">
                   Founded {exchange.founded} &middot; {exchange.headquarters}
                 </p>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                {/* Bonus Amount */}
-                <div className="rounded-lg bg-primary/10 p-4 text-center">
-                  <p className="text-xs font-medium text-primary/80 uppercase tracking-wider">
-                    Sign-Up Bonus
+
+                {/* Giant bonus */}
+                <div className="mt-5 rounded-xl border border-primary/20 bg-primary/10 p-5 text-center">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">
+                    Welcome Bonus
                   </p>
-                  <p className="mt-1 text-2xl font-bold text-primary">
+                  <p className="mt-1 text-3xl font-extrabold leading-tight text-primary">
                     {exchange.bonus}
                   </p>
                 </div>
 
-                {/* Key Details */}
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs text-muted-foreground">Leverage</span>
-                    <span className="font-semibold text-foreground">
-                      {exchange.leverage}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs text-muted-foreground">Trading Pairs</span>
-                    <span className="font-semibold text-foreground">
-                      {exchange.tradingPairs}+
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs text-muted-foreground">Maker Fee</span>
-                    <span className="font-semibold text-foreground">
-                      {exchange.fees.maker}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs text-muted-foreground">KYC</span>
-                    <span className="font-semibold text-foreground">
-                      {exchange.kyc ? "Required" : "Not Required"}
-                    </span>
-                  </div>
+                {/* Stats */}
+                <div className="mt-5 grid grid-cols-3 gap-2 text-center">
+                  {[
+                    { label: "Leverage", value: exchange.leverage },
+                    { label: "Pairs", value: `${exchange.tradingPairs}+` },
+                    { label: "KYC", value: exchange.kyc ? "Yes" : "No" },
+                  ].map((s) => (
+                    <div key={s.label} className="rounded-lg bg-secondary/40 py-2">
+                      <p className="text-sm font-bold text-foreground">{s.value}</p>
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{s.label}</p>
+                    </div>
+                  ))}
                 </div>
 
-                {/* Highlights */}
-                <ul className="flex flex-col gap-1.5">
-                  {exchange.pros.slice(0, 4).map((pro, j) => (
-                    <li
-                      key={j}
-                      className="flex items-start gap-2 text-xs text-muted-foreground"
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary mt-0.5" />
+                {/* Pros */}
+                <ul className="mt-5 flex flex-col gap-1.5">
+                  {exchange.pros.slice(0, 3).map((pro, j) => (
+                    <li key={j} className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
                       {pro}
                     </li>
                   ))}
                 </ul>
 
-                {/* Bonus Details */}
-                {exchange.bonusDetails && (
-                  <p className="text-xs leading-relaxed text-muted-foreground border-t border-border pt-3">
-                    {exchange.bonusDetails}
-                  </p>
-                )}
-
-                {/* CTAs */}
-                <div className="flex flex-col gap-2 pt-1">
-                  <a
-                    href={exchange.referralLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Button className="w-full gap-2 font-semibold" size="sm">
+                {/* CTA */}
+                <div className="mt-6 flex flex-col gap-2 pt-1">
+                  <a href={exchange.referralLink} target="_blank" rel="sponsored nofollow noopener noreferrer">
+                    <Button className="w-full gap-2 font-semibold">
                       Claim Bonus
-                      <ExternalLink className="h-3.5 w-3.5" />
+                      <ExternalLink className="h-4 w-4" />
                     </Button>
                   </a>
                   {exchange.fullReview && (
                     <Link href={exchange.fullReview}>
-                      <Button
-                        variant="outline"
-                        className="w-full text-xs font-medium border-border text-muted-foreground hover:text-foreground"
-                        size="sm"
-                      >
-                        Read Full Review
+                      <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground hover:text-foreground">
+                        Read full review
                       </Button>
                     </Link>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            )
+          })}
         </div>
       </section>
+
+      {/* More Bonuses */}
+      {rest.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 pb-4 lg:px-6">
+          <div className="mb-6 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-bold text-foreground">More Verified Bonuses</h2>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {rest.map((exchange) => (
+              <Card
+                key={exchange.slug}
+                className="group relative overflow-hidden border-border bg-card transition-all duration-300 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xl font-bold text-foreground">{exchange.name}</CardTitle>
+                    <div className="flex items-center gap-1 text-primary">
+                      <Star className="h-4 w-4 fill-primary" />
+                      <span className="text-sm font-bold">{exchange.rating.toFixed(1)}</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Founded {exchange.founded} &middot; {exchange.headquarters}
+                  </p>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <div className="rounded-lg bg-primary/10 p-4 text-center">
+                    <p className="text-xs font-medium uppercase tracking-wider text-primary/80">Sign-Up Bonus</p>
+                    <p className="mt-1 text-2xl font-bold text-primary">{exchange.bonus}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs text-muted-foreground">Leverage</span>
+                      <span className="font-semibold text-foreground">{exchange.leverage}</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs text-muted-foreground">Trading Pairs</span>
+                      <span className="font-semibold text-foreground">{exchange.tradingPairs}+</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs text-muted-foreground">Maker Fee</span>
+                      <span className="font-semibold text-foreground">{exchange.fees.maker}</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs text-muted-foreground">KYC</span>
+                      <span className="font-semibold text-foreground">{exchange.kyc ? "Required" : "Not Required"}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 pt-1">
+                    <a href={exchange.referralLink} target="_blank" rel="sponsored nofollow noopener noreferrer">
+                      <Button className="w-full gap-2 font-semibold" size="sm">
+                        Claim Bonus
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
+                    </a>
+                    {exchange.fullReview && (
+                      <Link href={exchange.fullReview}>
+                        <Button variant="outline" size="sm" className="w-full text-xs font-medium border-border text-muted-foreground hover:text-foreground">
+                          Read Full Review
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Quick Comparison Table */}
       <section className="border-t border-border bg-card/50">

@@ -20,6 +20,7 @@ import { ScannerSpotlight } from "@/components/scanner-spotlight"
 import { ScannerTickerLive } from "@/components/scanner-ticker-live"
 import { DiscordCta } from "@/components/discord-cta"
 import { exchanges } from "@/lib/data/exchanges"
+import { getFeaturedSlot } from "@/lib/data/featured"
 import { generateWebsiteSchema } from "@/lib/schema"
 
 const BASE_URL = 'https://trading365.org'
@@ -31,19 +32,25 @@ export const metadata: Metadata = {
   },
 }
 
-const DEAL_ORDER = ["weex", "bybit", "bitunix"]
-const topExchanges = DEAL_ORDER.map((slug) => exchanges.find((e) => e.slug === slug)!).filter(Boolean)
-const bonusDeals = topExchanges.map((ex, i) => ({
-  name: ex.name,
-  bonus: ex.bonus,
-  features: ex.pros.slice(0, 4),
-  tag: i === 0 ? "Best Deal" : undefined,
-  referralLink: ex.referralLink,
-  reviewLink: ex.fullReview,
-}))
-
 export default async function HomePage() {
   const allArticles = await getAllArticlesFromDB()
+
+  // Editable via /admin/featured (falls back to the previous hardcoded lists).
+  const [dealSlugs, featuredSlugs] = await Promise.all([
+    getFeaturedSlot("homepage_deals"),
+    getFeaturedSlot("featured_articles"),
+  ])
+  const topExchanges = dealSlugs
+    .map((slug) => exchanges.find((e) => e.slug === slug))
+    .filter((e): e is NonNullable<typeof e> => Boolean(e))
+  const bonusDeals = topExchanges.map((ex, i) => ({
+    name: ex.name,
+    bonus: ex.bonus,
+    features: ex.pros.slice(0, 4),
+    tag: i === 0 ? "Best Deal" : undefined,
+    referralLink: ex.referralLink,
+    reviewLink: ex.fullReview,
+  }))
   // Scanner spotlight numbers only (safe to SSR). The "Live Wins" ticker fetches
   // its own data client-side (ScannerTickerLive) so win symbols stay out of the
   // initial HTML.
@@ -51,7 +58,12 @@ export default async function HomePage() {
     getScannerStats("short"),
     getScannerStats("long"),
   ])
-  const featuredArticles = allArticles.slice(0, 6)
+  const featuredArticles = featuredSlugs.length > 0
+    ? featuredSlugs
+        .map((slug) => allArticles.find((a) => a.slug === slug))
+        .filter((a): a is NonNullable<typeof a> => Boolean(a))
+        .slice(0, 6)
+    : allArticles.slice(0, 6)
   const reviewCount = allArticles.filter((a) => a.categorySlug === "reviews").length
   const comparisonCount = allArticles.filter((a) => a.categorySlug === "comparisons").length
   const noKycCount = allArticles.filter((a) => a.categorySlug === "no-kyc").length
