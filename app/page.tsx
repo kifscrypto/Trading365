@@ -19,8 +19,8 @@ import { getScannerStats } from "@/lib/scanner-stats"
 import { ScannerSpotlight } from "@/components/scanner-spotlight"
 import { ScannerTickerLive } from "@/components/scanner-ticker-live"
 import { DiscordCta } from "@/components/discord-cta"
-import { exchanges } from "@/lib/data/exchanges"
 import { getFeaturedSlot } from "@/lib/data/featured"
+import { getMergedExchanges } from "@/lib/data/exchange-content"
 import { generateWebsiteSchema } from "@/lib/schema"
 
 const BASE_URL = 'https://trading365.org'
@@ -36,12 +36,13 @@ export default async function HomePage() {
   const allArticles = await getAllArticlesFromDB()
 
   // Editable via /admin/featured (falls back to the previous hardcoded lists).
-  const [dealSlugs, featuredSlugs] = await Promise.all([
+  const [dealSlugs, featuredSlugs, mergedExchanges] = await Promise.all([
     getFeaturedSlot("homepage_deals"),
     getFeaturedSlot("featured_articles"),
+    getMergedExchanges(),
   ])
   const topExchanges = dealSlugs
-    .map((slug) => exchanges.find((e) => e.slug === slug))
+    .map((slug) => mergedExchanges.find((e) => e.slug === slug))
     .filter((e): e is NonNullable<typeof e> => Boolean(e))
   const bonusDeals = topExchanges.map((ex, i) => ({
     name: ex.name,

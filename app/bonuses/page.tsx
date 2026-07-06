@@ -9,9 +9,9 @@ import { Badge } from "@/components/ui/badge"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 import { NewsletterCta } from "@/components/newsletter-cta"
 import { ArticleCard } from "@/components/article-card"
-import { exchanges } from "@/lib/data/exchanges"
 import { ExchangeLogo } from "@/components/exchange-logo"
 import { getFeaturedSlot } from "@/lib/data/featured"
+import { getMergedExchanges } from "@/lib/data/exchange-content"
 import { getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
 import { generateItemListSchema, generateFAQSchema } from "@/lib/schema"
 
@@ -45,9 +45,12 @@ export const metadata: Metadata = {
 
 export default async function BonusesPage() {
   const bonusArticles = await getArticlesByCategoryFromDB("bonuses")
-  // Pinned order is editable at /admin/featured (falls back to the defaults).
-  const pinnedSlugs = await getFeaturedSlot("bonus_pins")
-  const topExchanges = exchanges
+  // Pinned order is editable at /admin/featured; bonus/stats/links at /admin/exchanges.
+  const [pinnedSlugs, allExchanges] = await Promise.all([
+    getFeaturedSlot("bonus_pins"),
+    getMergedExchanges(),
+  ])
+  const topExchanges = allExchanges
     .filter((e) => e.bonus && e.bonus !== "N/A" && !e.defunct)
     .sort((a, b) => {
       const ai = pinnedSlugs.indexOf(a.slug)

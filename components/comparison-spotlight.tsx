@@ -2,7 +2,7 @@ import { CheckCircle2, XCircle, ArrowRight, ExternalLink } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { getExchangeBySlug } from "@/lib/data/exchanges"
+import { getMergedExchangeBySlug } from "@/lib/data/exchange-content"
 import { ExchangeLogo } from "@/components/exchange-logo"
 
 // Single source of truth: ratings/fees/links are pulled from the canonical
@@ -10,27 +10,29 @@ import { ExchangeLogo } from "@/components/exchange-logo"
 // or the Review structured data. Order = display rank.
 const GRID_SLUGS = ["weex", "bydfi", "bitunix", "blofin", "toobit", "coinex", "bingx"]
 
-const exchanges = GRID_SLUGS
-  .map((slug, i) => {
-    const ex = getExchangeBySlug(slug)
-    if (!ex) return null
-    return {
-      name: ex.name,
-      logo: ex.logo,
-      rating: ex.rating,
-      fees: `${ex.fees.maker} / ${ex.fees.taker}`,
-      kyc: ex.kyc,
-      leverage: ex.leverage,
-      bonus: ex.bonus,
-      referralLink: ex.referralLink,
-      reviewUrl: ex.fullReview,
-      copyTrading: ex.copyTrading,
-      rank: i + 1,
-    }
-  })
-  .filter((e): e is NonNullable<typeof e> => e !== null)
+export async function ComparisonSpotlight() {
+  const exchanges = (
+    await Promise.all(
+      GRID_SLUGS.map(async (slug, i) => {
+        const ex = await getMergedExchangeBySlug(slug)
+        if (!ex) return null
+        return {
+          name: ex.name,
+          logo: ex.logo,
+          rating: ex.rating,
+          fees: `${ex.fees.maker} / ${ex.fees.taker}`,
+          kyc: ex.kyc,
+          leverage: ex.leverage,
+          bonus: ex.bonus,
+          referralLink: ex.referralLink,
+          reviewUrl: ex.fullReview,
+          copyTrading: ex.copyTrading,
+          rank: i + 1,
+        }
+      }),
+    )
+  ).filter((e): e is NonNullable<typeof e> => e !== null)
 
-export function ComparisonSpotlight() {
   return (
     <section className="mx-auto max-w-7xl px-4 py-16 lg:px-6">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">

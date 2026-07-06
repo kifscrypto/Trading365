@@ -719,6 +719,12 @@ export default function AdminPage() {
           >
             Featured →
           </button>
+          <button
+            onClick={() => router.push('/admin/exchanges')}
+            className="text-sm text-emerald-400 hover:text-emerald-300 font-medium"
+          >
+            Exchanges →
+          </button>
         <button
           onClick={async () => {
             await fetch('/api/admin/session', { method: 'DELETE' })
