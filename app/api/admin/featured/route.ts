@@ -8,7 +8,7 @@ import {
   setFeaturedSlot,
   type FeaturedSlot,
 } from "@/lib/data/featured"
-import { exchanges } from "@/lib/data/exchanges"
+import { getMergedExchanges } from "@/lib/data/exchange-content"
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
 
 async function checkAuth() {
@@ -36,12 +36,13 @@ export async function GET() {
     slots[slot] = Array.isArray(c) && c.length > 0 ? c : FEATURED_DEFAULTS[slot]
   }
 
-  const articles = await getAllArticlesFromDB()
+  const [articles, allExchanges] = await Promise.all([getAllArticlesFromDB(), getMergedExchanges()])
   return NextResponse.json({
     meta: FEATURED_SLOTS,
     slots,
     options: {
-      exchange: exchanges
+      // Includes custom (DB-only) exchanges added via /admin/exchanges, not just built-ins.
+      exchange: allExchanges
         .filter((e) => !e.defunct)
         .map((e) => ({ slug: e.slug, name: e.name, href: e.fullReview })),
       article: articles.map((a) => ({
