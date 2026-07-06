@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { updateArticle, deleteArticle, setArticlePublished, getArticleById } from '@/lib/db'
 import { pingIndexNow, articleUrl } from '@/lib/indexnow'
 import { announceArticle } from '@/lib/announce-article'
+import { autoRegisterExchangeFromReview } from '@/lib/data/exchange-content'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -22,6 +23,13 @@ export async function PUT(
     const data = await request.json()
     const article = await updateArticle(parseInt(id), data)
     pingIndexNow([articleUrl(article.category_slug, article.slug)])
+    // Idempotent — registers the exchange into the featurable pool if this became a review.
+    autoRegisterExchangeFromReview({
+      slug: article.slug,
+      title: article.title,
+      categorySlug: article.category_slug,
+      rating: article.rating ?? null,
+    }).catch(() => {})
     return NextResponse.json(article)
   } catch (error: any) {
     console.error('Failed to update article:', error)

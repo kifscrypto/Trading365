@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getAllArticles, createArticle } from '@/lib/db'
 import { pingIndexNow, articleUrl } from '@/lib/indexnow'
+import { autoRegisterExchangeFromReview } from '@/lib/data/exchange-content'
 
 async function checkAuth() {
   const cookieStore = await cookies()
@@ -33,6 +34,13 @@ export async function POST(request: Request) {
     const data = await request.json()
     const article = await createArticle(data)
     pingIndexNow([articleUrl(article.category_slug, article.slug)])
+    // If this is an exchange review, add the exchange to the featurable pool.
+    autoRegisterExchangeFromReview({
+      slug: article.slug,
+      title: article.title,
+      categorySlug: article.category_slug,
+      rating: article.rating ?? null,
+    }).catch(() => {})
     return NextResponse.json(article, { status: 201 })
   } catch (error: any) {
     console.error('Failed to create article:', error)

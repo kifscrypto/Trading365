@@ -187,6 +187,66 @@ export async function getMergedExchanges(): Promise<Exchange[]> {
   }
 }
 
+// Reviews that are roundups / comparisons / guides, not a single exchange — never
+// auto-register an "exchange" for these.
+const NON_EXCHANGE_REVIEW_RE =
+  /(^|-)(best|top|worst|vs|versus|compared?|comparison|guide|how-to|cheapest|safest|which|list|roundup|alternatives?)(-|$)/i
+
+function deriveExchangeName(title: string, fallbackSlug: string): string {
+  const cleaned = title
+    .replace(/\s*[-–—:|].*$/, "") // drop subtitle after a dash/colon
+    .replace(/\bexchange\b/i, "")
+    .replace(/\breview\b.*$/i, "")
+    .replace(/\b20\d{2}\b/g, "")
+    .trim()
+  if (cleaned) return cleaned
+  return fallbackSlug
+    .split("-")
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ")
+}
+
+/**
+ * When an exchange REVIEW is published, make sure its exchange exists in the pool
+ * of selectable/featurable exchanges. If the exchange isn't already a built-in or
+ * an existing custom entry, create a minimal stub (name + rating + review link, no
+ * bonus/affiliate yet) so it shows in the /admin/featured picker and can be filled
+ * out later at /admin/exchanges. Returns the exchange slug it registered, or null.
+ */
+export async function autoRegisterExchangeFromReview(opts: {
+  slug: string
+  title: string
+  categorySlug: string
+  rating?: number | null
+}): Promise<string | null> {
+  if (opts.categorySlug !== "reviews") return null
+  const raw = (opts.slug || "").trim()
+  if (!raw || NON_EXCHANGE_REVIEW_RE.test(raw)) return null
+
+  const exSlug = raw
+    .replace(/-review.*$/i, "")
+    .replace(/-\d{4}$/, "")
+    .replace(/^-|-$/g, "")
+  if (!exSlug || exSlug.length < 2) return null
+  if (staticExchanges.some((e) => e.slug === exSlug)) return null // already a built-in
+
+  try {
+    await ensureCustomExchangesTable()
+    const existing = (await sql`SELECT slug FROM custom_exchanges WHERE slug = ${exSlug}`) as unknown as unknown[]
+    if (existing.length > 0) return null // already a custom exchange
+    const name = deriveExchangeName(opts.title, exSlug)
+    const rating = opts.rating != null ? Number(opts.rating) : null
+    await sql`
+      INSERT INTO custom_exchanges (slug, name, rating, review_url, updated_at)
+      VALUES (${exSlug}, ${name}, ${rating}, ${`/reviews/${raw}`}, NOW())
+      ON CONFLICT (slug) DO NOTHING
+    `
+    return exSlug
+  } catch {
+    return null
+  }
+}
+
 export async function getMergedExchangeBySlug(slug: string): Promise<Exchange | undefined> {
   try {
     const { ovMap, customs, urlMap } = await loadSources()
