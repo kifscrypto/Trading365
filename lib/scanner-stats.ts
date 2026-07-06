@@ -47,7 +47,10 @@ export async function getFiredHitRate(
     const rows = side === "short"
       ? await sql`SELECT COUNT(*) FILTER (WHERE tp_result LIKE 'TP%')::int AS wins,
                          COUNT(*) FILTER (WHERE tp_result = 'SL')::int  AS sl
-                  FROM telegram_alerts`
+                  FROM telegram_alerts
+                  -- Exclude Jul 2–5 shorts (bullish-BTC window, pre-±3 regime
+                  -- miscalibration) so the headline hit rate matches the P&L.
+                  WHERE NOT (triggered_at >= '2026-07-02' AND triggered_at < '2026-07-06')`
       : await sql`SELECT COUNT(*) FILTER (WHERE tp_result LIKE 'TP%')::int AS wins,
                          COUNT(*) FILTER (WHERE tp_result = 'SL')::int  AS sl
                   FROM telegram_alerts_long`

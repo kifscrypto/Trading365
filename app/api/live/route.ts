@@ -172,6 +172,11 @@ async function getClosed(sql: SqlClient, book: Book): Promise<LiveClosed[]> {
                'short'::text AS direction, tp_result, stopped, entry_price, stop_price
         FROM telegram_alerts
         WHERE closed_at IS NOT NULL AND (${book} = 'combined' OR ${book} = 'short')
+          -- Exclude the Jul 2–5 shorts fired into a bullish BTC under the pre-±3
+          -- regime miscalibration. They were really sent, but the corrected
+          -- strategy wouldn't have fired them, so they're kept out of the record
+          -- to match the simulated P&L (which also drops them). See scanner-pnl.
+          AND NOT (triggered_at >= '2026-07-02' AND triggered_at < '2026-07-06')
         UNION ALL
         SELECT (EXTRACT(EPOCH FROM closed_at) * 1000)::bigint AS id, symbol,
                'long'::text AS direction, tp_result, FALSE AS stopped, entry_price, stop_price
@@ -240,6 +245,10 @@ async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
         END) FILTER (WHERE closed_at IS NOT NULL), 0)::float AS summove
       FROM telegram_alerts
       WHERE triggered_at > NOW() - INTERVAL '30 days'
+        -- Exclude Jul 2–5 shorts (bullish-BTC window, pre-±3 regime
+        -- miscalibration) so the hit rate matches the P&L, which also drops
+        -- them. The alerts remain in the table; only the record filters them.
+        AND NOT (triggered_at >= '2026-07-02' AND triggered_at < '2026-07-06')
     `) as Row[]
     const [longRow] = (await sql`
       SELECT
