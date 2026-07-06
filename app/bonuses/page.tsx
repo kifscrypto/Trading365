@@ -45,7 +45,7 @@ export default async function BonusesPage() {
   const bonusArticles = await getArticlesByCategoryFromDB("bonuses")
   const pinnedSlugs = ["weex", "bydfi", "bitunix"]
   const topExchanges = exchanges
-    .filter((e) => e.bonus && e.bonus !== "N/A")
+    .filter((e) => e.bonus && e.bonus !== "N/A" && !e.defunct)
     .sort((a, b) => {
       const ai = pinnedSlugs.indexOf(a.slug)
       const bi = pinnedSlugs.indexOf(b.slug)
