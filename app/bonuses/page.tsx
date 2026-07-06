@@ -10,6 +10,7 @@ import { Breadcrumbs } from "@/components/breadcrumbs"
 import { NewsletterCta } from "@/components/newsletter-cta"
 import { ArticleCard } from "@/components/article-card"
 import { exchanges } from "@/lib/data/exchanges"
+import { ExchangeLogo } from "@/components/exchange-logo"
 import { getFeaturedSlot } from "@/lib/data/featured"
 import { getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
 import { generateItemListSchema, generateFAQSchema } from "@/lib/schema"
@@ -170,10 +171,15 @@ export default async function BonusesPage() {
                   </div>
                 </div>
 
-                <h3 className="mt-4 text-2xl font-bold text-foreground">{exchange.name}</h3>
-                <p className="text-xs text-muted-foreground">
-                  Founded {exchange.founded} &middot; {exchange.headquarters}
-                </p>
+                <div className="mt-4 flex items-center gap-3">
+                  <ExchangeLogo name={exchange.name} logo={exchange.logo} size={48} />
+                  <div className="min-w-0">
+                    <h3 className="text-2xl font-bold text-foreground">{exchange.name}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Founded {exchange.founded} &middot; {exchange.headquarters}
+                    </p>
+                  </div>
+                </div>
 
                 {/* Giant bonus */}
                 <div className="mt-5 rounded-xl border border-primary/20 bg-primary/10 p-5 text-center">
@@ -245,9 +251,12 @@ export default async function BonusesPage() {
                 className="group relative overflow-hidden border-border bg-card transition-all duration-300 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
               >
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-xl font-bold text-foreground">{exchange.name}</CardTitle>
-                    <div className="flex items-center gap-1 text-primary">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <ExchangeLogo name={exchange.name} logo={exchange.logo} size={40} />
+                      <CardTitle className="truncate text-xl font-bold text-foreground">{exchange.name}</CardTitle>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 text-primary">
                       <Star className="h-4 w-4 fill-primary" />
                       <span className="text-sm font-bold">{exchange.rating.toFixed(1)}</span>
                     </div>

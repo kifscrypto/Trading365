@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 
-interface Opt { slug: string; name: string; category?: string }
+interface Opt { slug: string; name: string; href?: string; category?: string }
 interface Meta { slot: string; label: string; kind: 'exchange' | 'article'; help: string }
 
 const BTN_SM = 'px-2 py-1 text-xs rounded font-medium transition-colors'
@@ -16,6 +16,7 @@ export default function FeaturedAdmin() {
   const [savingSlot, setSavingSlot] = useState<string | null>(null)
   const [savedSlot, setSavedSlot] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [filter, setFilter] = useState<Record<string, string>>({})
 
   useEffect(() => {
     fetch('/api/admin/check-session').then(r => { if (!r.ok) window.location.href = '/admin/login' })
@@ -33,8 +34,8 @@ export default function FeaturedAdmin() {
     setLoading(false)
   }
 
-  const nameFor = (kind: 'exchange' | 'article', slug: string) =>
-    options[kind]?.find(o => o.slug === slug)?.name ?? slug
+  const optFor = (kind: 'exchange' | 'article', slug: string) => options[kind]?.find(o => o.slug === slug)
+  const nameFor = (kind: 'exchange' | 'article', slug: string) => optFor(kind, slug)?.name ?? slug
 
   function update(slot: string, items: string[]) {
     setSlots(s => ({ ...s, [slot]: items }))
@@ -109,6 +110,11 @@ export default function FeaturedAdmin() {
                             <span className="text-zinc-500 text-xs"> · {slug}</span>
                           </span>
                           <div className="flex items-center gap-1 shrink-0">
+                            {optFor(m.kind, slug)?.href && (
+                              <a href={optFor(m.kind, slug)!.href} target="_blank" rel="noreferrer"
+                                title="Preview live"
+                                className={`${BTN_SM} bg-zinc-700 hover:bg-zinc-600 text-blue-300`}>↗</a>
+                            )}
                             <button onClick={() => move(m.slot, i, -1)} disabled={i === 0}
                               className={`${BTN_SM} bg-zinc-700 hover:bg-zinc-600 text-zinc-200 disabled:opacity-30`}>↑</button>
                             <button onClick={() => move(m.slot, i, 1)} disabled={i === items.length - 1}
@@ -121,18 +127,34 @@ export default function FeaturedAdmin() {
                     </ol>
                   )}
 
-                  <div className="flex items-center gap-2">
-                    <select
-                      value=""
-                      onChange={e => { add(m.slot, e.target.value); e.currentTarget.value = '' }}
-                      disabled={available.length === 0}
-                      className="flex-1 px-3 py-1.5 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded text-sm focus:outline-none focus:border-zinc-500 disabled:opacity-50"
-                    >
-                      <option value="">{available.length === 0 ? 'All added' : `Add ${m.kind}…`}</option>
-                      {available.map(o => (
-                        <option key={o.slug} value={o.slug}>{o.name}{o.category ? ` (${o.category})` : ''}</option>
-                      ))}
-                    </select>
+                  {(() => {
+                    const q = (filter[m.slot] ?? '').toLowerCase()
+                    const shown = q
+                      ? available.filter(o => o.name.toLowerCase().includes(q) || o.slug.includes(q))
+                      : available
+                    return (
+                      <div className="mb-3">
+                        <input
+                          value={filter[m.slot] ?? ''}
+                          onChange={e => setFilter(f => ({ ...f, [m.slot]: e.target.value }))}
+                          placeholder={`Add ${m.kind} — ${available.length} available…`}
+                          className="mb-2 w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded text-sm focus:outline-none focus:border-zinc-500 placeholder-zinc-500"
+                        />
+                        <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
+                          {shown.length === 0 ? (
+                            <span className="text-xs text-zinc-600">{available.length === 0 ? 'All added.' : 'No matches.'}</span>
+                          ) : shown.map(o => (
+                            <button key={o.slug} onClick={() => add(m.slot, o.slug)}
+                              title={o.slug}
+                              className="px-2.5 py-1 text-xs rounded-full border border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-primary hover:text-primary transition-colors">
+                              + {o.name}{o.category ? <span className="text-zinc-500"> · {o.category}</span> : null}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
+                  <div className="flex justify-end">
                     <button
                       onClick={() => save(m.slot)}
                       disabled={savingSlot === m.slot}

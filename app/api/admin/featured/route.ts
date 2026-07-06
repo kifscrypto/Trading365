@@ -35,8 +35,13 @@ export async function GET() {
     options: {
       exchange: exchanges
         .filter((e) => !e.defunct)
-        .map((e) => ({ slug: e.slug, name: e.name })),
-      article: articles.map((a) => ({ slug: a.slug, name: a.title, category: a.category })),
+        .map((e) => ({ slug: e.slug, name: e.name, href: e.fullReview })),
+      article: articles.map((a) => ({
+        slug: a.slug,
+        name: a.title,
+        category: a.category,
+        href: `/${a.categorySlug}/${a.slug}`,
+      })),
     },
   })
 }

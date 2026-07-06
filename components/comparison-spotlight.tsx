@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
+import { ExchangeLogo } from "@/components/exchange-logo"
 
 // Single source of truth: ratings/fees/links are pulled from the canonical
 // exchange data so the homepage grid can never diverge from the review pages
@@ -15,6 +16,7 @@ const exchanges = GRID_SLUGS
     if (!ex) return null
     return {
       name: ex.name,
+      logo: ex.logo,
       rating: ex.rating,
       fees: `${ex.fees.maker} / ${ex.fees.taker}`,
       kyc: ex.kyc,
@@ -75,9 +77,7 @@ export function ComparisonSpotlight() {
                 <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">{ex.rank}</td>
                 <td className="px-4 py-3.5">
                   <Link href={ex.reviewUrl} className="group/name flex items-center gap-2">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary text-xs font-bold text-foreground">
-                      {ex.name.charAt(0)}
-                    </div>
+                    <ExchangeLogo name={ex.name} logo={ex.logo} size={28} className="rounded-md" />
                     <span className="flex flex-col">
                       <span className="font-medium text-foreground group-hover/name:text-primary transition-colors">{ex.name}</span>
                       <span className="text-[11px] text-muted-foreground group-hover/name:text-primary/80 transition-colors">Read review</span>
