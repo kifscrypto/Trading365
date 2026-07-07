@@ -34,10 +34,11 @@ import type { SqlClient } from "@/app/api/scanner/_core"
  * (see app/api/scanner/outcomes/route.ts) — so we read that capped value
  * directly and NEVER the raw 24h move. A stopped-out trade's loss is the stop %.
  *
- * The eligible signal set mirrors the live track record + scanner-stats exactly
- * (short = downtrend regime, score ≥ 7; long = uptrend regime, score ≥ 7, post
- * 2026-06-18 rewrite) so the simulated P&L can never contradict the headline
- * win rates shown beside it.
+ * Signal sets: shorts use the candidate pool (downtrend regime, score ≥ 7, 24h
+ * outcome). Longs use the REAL fired alerts (telegram_alerts_long) that members
+ * receive, scored by the long-monitor's intraday tp_result — so the long book
+ * shares the exact same set as the headline long win rate and can never
+ * contradict it (both are wins/(wins+SL) over the fired alerts).
  *
  * Three independent books are computed: `short`, `long`, and `combined` (one
  * $1,000 book that takes both sides interleaved chronologically — the "combined
@@ -66,6 +67,20 @@ const TP5_MOVE = 8.0
 // pre-2026-06-21 signals, logged before stop tracking existed). Matches the live
 // page's STOP_LOSS_PCT fallback so the two surfaces agree.
 const STOP_LOSS_FALLBACK_PCT = 3
+
+// Long P&L is sourced from the REAL fired alerts (telegram_alerts_long), which
+// the long-monitor tracks intraday against its own 3 take-profit levels
+// (+1.5 / +2.5 / +4.0). Scale-out: 40% banks at TP1, 30% at TP2, 30% at TP3;
+// after the first partial the remainder is trailed to breakeven, so a trade that
+// only tags TP1/TP2 keeps just the banked tranche(s). A stopped alert exits the
+// whole position at its stored stop. This makes the long book match the headline
+// long win rate exactly (both read the same fired-alert set).
+const FIRED_TP1_MOVE = 1.5
+const FIRED_TP2_MOVE = 2.5
+const FIRED_TP3_MOVE = 4.0
+const FIRED_TP1_WEIGHT = 0.40
+const FIRED_TP2_WEIGHT = 0.30
+const FIRED_TP3_WEIGHT = 0.30
 
 export const PNL_LABEL =
   "Simulated P&L — $1,000 start, 10% position sizing, all signals followed"
@@ -190,28 +205,85 @@ function resolveTrade(s: EligibleSignal): {
   return { exitPrice, exitReason, pnlPct }
 }
 
-// Run a chronological list of signals through a fresh $1,000 fixed-fraction book.
-function runBook(signals: EligibleSignal[]): PnlBook {
+// A trade whose exit is already resolved (before the compounding walk assigns a
+// running balance).
+type ResolvedTrade = Omit<PnlTrade, "runningBalance">
+
+// Short candidate signal → resolved trade (candidate-pool basis, unchanged).
+function resolveShort(s: EligibleSignal): ResolvedTrade {
+  const { exitPrice, exitReason, pnlPct } = resolveTrade(s)
+  return {
+    signalId: s.id,
+    direction: "short",
+    entryPrice: s.entryPrice,
+    exitPrice,
+    exitReason,
+    pnlPct,
+    closedAt: s.scannedAt,
+  }
+}
+
+interface FiredLongAlert {
+  id: number
+  entryPrice: number
+  stopPrice: number | null
+  tpResult: string
+  triggeredAt: string
+}
+
+// Fired long alert → resolved trade, using the alert's real intraday tp_result
+// and the scale-out described where the FIRED_* constants are defined.
+function resolveFiredLong(a: FiredLongAlert): ResolvedTrade {
+  const entry = a.entryPrice
+  let pnlPct: number
+  let exitReason: PnlExitReason
+  if (a.tpResult === "TP3") {
+    pnlPct =
+      FIRED_TP1_WEIGHT * FIRED_TP1_MOVE +
+      FIRED_TP2_WEIGHT * FIRED_TP2_MOVE +
+      FIRED_TP3_WEIGHT * FIRED_TP3_MOVE
+    exitReason = "TP3"
+  } else if (a.tpResult === "TP2") {
+    pnlPct = FIRED_TP1_WEIGHT * FIRED_TP1_MOVE + FIRED_TP2_WEIGHT * FIRED_TP2_MOVE
+    exitReason = "TP2"
+  } else if (a.tpResult === "TP1") {
+    pnlPct = FIRED_TP1_WEIGHT * FIRED_TP1_MOVE
+    exitReason = "TP1"
+  } else {
+    // 'SL' (or any non-TP close) → the whole position exits at the stored stop.
+    const stopPct =
+      a.stopPrice != null && entry > 0
+        ? ((a.stopPrice - entry) / entry) * 100
+        : -STOP_LOSS_FALLBACK_PCT
+    pnlPct = stopPct < 0 ? stopPct : -STOP_LOSS_FALLBACK_PCT
+    exitReason = "SL"
+  }
+  return {
+    signalId: a.id,
+    direction: "long",
+    entryPrice: entry,
+    exitPrice: entry * (1 + pnlPct / 100),
+    exitReason,
+    pnlPct,
+    closedAt: a.triggeredAt,
+  }
+}
+
+// Compound a set of resolved trades chronologically through a fresh $1,000
+// fixed-fraction book.
+function runBook(trades: ResolvedTrade[]): PnlBook {
   const book = emptyBook()
-  book.startDate = signals.length > 0 ? signals[0].scannedAt : null
-  for (const s of signals) {
-    const { exitPrice, exitReason, pnlPct } = resolveTrade(s)
+  const sorted = [...trades].sort((a, b) =>
+    a.closedAt < b.closedAt ? -1 : a.closedAt > b.closedAt ? 1 : 0,
+  )
+  book.startDate = sorted.length > 0 ? sorted[0].closedAt : null
+  for (const t of sorted) {
     const stake = book.balance * PNL_POSITION_FRACTION
-    const profit = stake * (pnlPct / 100)
-    book.balance += profit
-    if (pnlPct > 0) book.wins++
+    book.balance += stake * (t.pnlPct / 100)
+    if (t.pnlPct > 0) book.wins++
     book.trades++
     book.series.push(book.balance)
-    book.rows.push({
-      signalId: s.id,
-      direction: s.direction,
-      entryPrice: s.entryPrice,
-      exitPrice,
-      exitReason,
-      pnlPct,
-      runningBalance: book.balance,
-      closedAt: s.scannedAt,
-    })
+    book.rows.push({ ...t, runningBalance: book.balance })
   }
   book.returnPct =
     ((book.balance - book.startBalance) / book.startBalance) * 100
@@ -226,10 +298,10 @@ function runBook(signals: EligibleSignal[]): PnlBook {
 export async function computePnl(sql?: SqlClient): Promise<PnlResult> {
   const db = sql ?? (neon(process.env.DATABASE_URL!) as SqlClient)
   try {
-    const rows = (await db`
+    // SHORTS — candidate-pool basis (downtrend, score ≥ 7), 24h outcome.
+    const shortRows = (await db`
       SELECT
         s.id,
-        s.direction,
         s.price_at_signal::float AS entry,
         o.price::float           AS outcome_price,
         o.pct_change::float      AS pct,
@@ -239,18 +311,15 @@ export async function computePnl(sql?: SqlClient): Promise<PnlResult> {
       FROM scanner_signals s
       JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
       WHERE s.score >= 7
-        AND (
-          (s.direction = 'short' AND s.market_condition = 'downtrend')
-          OR
-          (s.direction = 'long'  AND s.market_condition = 'uptrend' AND s.scanned_at > '2026-06-18')
-        )
+        AND s.direction = 'short'
+        AND s.market_condition = 'downtrend'
       ORDER BY s.scanned_at ASC, s.id ASC
     `) as Array<Record<string, unknown>>
 
-    const eligible: EligibleSignal[] = rows
+    const shortResolved: ResolvedTrade[] = shortRows
       .map((r) => ({
         id: Number(r.id),
-        direction: (r.direction as string) === "long" ? "long" : "short",
+        direction: "short" as const,
         entryPrice: Number(r.entry),
         outcomePrice: Number(r.outcome_price),
         pctChange: Number(r.pct),
@@ -263,12 +332,33 @@ export async function computePnl(sql?: SqlClient): Promise<PnlResult> {
           Number.isFinite(s.entryPrice) &&
           Number.isFinite(s.pctChange) &&
           s.entryPrice > 0,
-      ) as EligibleSignal[]
+      )
+      .map((s) => resolveShort(s as EligibleSignal))
+
+    // LONGS — real fired-alert basis (telegram_alerts_long), intraday tp_result.
+    const longRows = (await db`
+      SELECT id, entry_price::float AS entry, stop_price::float AS stop_price,
+             tp_result, triggered_at
+      FROM telegram_alerts_long
+      WHERE tp_result IS NOT NULL AND tp_result <> ''
+      ORDER BY triggered_at ASC, id ASC
+    `) as Array<Record<string, unknown>>
+
+    const longResolved: ResolvedTrade[] = longRows
+      .map((r) => ({
+        id: Number(r.id),
+        entryPrice: Number(r.entry),
+        stopPrice: r.stop_price != null ? Number(r.stop_price) : null,
+        tpResult: String(r.tp_result),
+        triggeredAt: new Date(r.triggered_at as string).toISOString(),
+      }))
+      .filter((a) => Number.isFinite(a.entryPrice) && a.entryPrice > 0)
+      .map(resolveFiredLong)
 
     return {
-      combined: runBook(eligible),
-      short: runBook(eligible.filter((s) => s.direction === "short")),
-      long: runBook(eligible.filter((s) => s.direction === "long")),
+      combined: runBook([...shortResolved, ...longResolved]),
+      short: runBook(shortResolved),
+      long: runBook(longResolved),
     }
   } catch (err) {
     console.error("[scanner-pnl] compute failed:", err instanceof Error ? err.message : err)
@@ -315,7 +405,7 @@ export async function persistPnl(
         INSERT INTO scanner_pnl
           (signal_id, direction, entry_price, exit_price, exit_reason, pnl_pct, running_balance, closed_at)
         SELECT * FROM unnest(
-          ${rows.map((r) => r.signalId)}::int[],
+          ${rows.map((r) => (r.direction === "long" ? null : r.signalId))}::int[],
           ${rows.map((r) => r.direction)}::text[],
           ${rows.map((r) => r.entryPrice)}::numeric[],
           ${rows.map((r) => r.exitPrice)}::numeric[],
