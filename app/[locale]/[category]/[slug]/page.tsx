@@ -99,11 +99,13 @@ export default async function LocaleArticlePage({
 
   const articleSchema = {
     "@context": "https://schema.org",
-    "@type": exchange ? "ReviewNewsArticle" : "Article",
+    "@type": "Article",
     headline: translation.title,
     description: translation.excerpt,
     inLanguage: locale,
-    ...(originalArticle?.thumbnail ? { image: `${BASE_URL}${originalArticle.thumbnail}` } : {}),
+    ...(originalArticle?.thumbnail
+      ? { image: /^https?:\/\//i.test(originalArticle.thumbnail) ? originalArticle.thumbnail : `${BASE_URL}${originalArticle.thumbnail}` }
+      : {}),
     ...(originalArticle?.date ? { datePublished: toISODate(originalArticle.date) } : {}),
     ...(originalArticle?.date ? { dateModified: toISODate(originalArticle.updated_date || originalArticle.date) } : {}),
     ...(originalArticle?.author ? { author: { "@type": "Person", name: originalArticle.author } } : {}),

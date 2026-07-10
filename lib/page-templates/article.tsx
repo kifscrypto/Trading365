@@ -218,7 +218,7 @@ export default async function ArticlePageContent({ category, slug, preview = fal
     : "Claim Exclusive Trading Bonuses"
   const savingsMetric = exchange?.bonus ?? "Exclusive Bonus"
 
-  const articleSchema = generateArticleSchema(article, !!exchange)
+  const articleSchema = generateArticleSchema(article)
   const breadcrumbSchema = generateBreadcrumbSchema([
     { name: cat.title, url: `/${category}` },
     { name: article.title },

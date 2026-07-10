@@ -5,6 +5,15 @@ import { authorHref } from "@/lib/data/authors"
 const BASE_URL = siteConfig.url
 
 /**
+ * Make a URL absolute against the site origin. If the stored path is already an
+ * absolute URL (e.g. a Vercel blob URL), return it unchanged — prepending the
+ * origin would produce "https://trading365.orghttps://…".
+ */
+function absoluteUrl(path: string): string {
+  return /^https?:\/\//i.test(path) ? path : `${BASE_URL}${path}`
+}
+
+/**
  * Convert a loose date string like "Sep 15, 2025" or "Feb 2026" to ISO 8601.
  * Returns the original string if it is already valid ISO (e.g. "2025-09-15").
  */
@@ -83,13 +92,13 @@ export function generateItemListSchema(
   }
 }
 
-export function generateArticleSchema(article: Article, isReview = false) {
+export function generateArticleSchema(article: Article) {
   return {
     "@context": "https://schema.org",
-    "@type": isReview ? "ReviewNewsArticle" : "Article",
+    "@type": "Article",
     headline: article.title,
     description: article.excerpt,
-    image: article.thumbnail ? `${BASE_URL}${article.thumbnail}` : undefined,
+    image: article.thumbnail ? absoluteUrl(article.thumbnail) : undefined,
     datePublished: toISODate(article.date),
     dateModified: toISODate(article.updatedDate || article.date),
     author: {
