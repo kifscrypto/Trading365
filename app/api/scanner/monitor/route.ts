@@ -106,6 +106,10 @@ export async function GET(request: Request) {
     // Close metadata read by the live Closed panel (real-time, not the 24h cron).
     await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ`
     await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS tp_result TEXT`
+    // Max favourable excursion (peak % the trade ran in our favour). Tracked here
+    // because the loop already reads every candle's high/low — for a short the
+    // favourable extreme is the lowest low. Accumulated as GREATEST each cycle.
+    await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS mfe_pct FLOAT`
     // Mirror columns on the long table so the live Closed feed can union both.
     // (Long TP monitoring isn't implemented yet, so these stay NULL for now.)
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ`
@@ -177,10 +181,12 @@ export async function GET(request: Request) {
         }
         const newlyHit: (typeof TP_FRACTIONS)[number][] = []
         let stoppedOut = false
+        let minLow = Infinity // favourable extreme for a short (price falling)
 
         for (const k of candles) {
           const high = parseFloat(k[2])
           const low  = parseFloat(k[3])
+          if (low < minLow) minLow = low
           if (stop && high >= stop) { stoppedOut = true; break }
           for (const tp of TP_FRACTIONS) {
             const tpPrice = entry * tp.mult
@@ -188,6 +194,12 @@ export async function GET(request: Request) {
               newlyHit.push(tp)
             }
           }
+        }
+
+        // Persist the running peak favourable move (short → entry above the low).
+        const mfePct = minLow < Infinity ? Math.max(0, ((entry - minLow) / entry) * 100) : null
+        if (doWrite && mfePct !== null) {
+          await sql`UPDATE telegram_alerts SET mfe_pct = GREATEST(COALESCE(mfe_pct, 0), ${mfePct}) WHERE id = ${a.id as number}`
         }
 
         const displaySymbol = (a.symbol as string).replace('USDT', '')

@@ -86,6 +86,9 @@ export async function GET(request: Request) {
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS stopped BOOLEAN DEFAULT FALSE`
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ`
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS tp_result TEXT`
+    // Max favourable excursion — for a long the favourable extreme is the highest
+    // high. Accumulated as GREATEST each cycle (mirror of the short monitor).
+    await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS mfe_pct FLOAT`
 
     // One-time back-fill for longs already flagged before these columns existed.
     if (doWrite) {
@@ -143,10 +146,12 @@ export async function GET(request: Request) {
         }
         const newlyHit: (typeof TP_FRACTIONS)[number][] = []
         let stoppedOut = false
+        let maxHigh = -Infinity // favourable extreme for a long (price rising)
 
         for (const k of candles) {
           const high = parseFloat(k[2])
           const low  = parseFloat(k[3])
+          if (high > maxHigh) maxHigh = high
           // Long stop is BELOW entry — breached when price falls to it.
           if (stop && low <= stop) { stoppedOut = true; break }
           for (const tp of TP_FRACTIONS) {
@@ -156,6 +161,12 @@ export async function GET(request: Request) {
               newlyHit.push(tp)
             }
           }
+        }
+
+        // Persist the running peak favourable move (long → high above entry).
+        const mfePct = maxHigh > -Infinity ? Math.max(0, ((maxHigh - entry) / entry) * 100) : null
+        if (doWrite && mfePct !== null) {
+          await sql`UPDATE telegram_alerts_long SET mfe_pct = GREATEST(COALESCE(mfe_pct, 0), ${mfePct}) WHERE id = ${a.id as number}`
         }
 
         const displaySymbol = (a.symbol as string).replace('USDT', '')
