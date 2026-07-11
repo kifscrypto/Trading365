@@ -42,11 +42,45 @@ function extractTitle(text: string) {
   return line ? line.replace(/^#+\s*/, '').trim() : ''
 }
 
+// Strip inline markdown so excerpts stay plain text (no **bold**, `code`, links, etc.)
+function stripInlineMarkdown(s: string) {
+  return s
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')   // [text](url) / ![alt](url) -> text/alt
+    .replace(/(\*\*|__)(.*?)\1/g, '$2')          // bold
+    .replace(/(\*|_)(.*?)\1/g, '$2')             // italic
+    .replace(/`([^`]*)`/g, '$1')                 // inline code
+    .replace(/~~(.*?)~~/g, '$1')                 // strikethrough
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function truncateExcerpt(clean: string) {
+  if (clean.length <= 200) return clean
+  // Prefer to end on a sentence boundary, else a word boundary.
+  const cut = clean.slice(0, 200)
+  const lastStop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '))
+  if (lastStop > 120) return cut.slice(0, lastStop + 1).trim()
+  const lastSpace = cut.lastIndexOf(' ')
+  return (lastSpace > 120 ? cut.slice(0, lastSpace) : cut).trim() + '…'
+}
+
+// Find the first real prose sentence — never a heading, list item, table row,
+// separator, or boilerplate disclosure/disclaimer line.
 function extractExcerpt(text: string) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-  const body = lines.filter(l => !/^#{1,3}\s/.test(l))
-  const p = body.find(l => l.length > 40 && !l.startsWith('-') && !l.startsWith('*')) ?? ''
-  return p.slice(0, 200)
+  for (const raw of lines) {
+    if (/^#{1,6}\s/.test(raw)) continue     // headings
+    if (/^[-*+]\s/.test(raw)) continue      // bullet lists
+    if (/^\d+\.\s/.test(raw)) continue      // numbered lists
+    if (raw.startsWith('|')) continue       // table rows / separators
+    if (raw.startsWith('>')) continue       // blockquotes
+    if (/^-{3,}$/.test(raw)) continue       // --- separators
+    const clean = stripInlineMarkdown(raw)
+    if (clean.length <= 40) continue        // too short to be a real paragraph
+    if (/^(disclosure|disclaimer)\b/i.test(clean)) continue  // boilerplate
+    return truncateExcerpt(clean)
+  }
+  return ''
 }
 
 // ─── AuditMarkdown ────────────────────────────────────────────────────────────
