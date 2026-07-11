@@ -6,6 +6,8 @@ import Link from 'next/link'
 
 type AnalyticsData = {
   totals: { today: string; week: string; month: string; total: string }
+  visitors: { today: string; week: string; month: string }
+  bots: { bots: string; humans: string; classified: string }
   topPages: { path: string; views: string }[]
   topReferrers: { source: string; views: string }[]
   utmSources: { utm_source: string; utm_medium: string; views: string }[]
@@ -86,7 +88,7 @@ export default function AnalyticsPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#f1f5f9', margin: 0 }}>Analytics</h1>
-            <p style={{ color: '#64748b', margin: '0.25rem 0 0', fontSize: '0.875rem' }}>Visitor traffic and sources</p>
+            <p style={{ color: '#64748b', margin: '0.25rem 0 0', fontSize: '0.875rem' }}>Top row = page views (incl. bots) · green = unique humans · breakdowns below exclude bots</p>
           </div>
           <Link href="/admin" style={{ color: '#3b82f6', textDecoration: 'none', fontSize: '0.875rem' }}>← Back to Admin</Link>
         </div>
@@ -125,6 +127,37 @@ export default function AnalyticsPage() {
                 </div>
               ))}
             </div>
+
+            {/* Unique Visitors + Bot share (populated from the upgrade onward) */}
+            {data.visitors && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                {([
+                  { label: 'Unique — Today', value: Number(data.visitors.today) },
+                  { label: 'Unique — 7 Days', value: Number(data.visitors.week) },
+                  { label: 'Unique — 30 Days', value: Number(data.visitors.month) },
+                ] as const).map(({ label, value }) => (
+                  <div key={label} style={card}>
+                    <p style={{ margin: '0 0 0.25rem', fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</p>
+                    <p style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700, color: '#34d399' }}>{value.toLocaleString()}</p>
+                    <p style={{ margin: '0.15rem 0 0', fontSize: '0.7rem', color: '#475569' }}>humans, deduped</p>
+                  </div>
+                ))}
+                {(() => {
+                  const b = Number(data.bots?.bots ?? 0)
+                  const h = Number(data.bots?.humans ?? 0)
+                  const tot = b + h
+                  const pct = tot > 0 ? Math.round((b / tot) * 100) : 0
+                  const color = pct >= 50 ? '#f87171' : pct >= 25 ? '#fbbf24' : '#34d399'
+                  return (
+                    <div style={card}>
+                      <p style={{ margin: '0 0 0.25rem', fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bot share — 30 Days</p>
+                      <p style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700, color }}>{pct}%</p>
+                      <p style={{ margin: '0.15rem 0 0', fontSize: '0.7rem', color: '#475569' }}>{b.toLocaleString()} bot / {tot.toLocaleString()} classified</p>
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
 
             {/* Daily Chart */}
             {data.daily.length > 0 && (
