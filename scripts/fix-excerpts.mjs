@@ -31,6 +31,7 @@ function stripInlineMarkdown(s) {
     .replace(/(\*|_)(.*?)\1/g, '$2')             // italic
     .replace(/`([^`]*)`/g, '$1')                 // inline code
     .replace(/~~(.*?)~~/g, '$1')                 // strikethrough
+    .replace(/<[^>]+>/g, ' ')                    // stray HTML tags
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -56,6 +57,7 @@ function extractExcerpt(text) {
     const clean = stripInlineMarkdown(raw)
     if (clean.length <= 40) continue
     if (/^(disclosure|disclaimer)\b/i.test(clean)) continue
+    if (/^(last updated|updated:)/i.test(clean)) continue
     return truncateExcerpt(clean)
   }
   return ''
@@ -69,6 +71,8 @@ function isBadExcerpt(ex) {
     ex.includes('**') ||      // leftover bold
     ex.includes('`') ||       // inline code
     /\]\(/.test(ex) ||        // markdown link
+    /<[^>]+>/.test(ex) ||     // raw HTML tag
+    /^#{1,6}\s/.test(ex.trim()) || // raw heading
     /^-{3,}/.test(ex.trim())  // separator
   )
 }

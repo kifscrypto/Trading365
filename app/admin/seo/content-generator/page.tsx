@@ -50,6 +50,7 @@ function stripInlineMarkdown(s: string) {
     .replace(/(\*|_)(.*?)\1/g, '$2')             // italic
     .replace(/`([^`]*)`/g, '$1')                 // inline code
     .replace(/~~(.*?)~~/g, '$1')                 // strikethrough
+    .replace(/<[^>]+>/g, ' ')                    // stray HTML tags
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -78,6 +79,7 @@ function extractExcerpt(text: string) {
     const clean = stripInlineMarkdown(raw)
     if (clean.length <= 40) continue        // too short to be a real paragraph
     if (/^(disclosure|disclaimer)\b/i.test(clean)) continue  // boilerplate
+    if (/^(last updated|updated:)/i.test(clean)) continue     // stray date line
     return truncateExcerpt(clean)
   }
   return ''
