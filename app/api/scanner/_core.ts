@@ -910,6 +910,14 @@ export async function runHyperliquidScan(direction: 'short' | 'long' = 'short'):
 
 // --- BTC Sentiment ---
 
+// Deadband around BTC's 4H EMA50. BTC must be more than this fraction beyond the
+// EMA50 for the 4H structure to read bull/bear; inside the band = 'neutral'.
+// 0.01 (1%) chosen from a backtest sweep over 649 fired shorts (Jun–Jul 2026):
+// it peaked the short book (net pnl −36% → +74%, hit 61% → 67%) while leaving the
+// genuine June downtrend essentially unchanged. Tunable; 0.0075–0.010 is the
+// robust plateau. Higher = fewer, higher-conviction signals.
+const BTC_STRUCTURE_DEADBAND = 0.01
+
 export function applyBtcSentiment(
   rawScore: number,
   s: SentimentCondition,
@@ -952,10 +960,19 @@ export function applyBtcSentiment(
   if (s.btcStructureDaily === 'bearish')      { sentimentFlags.push('btc_below_d200'); fav += 1 }
   else if (s.btcStructureDaily === 'bullish') { sentimentFlags.push('btc_above_d200'); hos += 1 }
 
+  // STRUCTURE IS KING (now enforced): a directional regime REQUIRES the 4H
+  // structure to agree. btcStructure carries a deadband buffer (see
+  // BTC_STRUCTURE_DEADBAND) so BTC merely grazing its 4H EMA50 reads as
+  // 'neutral' — no regime, nothing fires. Secondary signals (FNG/funding/dom/
+  // daily) still must confirm (≥2) but can no longer manufacture a downtrend
+  // while BTC chops around its EMA50. That chop-whipsaw is what turned July
+  // shorts from +43 (June) to −80: the old rule flipped to 'downtrend' on every
+  // 4H dip and fired shorts into the bear-market bounce. Backtest over 649 fired
+  // shorts: net pnl −36% → +74%, hit 61% → 67%, June essentially unchanged.
   const marketCondition: 'downtrend' | 'neutral' | 'uptrend' =
-    hos >= 2 && hos >= fav ? 'uptrend' :
-    fav >= 2               ? 'downtrend' :
-                             'neutral'
+    s.btcStructure === 'bullish' && hos >= 2 && hos >= fav ? 'uptrend' :
+    s.btcStructure === 'bearish' && fav >= 2               ? 'downtrend' :
+                                                             'neutral'
 
   // Score delta is inverted by direction: shorts want a 'downtrend' (bearish BTC)
   // regime, longs want an 'uptrend' (bullish BTC) regime.
@@ -1000,8 +1017,11 @@ export async function fetchBtcSentimentData(sql: SqlClient): Promise<SentimentCo
       } catch { /* defaults */ }
     }
 
-    // 4H structure — structure is king: price vs EMA50 alone decides direction.
-    // (No lower-highs AND-gate: a price below the 50EMA is bearish, full stop.)
+    // 4H structure — price vs EMA50, with a DEADBAND: BTC must be at least
+    // BTC_STRUCTURE_DEADBAND beyond the EMA50 to count as bull/bear. Inside the
+    // band it's 'neutral' — this is the anti-whipsaw fix. When BTC chops right
+    // at its 4H EMA50 (e.g. a bear-market bounce, as in July 2026) a bare cross
+    // no longer flips the regime and fires counter-trend shorts into the squeeze.
     let btcStructure: 'bullish' | 'neutral' | 'bearish' = 'neutral'
     if (klinesRes.status === 'fulfilled') {
       const kl = klinesRes.value
@@ -1010,8 +1030,8 @@ export async function fetchBtcSentimentData(sql: SqlClient): Promise<SentimentCo
         const price  = closes[closes.length - 1]
         const e50    = calcEMA(closes, 50)
         const e50last = e50[e50.length - 1]
-        if (price < e50last)      btcStructure = 'bearish'
-        else if (price > e50last) btcStructure = 'bullish'
+        if (price < e50last * (1 - BTC_STRUCTURE_DEADBAND))      btcStructure = 'bearish'
+        else if (price > e50last * (1 + BTC_STRUCTURE_DEADBAND)) btcStructure = 'bullish'
       }
     }
 
