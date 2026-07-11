@@ -232,41 +232,49 @@ async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
     // RESOLVED to a TP or a stop. Signals that never hit either (still open, or
     // chopped sideways past the 48h window) are NOT counted as losses — they're
     // scratches and are excluded. `cnt` below = resolved total (closed_at set).
+    // winmove/wincnt drive "Avg move / WINNING signal": the average % a winner
+    // banks, over resolved winners only (the hit rate above already conveys how
+    // often we win). TP tiers cover TP1–TP5 — the old CASE stopped at TP3, so
+    // TP4 (+6) and TP5 (+8) winners were miscounted as +1.5, which understated
+    // the figure badly. mfe_pct (true peak move) is too sparsely populated to
+    // headline (0 longs), so this TP-tier realized move is the reliable metric.
     const [shortRow] = (await sql`
       SELECT
         COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result LIKE 'TP%')::int AS hits,
         COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int AS cnt,
+        COUNT(*) FILTER (WHERE tp_result LIKE 'TP%')::int AS wincnt,
         COALESCE(SUM(CASE
-          WHEN tp_result = 'TP3'     THEN 4.0
-          WHEN tp_result = 'TP2'     THEN 2.5
-          WHEN tp_result LIKE 'TP%'  THEN 1.5
-          WHEN tp_result = 'SL'      THEN -((stop_price - entry_price) / NULLIF(entry_price, 0) * 100)
+          WHEN tp_result = 'TP5' THEN 8.0
+          WHEN tp_result = 'TP4' THEN 6.0
+          WHEN tp_result = 'TP3' THEN 4.0
+          WHEN tp_result = 'TP2' THEN 2.5
+          WHEN tp_result LIKE 'TP%' THEN 1.5
           ELSE 0
-        END) FILTER (WHERE closed_at IS NOT NULL), 0)::float AS summove
+        END) FILTER (WHERE tp_result LIKE 'TP%'), 0)::float AS winmove
       FROM telegram_alerts
       WHERE triggered_at > NOW() - INTERVAL '30 days'
-        -- Exclude Jul 2–5 shorts (bullish-BTC window, pre-±3 regime
-        -- miscalibration) so the hit rate matches the P&L, which also drops
-        -- them. The alerts remain in the table; only the record filters them.
-        AND NOT (triggered_at >= '2026-07-02' AND triggered_at < '2026-07-06')
     `) as Row[]
     const [longRow] = (await sql`
       SELECT
         COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND tp_result LIKE 'TP%')::int AS hits,
         COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int AS cnt,
+        COUNT(*) FILTER (WHERE tp_result LIKE 'TP%')::int AS wincnt,
         COALESCE(SUM(CASE
-          WHEN tp_result = 'TP3'     THEN 4.0
-          WHEN tp_result = 'TP2'     THEN 2.5
-          WHEN tp_result LIKE 'TP%'  THEN 1.5
-          WHEN tp_result = 'SL'      THEN -((entry_price - stop_price) / NULLIF(entry_price, 0) * 100)
+          WHEN tp_result = 'TP5' THEN 8.0
+          WHEN tp_result = 'TP4' THEN 6.0
+          WHEN tp_result = 'TP3' THEN 4.0
+          WHEN tp_result = 'TP2' THEN 2.5
+          WHEN tp_result LIKE 'TP%' THEN 1.5
           ELSE 0
-        END) FILTER (WHERE closed_at IS NOT NULL), 0)::float AS summove
+        END) FILTER (WHERE tp_result LIKE 'TP%'), 0)::float AS winmove
       FROM telegram_alerts_long
       WHERE triggered_at > NOW() - INTERVAL '30 days' AND triggered_at >= '2026-06-18'
     `) as Row[]
 
-    const sCnt = num(shortRow?.cnt) || 0, sHits = num(shortRow?.hits) || 0, sSum = num(shortRow?.summove) || 0
-    const lCnt = num(longRow?.cnt) || 0, lHits = num(longRow?.hits) || 0, lSum = num(longRow?.summove) || 0
+    const sCnt = num(shortRow?.cnt) || 0, sHits = num(shortRow?.hits) || 0
+    const sWin = num(shortRow?.wincnt) || 0, sWinMove = num(shortRow?.winmove) || 0
+    const lCnt = num(longRow?.cnt) || 0, lHits = num(longRow?.hits) || 0
+    const lWin = num(longRow?.wincnt) || 0, lWinMove = num(longRow?.winmove) || 0
     const totalCnt = sCnt + lCnt, totalHits = sHits + lHits
     const rate = (hits: number, cnt: number) => (cnt > 0 ? (hits / cnt) * 100 : null)
     const avg  = (sum: number, cnt: number) => (cnt > 0 ? sum / cnt : null)
@@ -278,9 +286,9 @@ async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
       book === "long"  ? rate(lHits, lCnt) :
                          rate(totalHits, totalCnt)
     const heroAvg =
-      book === "short" ? avg(sSum, sCnt) :
-      book === "long"  ? avg(lSum, lCnt) :
-                         avg(sSum + lSum, totalCnt)
+      book === "short" ? avg(sWinMove, sWin) :
+      book === "long"  ? avg(lWinMove, lWin) :
+                         avg(sWinMove + lWinMove, sWin + lWin)
 
     return {
       combinedHitRate: heroRate,

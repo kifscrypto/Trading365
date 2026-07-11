@@ -448,7 +448,7 @@ export function LiveScene() {
                 {book !== "short" && <div className="b"><span className="lk l">Longs</span><span className="lv">{sideContent(rec?.long)}</span></div>}
               </div>
               <div className="pnl-row">
-                <span className="k">Avg move / signal</span>
+                <span className="k">Avg move / winning signal</span>
                 <span className="v">{rec?.avgMove == null ? "—" : `${rec.avgMove >= 0 ? "+" : "−"}${Math.abs(rec.avgMove).toFixed(1)}%`}</span>
               </div>
             </section>
