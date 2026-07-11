@@ -451,6 +451,10 @@ export function LiveScene() {
                 <span className="k">Avg move / winning signal</span>
                 <span className="v">{rec?.avgMove == null ? "—" : `${rec.avgMove >= 0 ? "+" : "−"}${Math.abs(rec.avgMove).toFixed(1)}%`}</span>
               </div>
+              <div className="pnl-row">
+                <span className="k">Avg peak move / winning signal</span>
+                <span className="v">{rec?.avgPeakMove == null ? "—" : `${rec.avgPeakMove >= 0 ? "+" : "−"}${Math.abs(rec.avgPeakMove).toFixed(1)}%`}</span>
+              </div>
             </section>
 
             {/* Simulated running P&L — combined total + separate short/long books */}

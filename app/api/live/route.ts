@@ -222,7 +222,7 @@ async function getClosed(sql: SqlClient, book: Book): Promise<LiveClosed[]> {
 
 // ── 30-day track record: per-book hit rate + counts + AVERAGE move/signal ────
 async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
-  const empty: LiveRecord = { combinedHitRate: null, long: { hitRate: null, count: 0 }, short: { hitRate: null, count: 0 }, avgMove: null }
+  const empty: LiveRecord = { combinedHitRate: null, long: { hitRate: null, count: 0 }, short: { hitRate: null, count: 0 }, avgMove: null, avgPeakMove: null }
   try {
     // REAL-TIME track record, read from fired alerts the moment the monitor
     // stamps them — matches the Closed panel, not the 24h outcomes cron.
@@ -250,7 +250,9 @@ async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
           WHEN tp_result = 'TP2' THEN 2.5
           WHEN tp_result LIKE 'TP%' THEN 1.5
           ELSE 0
-        END) FILTER (WHERE tp_result LIKE 'TP%'), 0)::float AS winmove
+        END) FILTER (WHERE tp_result LIKE 'TP%'), 0)::float AS winmove,
+        COUNT(*) FILTER (WHERE tp_result LIKE 'TP%' AND mfe_pct IS NOT NULL)::int AS peakcnt,
+        COALESCE(SUM(mfe_pct) FILTER (WHERE tp_result LIKE 'TP%' AND mfe_pct IS NOT NULL), 0)::float AS peaksum
       FROM telegram_alerts
       WHERE triggered_at > NOW() - INTERVAL '30 days'
     `) as Row[]
@@ -266,15 +268,19 @@ async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
           WHEN tp_result = 'TP2' THEN 2.5
           WHEN tp_result LIKE 'TP%' THEN 1.5
           ELSE 0
-        END) FILTER (WHERE tp_result LIKE 'TP%'), 0)::float AS winmove
+        END) FILTER (WHERE tp_result LIKE 'TP%'), 0)::float AS winmove,
+        COUNT(*) FILTER (WHERE tp_result LIKE 'TP%' AND mfe_pct IS NOT NULL)::int AS peakcnt,
+        COALESCE(SUM(mfe_pct) FILTER (WHERE tp_result LIKE 'TP%' AND mfe_pct IS NOT NULL), 0)::float AS peaksum
       FROM telegram_alerts_long
       WHERE triggered_at > NOW() - INTERVAL '30 days' AND triggered_at >= '2026-06-18'
     `) as Row[]
 
     const sCnt = num(shortRow?.cnt) || 0, sHits = num(shortRow?.hits) || 0
     const sWin = num(shortRow?.wincnt) || 0, sWinMove = num(shortRow?.winmove) || 0
+    const sPeakN = num(shortRow?.peakcnt) || 0, sPeakSum = num(shortRow?.peaksum) || 0
     const lCnt = num(longRow?.cnt) || 0, lHits = num(longRow?.hits) || 0
     const lWin = num(longRow?.wincnt) || 0, lWinMove = num(longRow?.winmove) || 0
+    const lPeakN = num(longRow?.peakcnt) || 0, lPeakSum = num(longRow?.peaksum) || 0
     const totalCnt = sCnt + lCnt, totalHits = sHits + lHits
     const rate = (hits: number, cnt: number) => (cnt > 0 ? (hits / cnt) * 100 : null)
     const avg  = (sum: number, cnt: number) => (cnt > 0 ? sum / cnt : null)
@@ -289,12 +295,19 @@ async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
       book === "short" ? avg(sWinMove, sWin) :
       book === "long"  ? avg(lWinMove, lWin) :
                          avg(sWinMove + lWinMove, sWin + lWin)
+    // Avg PEAK favourable move (MFE) per winning signal, over winners that have
+    // mfe_pct populated (non-OKX symbols backfill forward via the monitors).
+    const heroPeak =
+      book === "short" ? avg(sPeakSum, sPeakN) :
+      book === "long"  ? avg(lPeakSum, lPeakN) :
+                         avg(sPeakSum + lPeakSum, sPeakN + lPeakN)
 
     return {
       combinedHitRate: heroRate,
       long: { hitRate: rate(lHits, lCnt), count: lCnt },
       short: { hitRate: rate(sHits, sCnt), count: sCnt },
       avgMove: heroAvg,
+      avgPeakMove: heroPeak,
     }
   } catch {
     return empty

@@ -34,7 +34,8 @@ export interface LiveRecord {
   combinedHitRate: number | null
   long: LiveSideRecord
   short: LiveSideRecord
-  avgMove: number | null // honest average favourable move per CLOSED signal, %
+  avgMove: number | null // realized avg move banked per WINNING signal (TP tiers), %
+  avgPeakMove: number | null // avg peak favourable move (MFE) per winning signal, %
 }
 
 // Simulated running P&L (virtual $1,000 book, 10% fixed-fraction sizing). The
