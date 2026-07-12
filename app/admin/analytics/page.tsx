@@ -10,6 +10,8 @@ type AnalyticsData = {
   bots: { bots: string; humans: string; classified: string }
   topPages: { path: string; views: string }[]
   topReferrers: { source: string; views: string }[]
+  referringLinks: { url: string; views: string; visitors: string }[]
+  searchTerms: { term: string; views: string; visitors: string }[]
   utmSources: { utm_source: string; utm_medium: string; views: string }[]
   countries: { country: string; views: string }[]
   devices: { device: string; views: string }[]
@@ -213,6 +215,57 @@ export default function AnalyticsPage() {
                         <div key={row.source} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                           <span style={{ flex: '0 0 auto', width: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8rem', color: '#94a3b8' }}>{row.source}</span>
                           <Bar value={Number(row.views)} max={Number(data.topReferrers[0]?.views ?? 1)} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+              </div>
+            </div>
+
+            {/* Referring Links (full URLs) + Search Terms */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+              {/* Referring Links — the actual external page that linked here */}
+              <div style={card}>
+                <h2 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>Referring Links</h2>
+                <p style={{ margin: '0 0 1rem', fontSize: '0.72rem', color: '#475569' }}>Exact external pages linking to you · last 30 days · humans only</p>
+                {data.referringLinks.length === 0
+                  ? <p style={{ color: '#64748b', fontSize: '0.875rem' }}>No external referrers yet.</p>
+                  : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', tableLayout: 'fixed' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left', color: '#64748b', fontWeight: 500, paddingBottom: '0.5rem', fontSize: '0.72rem' }}>Referring URL</th>
+                          <th style={{ textAlign: 'right', color: '#64748b', fontWeight: 500, paddingBottom: '0.5rem', fontSize: '0.72rem', width: 70 }}>Views</th>
+                          <th style={{ textAlign: 'right', color: '#64748b', fontWeight: 500, paddingBottom: '0.5rem', fontSize: '0.72rem', width: 80 }}>Visitors</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.referringLinks.map((row, i) => (
+                          <tr key={i} style={{ borderTop: '1px solid #1e293b' }}>
+                            <td style={{ padding: '0.4rem 0.5rem 0.4rem 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.url}>
+                              <a href={row.url} target="_blank" rel="noreferrer noopener" style={{ color: '#93c5fd', textDecoration: 'none', fontFamily: 'monospace' }}>{row.url}</a>
+                            </td>
+                            <td style={{ padding: '0.4rem 0', textAlign: 'right', color: '#f1f5f9', fontWeight: 600 }}>{Number(row.views).toLocaleString()}</td>
+                            <td style={{ padding: '0.4rem 0', textAlign: 'right', color: '#94a3b8' }}>{Number(row.visitors).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+              </div>
+
+              {/* Search Terms — parsed from search-engine referrer query strings */}
+              <div style={card}>
+                <h2 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>Search Terms</h2>
+                <p style={{ margin: '0 0 1rem', fontSize: '0.72rem', color: '#475569' }}>Bing/Yahoo/Yandex etc. · Google hides its own keywords (use Search Console)</p>
+                {data.searchTerms.length === 0
+                  ? <p style={{ color: '#64748b', fontSize: '0.875rem' }}>No search-term referrers captured.</p>
+                  : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                      {data.searchTerms.map((row, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <span style={{ flex: '0 0 auto', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8rem', color: '#e2e8f0' }} title={row.term}>{row.term}</span>
+                          <Bar value={Number(row.views)} max={Number(data.searchTerms[0]?.views ?? 1)} />
                         </div>
                       ))}
                     </div>

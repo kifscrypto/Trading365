@@ -16,7 +16,7 @@ export async function GET() {
     // Breakdowns are HUMAN-only (is_bot IS NOT TRUE). Legacy rows predate the bot
     // flag (is_bot NULL) and count as human/unknown, so history is unaffected;
     // only newly-flagged bots are excluded from top pages / sources / geo.
-    const [totals, visitors, bots, topPages, topReferrers, utmSources, countries, devices, daily] = await Promise.all([
+    const [totals, visitors, bots, topPages, topReferrers, referringLinks, searchTerms, utmSources, countries, devices, daily] = await Promise.all([
       sql`
         SELECT
           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day')   AS today,
@@ -67,6 +67,45 @@ export async function GET() {
         WHERE created_at >= NOW() - INTERVAL '30 days' AND is_bot IS NOT TRUE
         GROUP BY source ORDER BY views DESC LIMIT 15
       `,
+      // Full external referring URLs — the actual page/link that sent the visit,
+      // NOT collapsed to a domain. Excludes internal navigation (own domain),
+      // Direct, and bots. This is where "who is linking to us" lives.
+      sql`
+        SELECT referrer AS url,
+               COUNT(*) AS views,
+               COUNT(DISTINCT visitor_id) AS visitors
+        FROM page_views
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+          AND is_bot IS NOT TRUE
+          AND referrer IS NOT NULL AND referrer <> ''
+          AND referrer NOT ILIKE '%trading365.org%'
+          AND referrer NOT ILIKE '%trading365.com%'
+          AND referrer NOT ILIKE '%localhost%'
+        GROUP BY referrer ORDER BY views DESC LIMIT 40
+      `,
+      // Search terms parsed out of search-engine referrer query strings.
+      // NOTE: Google strips its query from the referrer, so organic Google
+      // keywords never appear here (use Search Console for those). This catches
+      // Bing/Yahoo/Yandex/Baidu/Ecosia-style q=,p=,text=,wd=,query=,search= params.
+      // Best-effort URL-decode: + and %20 -> space; strips leftover %xx noise.
+      sql`
+        SELECT term, COUNT(*) AS views, COUNT(DISTINCT visitor_id) AS visitors
+        FROM (
+          SELECT
+            visitor_id,
+            TRIM(LOWER(
+              REPLACE(REPLACE(
+                REGEXP_REPLACE(referrer, '^.*[?&](?:q|p|query|text|wd|search|kw)=([^&]*).*$', E'\\1'),
+              '+', ' '), '%20', ' ')
+            )) AS term
+          FROM page_views
+          WHERE created_at >= NOW() - INTERVAL '30 days'
+            AND is_bot IS NOT TRUE
+            AND referrer ~* '[?&](q|p|query|text|wd|search|kw)='
+        ) t
+        WHERE term <> '' AND term NOT LIKE '%\\%%'
+        GROUP BY term ORDER BY views DESC LIMIT 25
+      `,
       sql`
         SELECT
           COALESCE(utm_source, 'none') AS utm_source,
@@ -101,7 +140,7 @@ export async function GET() {
       totals: totals[0],
       visitors: visitors[0],
       bots: bots[0],
-      topPages, topReferrers, utmSources, countries, devices, daily,
+      topPages, topReferrers, referringLinks, searchTerms, utmSources, countries, devices, daily,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
