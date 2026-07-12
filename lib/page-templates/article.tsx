@@ -88,6 +88,14 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   const pageTitle = TITLE_OVERRIDES[slug] ?? article.metaTitle ?? article.title
   const ogParams = new URLSearchParams({ title: pageTitle, category: article.category })
   if (article.rating > 0) ogParams.set('rating', String(article.rating))
+  // Feed the article's featured image into the OG card as a full-bleed background.
+  // Blob uploads are already absolute; legacy /images/… paths get the origin prefixed.
+  if (article.thumbnail) {
+    const absThumb = article.thumbnail.startsWith('http')
+      ? article.thumbnail
+      : `${BASE_URL}${article.thumbnail.startsWith('/') ? '' : '/'}${article.thumbnail}`
+    ogParams.set('image', absThumb)
+  }
   const ogImage = `${BASE_URL}/api/og?${ogParams.toString()}`
   const pageDescription = article.metaDescription ?? article.excerpt
 

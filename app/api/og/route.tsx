@@ -15,6 +15,24 @@ export async function GET(req: NextRequest) {
   const title = searchParams.get('title') ?? 'Trade Smarter. Earn Bigger.'
   const category = searchParams.get('category') ?? ''
   const rating = searchParams.get('rating') ?? ''
+  // Featured image, full-bleed behind the card. Only trusted absolute https URLs
+  // are honoured (blob uploads / own origin); anything else falls back to the
+  // text-only card so a bad param can never break image generation.
+  const rawImage = searchParams.get('image') ?? ''
+  let image = rawImage.startsWith('https://') ? rawImage : ''
+  // Preflight: a broken/missing image would throw *inside* ImageResponse and break
+  // the whole card (un-catchable), so verify it resolves to a real image first.
+  if (image) {
+    try {
+      const ctrl = new AbortController()
+      const t = setTimeout(() => ctrl.abort(), 2500)
+      const head = await fetch(image, { method: 'GET', signal: ctrl.signal })
+      clearTimeout(t)
+      if (!head.ok || !(head.headers.get('content-type') ?? '').startsWith('image/')) image = ''
+    } catch {
+      image = ''
+    }
+  }
 
   const fontSize = title.length > 80 ? 36 : title.length > 55 ? 44 : 52
 
@@ -30,6 +48,27 @@ export async function GET(req: NextRequest) {
           padding: '56px 64px',
         }}
       >
+        {/* Featured image (full-bleed cover) */}
+        {image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={image}
+            width={1200}
+            height={630}
+            style={{ position: 'absolute', top: 0, left: 0, width: 1200, height: 630, objectFit: 'cover' }}
+          />
+        ) : null}
+
+        {/* Legibility scrim: darker top (logo) + darker bottom (title), photo shows through the middle */}
+        {image ? (
+          <div style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0, bottom: 0,
+            display: 'flex',
+            backgroundImage: 'linear-gradient(180deg, rgba(9,9,11,0.72) 0%, rgba(9,9,11,0.18) 28%, rgba(9,9,11,0.45) 60%, rgba(9,9,11,0.97) 100%)',
+          }} />
+        ) : null}
+
         {/* Top gold accent bar */}
         <div style={{
           position: 'absolute',
@@ -39,18 +78,20 @@ export async function GET(req: NextRequest) {
           display: 'flex',
         }} />
 
-        {/* Subtle corner glow */}
-        <div style={{
-          position: 'absolute',
-          top: -80, right: -80,
-          width: 400, height: 400,
-          borderRadius: '50%',
-          backgroundColor: 'rgba(212,160,23,0.06)',
-          display: 'flex',
-        }} />
+        {/* Subtle corner glow (only on the plain card) */}
+        {!image ? (
+          <div style={{
+            position: 'absolute',
+            top: -80, right: -80,
+            width: 400, height: 400,
+            borderRadius: '50%',
+            backgroundColor: 'rgba(212,160,23,0.06)',
+            display: 'flex',
+          }} />
+        ) : null}
 
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', textShadow: image ? '0 2px 8px rgba(0,0,0,0.7)' : 'none' }}>
           <span style={{ fontSize: 26, fontWeight: 700, color: '#ffffff' }}>TRADING</span>
           <span style={{ fontSize: 26, fontWeight: 700, color: GOLD }}>365</span>
         </div>
@@ -77,17 +118,21 @@ export async function GET(req: NextRequest) {
             </div>
           ) : null}
 
-          <div style={{
-            fontSize,
-            fontWeight: 700,
-            color: '#ffffff',
-            lineHeight: 1.15,
-            maxWidth: 1000,
-          }}>
-            {title}
-          </div>
+          {/* Title + rating only on the text card. Featured images are generated
+              with the title already baked in, so overlaying it would read twice. */}
+          {!image ? (
+            <div style={{
+              fontSize,
+              fontWeight: 700,
+              color: '#ffffff',
+              lineHeight: 1.15,
+              maxWidth: 1000,
+            }}>
+              {title}
+            </div>
+          ) : null}
 
-          {rating ? (
+          {!image && rating ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ color: GOLD, fontSize: 22, fontWeight: 700 }}>{rating}/10</span>
               <span style={{ color: ZINC_500, fontSize: 16 }}>Trading365 Rating</span>
