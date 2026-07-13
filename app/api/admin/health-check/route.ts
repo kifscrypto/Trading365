@@ -120,7 +120,7 @@ ${truncated}`,
 
     const message = await anthropic.messages.create({
       model: 'claude-opus-4-8',
-      max_tokens: 4000,
+      max_tokens: 8000,
       messages: [{
         role: 'user',
         content: `You are a content fixer. ${fixContext}
@@ -151,28 +151,60 @@ ${truncated}`,
     const start = raw.indexOf('[')
     const end = raw.lastIndexOf(']')
 
-    if (start === -1 || end === -1) {
+    if (start === -1) {
       return NextResponse.json({ error: 'No JSON array in fix response', raw: raw.slice(0, 300) }, { status: 500 })
     }
 
+    // If the response was truncated at max_tokens the closing ] is missing.
+    // Take from the first [ to the last ] if present, else to end of string.
+    const arrayText = end > start ? raw.slice(start, end + 1) : raw.slice(start)
+
     let patches: { find: string; replace: string }[]
     try {
-      patches = JSON.parse(raw.slice(start, end + 1))
+      patches = JSON.parse(arrayText)
     } catch {
-      return NextResponse.json({ error: 'Could not parse fix patches', raw: raw.slice(0, 300) }, { status: 500 })
+      // Salvage a truncated array: drop the trailing incomplete object and re-close.
+      try {
+        const lastComplete = arrayText.lastIndexOf('}')
+        const salvaged = lastComplete === -1 ? '[]' : arrayText.slice(0, lastComplete + 1).replace(/,\s*$/, '') + ']'
+        patches = JSON.parse(salvaged)
+      } catch {
+        return NextResponse.json({ error: 'Could not parse fix patches', raw: raw.slice(0, 400) }, { status: 500 })
+      }
     }
 
-    let patched = content
+    // Normalise line endings so "find" snippets match regardless of CRLF/LF.
+    let patched = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
     const results: { find: string; applied: boolean }[] = []
 
     for (const { find, replace } of patches) {
       if (typeof find !== 'string' || typeof replace !== 'string') continue
-      if (patched.includes(find)) {
-        patched = patched.replace(find, replace)
+
+      const normFind = find.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      // Escape $ so String.replace does not treat $&, $1, $` etc. as specials.
+      const safeReplace = replace.replace(/\$/g, '$$$$')
+
+      // 1. Exact match
+      if (patched.includes(normFind)) {
+        patched = patched.replace(normFind, safeReplace)
         results.push({ find, applied: true })
-      } else {
-        results.push({ find, applied: false })
+        continue
       }
+
+      // 2. Whitespace-flexible fallback so blank-line/indent differences don't block a patch.
+      try {
+        const escaped = normFind.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')
+        const re = new RegExp(escaped)
+        if (re.test(patched)) {
+          patched = patched.replace(re, safeReplace)
+          results.push({ find, applied: true })
+          continue
+        }
+      } catch {
+        // invalid regex — fall through to failed
+      }
+
+      results.push({ find, applied: false })
     }
 
     const applied = results.filter(r => r.applied).length
