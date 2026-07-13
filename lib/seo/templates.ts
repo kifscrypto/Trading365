@@ -46,7 +46,6 @@ const STRUCTURES: Record<string, string> = {
 - Why it matters / where it's used: real use cases
 - Key things to know: benefits, trade-offs and risks
 - Common misconceptions (if relevant)
-- FAQ: 3–5 real questions people ask
 - Conclusion: short recap`,
   coin_guide: `- Quick take: what the coin/token is, in one or two sentences
 - What is [asset]: background and the problem it solves
@@ -55,27 +54,23 @@ const STRUCTURES: Record<string, string> = {
 - Tokenomics: supply, issuance, utility (only state facts you're sure of)
 - How to buy it: a brief practical note (natural spot for a soft CTA)
 - Risks & considerations: volatility, competition, regulation
-- FAQ: 3–5 questions
 - Conclusion`,
   how_to: `- Quick answer: what the reader will achieve and roughly how
 - Before you start: prerequisites / what you'll need
 - Step-by-step: clear NUMBERED steps (the core of the article)
 - Tips & common mistakes
 - Troubleshooting (if relevant)
-- FAQ: 3–5 questions
 - Conclusion`,
   comparison: `- Quick verdict: which option suits which reader (no hard sell)
 - What each option is: brief definition of both
 - Head-to-head: a comparison table of the key dimensions
 - Key differences explained: what the table means in practice
 - Which to choose, and when
-- FAQ: 3–5 questions
 - Conclusion`,
   listicle: `- Intro: the topic + how entries were chosen (selection criteria)
 - The list: a short overview table, then one concise section per item
 - Per item: what it is, who it's for, the standout point, any caveat
 - How to choose between them
-- FAQ: 3–5 questions
 - Conclusion`,
 }
 
@@ -94,7 +89,8 @@ const FORMATTING_RULES = `FORMATTING RULES (MANDATORY — THE RENDERER WILL BREA
 - Put ONE blank line before and after every heading, table, list block and --- separator
 - All markdown tables MUST have a header row and a separator row (| --- | --- |); every row the same column count
 - Use - for all bullet lists; never collapse two markdown elements onto one line
-- Never output duplicate words ("read read", "Updated Updated")`
+- Never output duplicate words ("read read", "Updated Updated")
+- Do NOT include an FAQ or "Frequently Asked Questions" section in the body — FAQs are stored in a separate field and rendered separately; a body FAQ would duplicate them`
 
 export function genericOutlinePrompt(
   type: string,
@@ -110,7 +106,7 @@ RULES:
 - Match the search intent; lead with the answer
 - Keep it tight — combine or drop sections that don't serve the topic
 - No filler, no generic blog padding
-- Always include an FAQ section
+- Do NOT include an FAQ / "Frequently Asked Questions" section — FAQs are stored and rendered separately
 
 SUGGESTED FLOW for a ${label} (adapt to the actual topic):
 ${structure}
@@ -250,7 +246,7 @@ PRINCIPLES (E-E-A-T):
 - Be balanced — cover benefits AND risks/trade-offs honestly.
 - No hype, no filler, no generic phrases ("revolutionary", "game-changing", "user-friendly").
 
-STRUCTURE (adapt to the topic — drop or add sections as needed; always include an FAQ):
+STRUCTURE (adapt to the topic — drop or add sections as needed; do NOT add an FAQ section, FAQs are generated separately):
 ${structure}
 
 SOFT MONETISATION:

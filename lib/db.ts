@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless'
 import { randomBytes } from 'node:crypto'
 import { sanitizeInternalLinks } from '@/lib/seo/sanitize-internal-links'
+import { stripBodyFaqSection } from '@/lib/seo/strip-body-faq'
 import { stripYearFromSlug } from '@/lib/utils/slug'
 
 export const sql = neon(process.env.DATABASE_URL!)
@@ -124,7 +125,12 @@ export async function setArticlePublished(id: number, published: boolean): Promi
 }
 
 export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' | 'updated_at' | 'preview_token'>): Promise<ArticleRow> {
-  const content = await cleanInternalLinks(data.content)
+  let content = await cleanInternalLinks(data.content)
+  // FAQs live in the structured `faqs` field — strip any duplicate body FAQ section.
+  if (content && (data.faqs?.length ?? 0) > 0) {
+    const { content: c2, stripped } = stripBodyFaqSection(content)
+    if (stripped) { console.warn(`[stripBodyFaqSection] removed duplicate body FAQ from new article "${data.slug}"`); content = c2 }
+  }
   // Keep new URLs evergreen — a year in the slug forces a 301 every January.
   // Only applied on create; existing slugs are never rewritten (would break links).
   const slug = stripYearFromSlug(data.slug)
@@ -148,7 +154,17 @@ export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' |
 }
 
 export async function updateArticle(id: number, data: Partial<Omit<ArticleRow, 'id' | 'created_at' | 'updated_at'>>): Promise<ArticleRow> {
-  const content = await cleanInternalLinks(data.content)
+  let content = await cleanInternalLinks(data.content)
+  // Strip a duplicate body FAQ when the structured `faqs` field is (or stays) populated.
+  if (content) {
+    const faqCount = data.faqs !== undefined
+      ? (data.faqs?.length ?? 0)
+      : (((await sql`SELECT faqs FROM articles WHERE id = ${id}`)[0]?.faqs as unknown[] | null)?.length ?? 0)
+    if (faqCount > 0) {
+      const { content: c2, stripped } = stripBodyFaqSection(content)
+      if (stripped) { console.warn(`[stripBodyFaqSection] removed duplicate body FAQ from article id ${id}`); content = c2 }
+    }
+  }
   const rows = await sql`
     UPDATE articles SET
       slug = COALESCE(${data.slug ?? null}, slug),
