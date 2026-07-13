@@ -1,7 +1,24 @@
 import { neon } from '@neondatabase/serverless'
 import { randomBytes } from 'node:crypto'
+import { sanitizeInternalLinks } from '@/lib/seo/sanitize-internal-links'
 
 export const sql = neon(process.env.DATABASE_URL!)
+
+/**
+ * Strip/repair dead internal links in an article body before it is written.
+ * Excludes the article's own slug from the valid set is unnecessary — self
+ * links are harmless — so we validate against every existing slug.
+ */
+async function cleanInternalLinks(content: string | undefined | null): Promise<string | undefined | null> {
+  if (!content) return content
+  const articles = (await sql`SELECT category_slug, slug FROM articles`) as { category_slug: string; slug: string }[]
+  const { content: cleaned, fixes } = sanitizeInternalLinks(content, articles)
+  if (fixes.length) {
+    console.warn(`[sanitizeInternalLinks] ${fixes.length} dead internal link(s) repaired:`,
+      fixes.map(f => f.to ? `${f.from} -> ${f.to}` : `${f.from} -> unwrapped ("${f.anchor}")`))
+  }
+  return cleaned
+}
 
 /** URL-safe per-article secret used to share unpublished drafts for client review. */
 export function newPreviewToken(): string {
@@ -106,13 +123,14 @@ export async function setArticlePublished(id: number, published: boolean): Promi
 }
 
 export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' | 'updated_at' | 'preview_token'>): Promise<ArticleRow> {
+  const content = await cleanInternalLinks(data.content)
   const rows = await sql`
     INSERT INTO articles (
       slug, title, excerpt, content, category, category_slug,
       date, updated_date, read_time, author, rating, thumbnail, tags, faqs, pros, cons,
       meta_title, meta_description, meta_keywords, preview_token
     ) VALUES (
-      ${data.slug}, ${data.title}, ${data.excerpt}, ${data.content},
+      ${data.slug}, ${data.title}, ${data.excerpt}, ${content},
       ${data.category}, ${data.category_slug}, ${data.date}, ${data.updated_date ?? null},
       ${data.read_time}, ${data.author}, ${data.rating}, ${data.thumbnail},
       ${data.tags}, ${JSON.stringify(data.faqs ?? [])},
@@ -126,12 +144,13 @@ export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' |
 }
 
 export async function updateArticle(id: number, data: Partial<Omit<ArticleRow, 'id' | 'created_at' | 'updated_at'>>): Promise<ArticleRow> {
+  const content = await cleanInternalLinks(data.content)
   const rows = await sql`
     UPDATE articles SET
       slug = COALESCE(${data.slug ?? null}, slug),
       title = COALESCE(${data.title ?? null}, title),
       excerpt = COALESCE(${data.excerpt ?? null}, excerpt),
-      content = COALESCE(${data.content ?? null}, content),
+      content = COALESCE(${content ?? null}, content),
       category = COALESCE(${data.category ?? null}, category),
       category_slug = COALESCE(${data.category_slug ?? null}, category_slug),
       date = COALESCE(${data.date ?? null}, date),
