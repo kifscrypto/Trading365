@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless'
 import { randomBytes } from 'node:crypto'
 import { sanitizeInternalLinks } from '@/lib/seo/sanitize-internal-links'
+import { stripYearFromSlug } from '@/lib/utils/slug'
 
 export const sql = neon(process.env.DATABASE_URL!)
 
@@ -124,13 +125,16 @@ export async function setArticlePublished(id: number, published: boolean): Promi
 
 export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' | 'updated_at' | 'preview_token'>): Promise<ArticleRow> {
   const content = await cleanInternalLinks(data.content)
+  // Keep new URLs evergreen — a year in the slug forces a 301 every January.
+  // Only applied on create; existing slugs are never rewritten (would break links).
+  const slug = stripYearFromSlug(data.slug)
   const rows = await sql`
     INSERT INTO articles (
       slug, title, excerpt, content, category, category_slug,
       date, updated_date, read_time, author, rating, thumbnail, tags, faqs, pros, cons,
       meta_title, meta_description, meta_keywords, preview_token
     ) VALUES (
-      ${data.slug}, ${data.title}, ${data.excerpt}, ${content},
+      ${slug}, ${data.title}, ${data.excerpt}, ${content},
       ${data.category}, ${data.category_slug}, ${data.date}, ${data.updated_date ?? null},
       ${data.read_time}, ${data.author}, ${data.rating}, ${data.thumbnail},
       ${data.tags}, ${JSON.stringify(data.faqs ?? [])},

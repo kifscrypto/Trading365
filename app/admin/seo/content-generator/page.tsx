@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { ARTICLE_TYPES } from '@/lib/seo/templates'
+import { stripYearFromSlug } from '@/lib/utils/slug'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -24,9 +25,9 @@ const CATEGORIES = [
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// Slug = short keyword phrase, not full title.
+// Slug = short keyword phrase, not full title. Never carries a year (see stripYearFromSlug).
 function slugify(s: string) {
-  return s
+  const base = s
     .toLowerCase()
     .replace(/['’]/g, '')      // strip apostrophes BEFORE hyphenation: "what's" -> "whats"
     .replace(/[^a-z0-9]+/g, '-')     // non-alphanumerics -> hyphen
@@ -35,6 +36,7 @@ function slugify(s: string) {
     .filter(Boolean)
     .slice(0, 6)                     // truncate to max 6 words
     .join('-')
+  return stripYearFromSlug(base)     // keep URLs evergreen — year lives in the title, not the slug
 }
 
 function extractTitle(text: string) {
