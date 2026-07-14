@@ -261,15 +261,23 @@ export async function GET(request: Request) {
         console.log(`[entries] ${sym} PASSED firedCount threshold — adjustedScore=${adjustedScore} threshold=7 → will alert: ${adjustedScore >= 7}`)
 
         if (adjustedScore >= 7) {
-          // Deduplicate: skip if already alerted this symbol in the last 4h
+          // Deduplicate: skip if already alerted this symbol in the last 4h, OR
+          // while a prior alert on this symbol is still OPEN (closed_at IS NULL).
+          // The open-position guard stops a persistently-qualifying coin re-firing
+          // the same trade every 4h and stacking duplicate shorts that all SL
+          // together on one bounce. Re-alert only once the prior trade resolves.
+          // The 7-day bound on the open clause stops ancient pre-monitor rows
+          // (1k+ unstamped legacy pending shorts) from permanently suppressing
+          // a symbol from ever firing again.
           const recent = await sql`
             SELECT id FROM telegram_alerts
             WHERE  symbol    = ${sym}
-              AND  triggered_at > NOW() - INTERVAL '4 hours'
+              AND  ((closed_at IS NULL AND triggered_at > NOW() - INTERVAL '7 days')
+                    OR triggered_at > NOW() - INTERVAL '4 hours')
             LIMIT 1
           `
           if (recent.length > 0) {
-            console.log(`[entries] ${sym} skipped — already alerted within 4h`)
+            console.log(`[entries] ${sym} skipped — open alert or alerted within 4h`)
             continue
           }
 

@@ -232,12 +232,19 @@ export async function GET(request: Request) {
         const displaySymbol = sym.replace('USDT', '')
 
         if (adjustedScore >= 8) {
-          // Dedup across exchanges: one alert per symbol per 4h — the first
-          // qualifying exchange to be processed fires; the rest are skipped.
+          // Dedup: one alert per symbol per 4h (stops two exchanges firing the
+          // same coin at once) AND never re-fire while a prior alert on this
+          // symbol is still OPEN (closed_at IS NULL). Without the open-position
+          // guard a coin that keeps qualifying re-fires the same trade every 4h,
+          // stacking duplicate longs at the same entry/stop that then all SL
+          // together on one pullback. Only re-alert once the prior trade resolves.
+          // The 7-day bound on the open clause stops ancient pre-monitor rows
+          // (unstamped legacy pending) from permanently suppressing a symbol.
           const recent = await sql`
             SELECT id FROM telegram_alerts_long
             WHERE  symbol    = ${sym}
-              AND  triggered_at > NOW() - INTERVAL '4 hours'
+              AND  ((closed_at IS NULL AND triggered_at > NOW() - INTERVAL '7 days')
+                    OR triggered_at > NOW() - INTERVAL '4 hours')
             LIMIT 1
           `
           if (recent.length > 0) continue
