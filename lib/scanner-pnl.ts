@@ -2,43 +2,28 @@ import { neon } from "@neondatabase/serverless"
 import type { SqlClient } from "@/app/api/scanner/_core"
 
 /**
- * Simulated running P&L for the scanner signals.
+ * Simulated running P&L for the scanner's fired alerts.
  *
- * A virtual book starts at $1,000 and, for every signal that reaches a matured
- * 24h outcome (in chronological order), opens a position sized at a FIXED
- * FRACTION (10%) of the *current* running balance, then SCALES OUT:
+ * Dead simple: a trade wins or it loses. A virtual book starts at $1,000 and, for
+ * every RESOLVED fired alert (in chronological order), opens a position sized at a
+ * FIXED FRACTION (10%) of the *current* running balance:
  *
- *   • 30% of the position exits at TP1 (+1.5% fav) if TP1 is reached
- *   • 20% exits at TP2 (+2.5% fav) if reached
- *   • 20% exits at TP3 (+4.0% fav) if reached
- *   • 15% exits at TP4 (+6.0% fav) if reached
- *   • 15% exits at TP5 (+8.0% fav) if reached
- *   • any tranche whose TP was NOT reached exits at the 24h price
- *   • if the trade was stopped out, the ENTIRE position exits at the stop loss
+ *   • WIN  — the alert hit a take-profit (tp_result TP1..TP5). The WHOLE position
+ *            exits at that take-profit's move (+1.5 / +2.5 / +4 / +6 / +8%).
+ *   • LOSS — the alert stopped out (any non-TP result). The WHOLE position exits at
+ *            its stored stop (stop_price), else a 3% house fallback if none stored.
  *
- * Losses ALWAYS respect the stop (spec §6), even when the outcome tracker never
- * flagged it: the tracker only sets stopped_out for OKX/HL/MEXC and only ran from
- * 2026-06-21, so most historical losers carry stopped_out=false. Any loss worse
- * than the signal's stop (its stored stop_price, else a 3% house fallback) is
- * capped at the stop — otherwise unflagged losers ran to their raw 24h move,
- * overstating losses and driving wild negative swings.
+ * That's it — no tranches, no partial scale-outs, no "trail to breakeven". Those
+ * shrank every winner to a fraction while losses stayed full-size, which is how a
+ * 63% win rate perversely showed as flat. Now a win is a win at the level it hit.
  *
- * The per-trade return is the weighted blend of the tranche exits. A TP is
- * "reached" when the 24h favourable move hits that level — the same convention
- * the stats, closed-results and live record use (intra-window touches that
- * reverse before the 24h mark are not captured; the data stores only the 24h
- * snapshot + whether the stop was breached).
- *
- * CRITICAL (spec §6): losses respect the stop loss. The outcome tracker already
- * caps `scanner_outcomes.pct_change` at the stop level and flags `stopped_out`
- * (see app/api/scanner/outcomes/route.ts) — so we read that capped value
- * directly and NEVER the raw 24h move. A stopped-out trade's loss is the stop %.
- *
- * Signal sets: shorts use the candidate pool (downtrend regime, score ≥ 7, 24h
- * outcome). Longs use the REAL fired alerts (telegram_alerts_long) that members
- * receive, scored by the long-monitor's intraday tp_result — so the long book
- * shares the exact same set as the headline long win rate and can never
- * contradict it (both are wins/(wins+SL) over the fired alerts).
+ * Signal sets: shorts = telegram_alerts, longs = telegram_alerts_long, both scored
+ * by their monitor's tp_result. The candidate pool (scanner_signals) is NOT used:
+ * it kept opening phantom shorts every 30-min scan even in a neutral/rising regime,
+ * dragging the board down with trades no member ever received. Because both books
+ * read the exact fired-alert set members got, each matches its headline win rate
+ * exactly, and neither moves while the scanner is "holding fire" (no new alerts →
+ * no new sim trades).
  *
  * Three independent books are computed: `short`, `long`, and `combined` (one
  * $1,000 book that takes both sides interleaved chronologically — the "combined
@@ -49,38 +34,20 @@ import type { SqlClient } from "@/app/api/scanner/_core"
 export const PNL_START_BALANCE = 1000
 export const PNL_POSITION_FRACTION = 0.1 // 10% of running balance per trade
 
-// Tiered scale-out: tranche weights (must sum to 1) and the favourable move at
-// which each take-profit fills. Aggressive back-weighting — more size rides the
-// upper tiers (TP4 +6%, TP5 +8%) so winners that run past TP3 are captured.
-const TP1_WEIGHT = 0.30
-const TP2_WEIGHT = 0.20
-const TP3_WEIGHT = 0.20
-const TP4_WEIGHT = 0.15
-const TP5_WEIGHT = 0.15
-const TP1_MOVE = 1.5
-const TP2_MOVE = 2.5
-const TP3_MOVE = 4.0
-const TP4_MOVE = 6.0
-const TP5_MOVE = 8.0
+// Favourable move (%) banked when an alert hits each take-profit tier. A winning
+// trade exits its FULL position at the move for the highest tier it reached.
+const TP_MOVE: Record<string, number> = {
+  TP1: 1.5,
+  TP2: 2.5,
+  TP3: 4.0,
+  TP4: 6.0,
+  TP5: 8.0,
+}
 
-// House stop used to cap a loss when a signal has no stored stop_price (e.g.
-// pre-2026-06-21 signals, logged before stop tracking existed). Matches the live
-// page's STOP_LOSS_PCT fallback so the two surfaces agree.
+// House stop used to size a loss when an alert has no stored stop_price (e.g.
+// pre-stop-tracking alerts). Matches the live page's STOP_LOSS_PCT fallback so the
+// two surfaces agree.
 const STOP_LOSS_FALLBACK_PCT = 3
-
-// Long P&L is sourced from the REAL fired alerts (telegram_alerts_long), which
-// the long-monitor tracks intraday against its own 3 take-profit levels
-// (+1.5 / +2.5 / +4.0). Scale-out: 40% banks at TP1, 30% at TP2, 30% at TP3;
-// after the first partial the remainder is trailed to breakeven, so a trade that
-// only tags TP1/TP2 keeps just the banked tranche(s). A stopped alert exits the
-// whole position at its stored stop. This makes the long book match the headline
-// long win rate exactly (both read the same fired-alert set).
-const FIRED_TP1_MOVE = 1.5
-const FIRED_TP2_MOVE = 2.5
-const FIRED_TP3_MOVE = 4.0
-const FIRED_TP1_WEIGHT = 0.40
-const FIRED_TP2_WEIGHT = 0.30
-const FIRED_TP3_WEIGHT = 0.30
 
 export const PNL_LABEL =
   "Simulated P&L — $1,000 start, 10% position sizing, all signals followed"
@@ -88,9 +55,8 @@ export const PNL_DISCLAIMER =
   "Simulated performance. Assumes 10% position sizing, no fees, no slippage. Past performance does not guarantee future results."
 
 export type PnlBookKey = "combined" | "short" | "long"
-// Highest take-profit tier the trade reached (or 'SL'/'24H'). The actual exit is
-// a weighted blend of tranches; this label records the best level hit.
-export type PnlExitReason = "TP1" | "TP2" | "TP3" | "TP4" | "TP5" | "SL" | "24H"
+// The trade's outcome: the take-profit tier it hit, or 'SL' if it stopped out.
+export type PnlExitReason = "TP1" | "TP2" | "TP3" | "TP4" | "TP5" | "SL"
 
 export interface PnlTrade {
   signalId: number
@@ -98,14 +64,14 @@ export interface PnlTrade {
   entryPrice: number
   exitPrice: number
   exitReason: PnlExitReason
-  pnlPct: number // per-trade favourable return %, e.g. +1.5 (TP1) or −3.0 (SL)
+  pnlPct: number // per-trade favourable return %, e.g. +4.0 (TP3) or −3.0 (SL)
   runningBalance: number // book balance AFTER this trade
-  closedAt: string // ISO — the signal's scanned_at (chronological key)
+  closedAt: string // ISO — the alert's triggered_at (chronological key)
 }
 
 export interface PnlBook {
   startBalance: number
-  startDate: string | null // ISO of the first tracked signal (when the book began)
+  startDate: string | null // ISO of the first tracked alert (when the book began)
   balance: number
   returnPct: number
   trades: number
@@ -118,17 +84,6 @@ export interface PnlResult {
   combined: PnlBook
   short: PnlBook
   long: PnlBook
-}
-
-interface EligibleSignal {
-  id: number
-  direction: "short" | "long"
-  entryPrice: number
-  outcomePrice: number
-  pctChange: number // stop-aware capped 24h price move (signed)
-  stoppedOut: boolean
-  stopPrice: number | null // protective stop (absolute price); null pre-stop-tracking
-  scannedAt: string
 }
 
 function emptyBook(): PnlBook {
@@ -148,82 +103,11 @@ function emptyResult(): PnlResult {
   return { combined: emptyBook(), short: emptyBook(), long: emptyBook() }
 }
 
-// Resolve one signal's scaled exit (blended price, best-tier label, per-trade
-// favourable return %). `favMove` is the favourable move: shorts profit when
-// price falls, longs when it rises, so it is the price move flipped for shorts.
-function resolveTrade(s: EligibleSignal): {
-  exitPrice: number
-  exitReason: PnlExitReason
-  pnlPct: number
-} {
-  const isLong = s.direction === "long"
-  const rawFav = isLong ? s.pctChange : -s.pctChange
-
-  let pnlPct: number
-  let exitReason: PnlExitReason
-
-  if (s.stoppedOut) {
-    // Tracker confirmed a stop breach → loss already capped at the real stop.
-    pnlPct = rawFav
-    exitReason = "SL"
-  } else {
-    // Respect the stop even when the tracker didn't flag it. The outcome tracker
-    // only sets stopped_out for OKX/HL/MEXC and only ran from 2026-06-21, so many
-    // losers carry stopped_out=false yet would have stopped out. Cap the loss at
-    // the signal's own stored stop where present, else the house fallback — never
-    // let an unflagged loser run to its raw 24h move (that overstated the loss and
-    // drove the wild negative swings).
-    let stopFav = -STOP_LOSS_FALLBACK_PCT
-    if (s.stopPrice != null && s.entryPrice > 0) {
-      const moveToStopPct = ((s.stopPrice - s.entryPrice) / s.entryPrice) * 100
-      const realStopFav = isLong ? moveToStopPct : -moveToStopPct
-      if (realStopFav < 0) stopFav = realStopFav // ignore zero/garbage stops
-    }
-    const cappedAtStop = rawFav < stopFav
-    const fav = cappedAtStop ? stopFav : rawFav
-
-    // Scale out: each tranche takes its TP if the move reached it, else exits at
-    // the (stop-capped) 24h level.
-    const t1 = fav >= TP1_MOVE ? TP1_MOVE : fav
-    const t2 = fav >= TP2_MOVE ? TP2_MOVE : fav
-    const t3 = fav >= TP3_MOVE ? TP3_MOVE : fav
-    const t4 = fav >= TP4_MOVE ? TP4_MOVE : fav
-    const t5 = fav >= TP5_MOVE ? TP5_MOVE : fav
-    pnlPct = TP1_WEIGHT * t1 + TP2_WEIGHT * t2 + TP3_WEIGHT * t3 + TP4_WEIGHT * t4 + TP5_WEIGHT * t5
-    exitReason =
-      fav >= TP5_MOVE ? "TP5" :
-      fav >= TP4_MOVE ? "TP4" :
-      fav >= TP3_MOVE ? "TP3" :
-      fav >= TP2_MOVE ? "TP2" :
-      fav >= TP1_MOVE ? "TP1" :
-      cappedAtStop    ? "SL"  : "24H"
-  }
-
-  // Blended exit price implied by the weighted return (favourable move flipped
-  // back to a raw price move for the direction).
-  const exitPrice = s.entryPrice * (1 + (isLong ? pnlPct : -pnlPct) / 100)
-  return { exitPrice, exitReason, pnlPct }
-}
-
 // A trade whose exit is already resolved (before the compounding walk assigns a
 // running balance).
 type ResolvedTrade = Omit<PnlTrade, "runningBalance">
 
-// Short candidate signal → resolved trade (candidate-pool basis, unchanged).
-function resolveShort(s: EligibleSignal): ResolvedTrade {
-  const { exitPrice, exitReason, pnlPct } = resolveTrade(s)
-  return {
-    signalId: s.id,
-    direction: "short",
-    entryPrice: s.entryPrice,
-    exitPrice,
-    exitReason,
-    pnlPct,
-    closedAt: s.scannedAt,
-  }
-}
-
-interface FiredLongAlert {
+interface FiredAlert {
   id: number
   entryPrice: number
   stopPrice: number | null
@@ -231,38 +115,37 @@ interface FiredLongAlert {
   triggeredAt: string
 }
 
-// Fired long alert → resolved trade, using the alert's real intraday tp_result
-// and the scale-out described where the FIRED_* constants are defined.
-function resolveFiredLong(a: FiredLongAlert): ResolvedTrade {
+// Fired alert → resolved trade. Win = full position exits at the take-profit it
+// hit; loss = full position exits at the stored stop. `pnlPct` is the favourable
+// return (positive = win) regardless of side; only the cosmetic exit price differs
+// (shorts profit on a price drop, longs on a rise).
+function resolveAlert(a: FiredAlert, direction: "short" | "long"): ResolvedTrade {
   const entry = a.entryPrice
+  const tpMove = TP_MOVE[a.tpResult]
   let pnlPct: number
   let exitReason: PnlExitReason
-  if (a.tpResult === "TP3") {
-    pnlPct =
-      FIRED_TP1_WEIGHT * FIRED_TP1_MOVE +
-      FIRED_TP2_WEIGHT * FIRED_TP2_MOVE +
-      FIRED_TP3_WEIGHT * FIRED_TP3_MOVE
-    exitReason = "TP3"
-  } else if (a.tpResult === "TP2") {
-    pnlPct = FIRED_TP1_WEIGHT * FIRED_TP1_MOVE + FIRED_TP2_WEIGHT * FIRED_TP2_MOVE
-    exitReason = "TP2"
-  } else if (a.tpResult === "TP1") {
-    pnlPct = FIRED_TP1_WEIGHT * FIRED_TP1_MOVE
-    exitReason = "TP1"
+  if (tpMove != null) {
+    // WIN — whole position banks the take-profit it reached.
+    pnlPct = tpMove
+    exitReason = a.tpResult as PnlExitReason
   } else {
-    // 'SL' (or any non-TP close) → the whole position exits at the stored stop.
-    const stopPct =
+    // LOSS — whole position exits at the stop (distance from entry, either side).
+    const stopDistPct =
       a.stopPrice != null && entry > 0
-        ? ((a.stopPrice - entry) / entry) * 100
-        : -STOP_LOSS_FALLBACK_PCT
-    pnlPct = stopPct < 0 ? stopPct : -STOP_LOSS_FALLBACK_PCT
+        ? Math.abs((a.stopPrice - entry) / entry) * 100
+        : STOP_LOSS_FALLBACK_PCT
+    pnlPct = -(stopDistPct > 0 ? stopDistPct : STOP_LOSS_FALLBACK_PCT)
     exitReason = "SL"
   }
+  const exitPrice =
+    direction === "long"
+      ? entry * (1 + pnlPct / 100)
+      : entry * (1 - pnlPct / 100) // short: favourable return is a price drop
   return {
     signalId: a.id,
-    direction: "long",
+    direction,
     entryPrice: entry,
-    exitPrice: entry * (1 + pnlPct / 100),
+    exitPrice,
     exitReason,
     pnlPct,
     closedAt: a.triggeredAt,
@@ -290,52 +173,42 @@ function runBook(trades: ResolvedTrade[]): PnlBook {
   return book
 }
 
+// Map raw alert rows (either table — same columns) into resolved trades.
+function resolveRows(
+  rows: Array<Record<string, unknown>>,
+  direction: "short" | "long",
+): ResolvedTrade[] {
+  return rows
+    .map((r) => ({
+      id: Number(r.id),
+      entryPrice: Number(r.entry),
+      stopPrice: r.stop_price != null ? Number(r.stop_price) : null,
+      tpResult: String(r.tp_result),
+      triggeredAt: new Date(r.triggered_at as string).toISOString(),
+    }))
+    .filter((a) => Number.isFinite(a.entryPrice) && a.entryPrice > 0)
+    .map((a) => resolveAlert(a, direction))
+}
+
 /**
- * Recalculate all three books from scratch off the signal + outcome history.
- * Resilient: any DB error yields empty $1,000 books so callers (incl. statically
- * rendered pages at build time) never throw.
+ * Recalculate all three books from scratch off the fired-alert history
+ * (telegram_alerts for shorts, telegram_alerts_long for longs). Resilient: any DB
+ * error yields empty $1,000 books so callers (incl. statically rendered pages at
+ * build time) never throw.
  */
 export async function computePnl(sql?: SqlClient): Promise<PnlResult> {
   const db = sql ?? (neon(process.env.DATABASE_URL!) as SqlClient)
   try {
-    // SHORTS — candidate-pool basis (downtrend, score ≥ 7), 24h outcome.
+    // SHORTS — real fired short alerts, intraday tp_result.
     const shortRows = (await db`
-      SELECT
-        s.id,
-        s.price_at_signal::float AS entry,
-        o.price::float           AS outcome_price,
-        o.pct_change::float      AS pct,
-        COALESCE(o.stopped_out, FALSE) AS stopped_out,
-        s.stop_price::float      AS stop_price,
-        s.scanned_at
-      FROM scanner_signals s
-      JOIN scanner_outcomes o ON o.signal_id = s.id AND o.hours_after = 24
-      WHERE s.score >= 7
-        AND s.direction = 'short'
-        AND s.market_condition = 'downtrend'
-      ORDER BY s.scanned_at ASC, s.id ASC
+      SELECT id, entry_price::float AS entry, stop_price::float AS stop_price,
+             tp_result, triggered_at
+      FROM telegram_alerts
+      WHERE tp_result IS NOT NULL AND tp_result <> ''
+      ORDER BY triggered_at ASC, id ASC
     `) as Array<Record<string, unknown>>
 
-    const shortResolved: ResolvedTrade[] = shortRows
-      .map((r) => ({
-        id: Number(r.id),
-        direction: "short" as const,
-        entryPrice: Number(r.entry),
-        outcomePrice: Number(r.outcome_price),
-        pctChange: Number(r.pct),
-        stoppedOut: Boolean(r.stopped_out),
-        stopPrice: r.stop_price != null ? Number(r.stop_price) : null,
-        scannedAt: new Date(r.scanned_at as string).toISOString(),
-      }))
-      .filter(
-        (s) =>
-          Number.isFinite(s.entryPrice) &&
-          Number.isFinite(s.pctChange) &&
-          s.entryPrice > 0,
-      )
-      .map((s) => resolveShort(s as EligibleSignal))
-
-    // LONGS — real fired-alert basis (telegram_alerts_long), intraday tp_result.
+    // LONGS — real fired long alerts, intraday tp_result.
     const longRows = (await db`
       SELECT id, entry_price::float AS entry, stop_price::float AS stop_price,
              tp_result, triggered_at
@@ -344,16 +217,8 @@ export async function computePnl(sql?: SqlClient): Promise<PnlResult> {
       ORDER BY triggered_at ASC, id ASC
     `) as Array<Record<string, unknown>>
 
-    const longResolved: ResolvedTrade[] = longRows
-      .map((r) => ({
-        id: Number(r.id),
-        entryPrice: Number(r.entry),
-        stopPrice: r.stop_price != null ? Number(r.stop_price) : null,
-        tpResult: String(r.tp_result),
-        triggeredAt: new Date(r.triggered_at as string).toISOString(),
-      }))
-      .filter((a) => Number.isFinite(a.entryPrice) && a.entryPrice > 0)
-      .map(resolveFiredLong)
+    const shortResolved = resolveRows(shortRows, "short")
+    const longResolved = resolveRows(longRows, "long")
 
     return {
       combined: runBook([...shortResolved, ...longResolved]),
@@ -405,7 +270,9 @@ export async function persistPnl(
         INSERT INTO scanner_pnl
           (signal_id, direction, entry_price, exit_price, exit_reason, pnl_pct, running_balance, closed_at)
         SELECT * FROM unnest(
-          ${rows.map((r) => (r.direction === "long" ? null : r.signalId))}::int[],
+          -- signal_id FKs scanner_signals; both books now key off fired-alert ids
+          -- (telegram_alerts / _long), so it is left null rather than mis-linked.
+          ${rows.map(() => null)}::int[],
           ${rows.map((r) => r.direction)}::text[],
           ${rows.map((r) => r.entryPrice)}::numeric[],
           ${rows.map((r) => r.exitPrice)}::numeric[],
