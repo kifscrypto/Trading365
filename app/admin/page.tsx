@@ -83,6 +83,8 @@ export default function AdminPage() {
     read_time: '',
     date: new Date().toISOString().split('T')[0],
     thumbnail: '',
+    video_url: '',
+    video_recorded_date: '',
     tags: '',
     meta_title: '',
     meta_description: '',
@@ -196,6 +198,9 @@ export default function AdminPage() {
     if (!formData.slug.trim()) { setFormError('Slug is required'); return }
     if (!formData.category_slug) { setFormError('Please select a category'); return }
     if (!formData.content.trim()) { setFormError('Content is required'); return }
+    if (formData.video_url.trim() && !formData.video_recorded_date) {
+      setFormError('Set the video Recorded Date (required when a YouTube URL is provided).'); return
+    }
 
     try {
       const payload = {
@@ -206,6 +211,8 @@ export default function AdminPage() {
         meta_description: formData.meta_description || null,
         meta_keywords: formData.meta_keywords || null,
         thumbnail: formData.thumbnail || null,
+        video_url: formData.video_url.trim() || null,
+        video_recorded_date: formData.video_recorded_date || null,
         pros: pros.filter(p => p.trim()),
         cons: cons.filter(c => c.trim()),
         faqs: faqs.filter(f => f.question.trim() || f.answer.trim()),
@@ -232,6 +239,7 @@ export default function AdminPage() {
           title: '', slug: '', excerpt: '', content: '',
           category: '', category_slug: '', author: '', rating: '', read_time: '',
           date: new Date().toISOString().split('T')[0], thumbnail: '',
+          video_url: '', video_recorded_date: '',
           tags: '', meta_title: '', meta_description: '', meta_keywords: '',
         })
         setPros([])
@@ -621,6 +629,10 @@ export default function AdminPage() {
       read_time: article.read_time || '',
       date: article.date || new Date().toISOString().split('T')[0],
       thumbnail: article.thumbnail || '',
+      video_url: article.video_url || '',
+      video_recorded_date: article.video_recorded_date
+        ? String(article.video_recorded_date).split('T')[0]
+        : '',
       tags: Array.isArray(article.tags) ? article.tags.join(', ') : article.tags || '',
       meta_title: article.meta_title || '',
       meta_description: article.meta_description || '',
@@ -909,6 +921,32 @@ export default function AdminPage() {
                 rows={2}
                 className={inputClass}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">YouTube Video URL</label>
+                <input
+                  type="url"
+                  value={formData.video_url}
+                  onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                  placeholder="https://youtu.be/…  or  youtube.com/watch?v=…"
+                  className={inputClass}
+                />
+                <p className="mt-1 text-xs text-zinc-500">Optional. Shows a lite-embed below the article&apos;s Verdict. Blank = no video.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1">
+                  Recorded Date {formData.video_url.trim() && <span className="text-red-400">*</span>}
+                </label>
+                <input
+                  type="date"
+                  value={formData.video_recorded_date}
+                  onChange={(e) => setFormData({ ...formData, video_recorded_date: e.target.value })}
+                  className={inputClass}
+                />
+                <p className="mt-1 text-xs text-zinc-500">Required when a URL is set. Drives the VideoObject date + the &ldquo;Recorded {'{month year}'}&rdquo; note when &gt; 6 months old.</p>
+              </div>
             </div>
 
             <div>

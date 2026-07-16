@@ -215,12 +215,10 @@ export default async function ArticlePageContent({ category, slug, preview = fal
         const text = m[1].replace(/<[^>]+>/g, '').trim()
         return { text, id: slugifyHeading(text) }
       })
-    : displayContent.split("\n\n")
-        .filter((s) => s.startsWith("## "))
-        .map((s) => {
-          const text = s.replace("## ", "").split("\n")[0]
-          return { text, id: slugifyHeading(text) }
-        })
+    : [...displayContent.matchAll(/^##\s+(.+?)\s*$/gm)].map((m) => {
+        const text = m[1].trim()
+        return { text, id: slugifyHeading(text) }
+      })
   // Keep legacy variable for non-TOC uses
   const sections = displayContent.split("\n\n")
 
