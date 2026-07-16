@@ -379,20 +379,6 @@ export default async function ArticlePageContent({ category, slug, preview = fal
         <div className="flex flex-col gap-12 lg:flex-row">
           {/* Main Content */}
           <div className="flex-1 min-w-0">
-            {/* Video embed — after the header verdict, before the first content
-                section (Quick Facts on reviews, first H2 on guides). Lite facade,
-                so no YouTube iframe loads until the user clicks play. */}
-            {videoId && (
-              <div className="mb-8">
-                {videoStale && (
-                  <p className="mb-2 text-sm text-muted-foreground">
-                    Recorded {videoStale} — current fees and terms in the tables below.
-                  </p>
-                )}
-                <YouTubeLite videoId={videoId} title={article.title} />
-              </div>
-            )}
-
             {/* Exchange Quick Facts (for reviews) */}
             {exchange && (
               <div className="mb-8 rounded-xl border border-border bg-card p-6">
@@ -471,6 +457,22 @@ export default async function ArticlePageContent({ category, slug, preview = fal
               ctaText={primaryCtaText}
               exchangeName={exchange?.name ?? affiliateCta?.name}
             />
+
+            {/* Video walkthrough — sits BELOW the verdict block (header rating +
+                excerpt, Quick Facts, pros/cons) and ABOVE the deep-dive body
+                sections, so the textual answer still leads (first ~100 words) and
+                the video is the "now watch the walkthrough" beat before details.
+                Lite facade: no YouTube iframe until the user clicks play. */}
+            {videoId && (
+              <div className="mb-8">
+                {videoStale && (
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    Recorded {videoStale} — current fees and terms in the tables below.
+                  </p>
+                )}
+                <YouTubeLite videoId={videoId} title={article.title} />
+              </div>
+            )}
 
             {/* Article Body — with regional card injection and 400-word CTA */}
             {(() => {
