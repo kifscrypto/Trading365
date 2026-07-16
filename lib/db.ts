@@ -1,9 +1,14 @@
-import { neon } from '@neondatabase/serverless'
+import { neon, types } from '@neondatabase/serverless'
 import { randomBytes } from 'node:crypto'
 import { sanitizeInternalLinks } from '@/lib/seo/sanitize-internal-links'
 import { stripBodyFaqSection } from '@/lib/seo/strip-body-faq'
 import { stripYearFromSlug } from '@/lib/utils/slug'
 import { canonicalYouTubeUrl } from '@/lib/youtube'
+
+// Return DATE columns (oid 1082) as raw 'YYYY-MM-DD' strings, not TZ-shifted JS
+// Dates (Neon's default parses '2025-06-30' to local-midnight → the prior day in
+// UTC). Scoped: articles.video_recorded_date is the only DATE column in the DB.
+types.setTypeParser(1082, (v) => v)
 
 export const sql = neon(process.env.DATABASE_URL!)
 
