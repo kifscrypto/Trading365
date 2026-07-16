@@ -69,6 +69,30 @@ function splitAtRestricted(content: string): { before: string; after: string } |
   return null
 }
 
+/**
+ * Split content immediately before its SECOND H2, so a block (the video) can be
+ * injected after the opening answer section but above the deep-dive sections.
+ * Handles TipTap HTML (<h2>) and markdown (## ). `after` is '' when there are
+ * fewer than two H2s (caller then renders the block at the end of the body).
+ */
+function splitAtSecondHeading(content: string): { before: string; after: string } {
+  const isHtml = /<[a-zA-Z]/.test(content)
+  const positions: number[] = []
+  if (isHtml) {
+    const re = /<h2[\s>]/gi
+    let m: RegExpExecArray | null
+    while ((m = re.exec(content))) positions.push(m.index)
+  } else {
+    // Line-start "## " only (never ### or deeper).
+    const re = /(^|\n)##\s/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(content))) positions.push(m.index + (m[1] ? m[1].length : 0))
+  }
+  if (positions.length < 2) return { before: content, after: '' }
+  const at = positions[1]
+  return { before: content.slice(0, at).replace(/\s+$/, ''), after: content.slice(at) }
+}
+
 const BASE_URL = 'https://trading365.org'
 const OG_IMAGE = `${BASE_URL}/trading365-crypto-exchange-reviews.jpg`
 
@@ -458,36 +482,46 @@ export default async function ArticlePageContent({ category, slug, preview = fal
               exchangeName={exchange?.name ?? affiliateCta?.name}
             />
 
-            {/* Video walkthrough — sits BELOW the verdict block (header rating +
-                excerpt, Quick Facts, pros/cons) and ABOVE the deep-dive body
-                sections, so the textual answer still leads (first ~100 words) and
-                the video is the "now watch the walkthrough" beat before details.
-                Lite facade: no YouTube iframe until the user clicks play. */}
-            {videoId && (
-              <div className="mb-8">
-                {videoStale && (
-                  <p className="mb-2 text-sm text-muted-foreground">
-                    Recorded {videoStale} — current fees and terms in the tables below.
-                  </p>
-                )}
-                <YouTubeLite videoId={videoId} title={article.title} />
-              </div>
-            )}
-
-            {/* Article Body — with regional card injection and 400-word CTA */}
+            {/* Article Body — the opening answer section leads, then the optional
+                video walkthrough (after the 1st H2, before the deep-dive sections),
+                then the rest. Regional card + 400-word CTA injection still apply
+                within each part; no video → renders exactly as before. */}
             {(() => {
-              const isHtml = /<[a-zA-Z]/.test(displayContent)
-              const split = !isHtml ? splitAtRestricted(displayContent) : null
-              if (split) {
-                return (
-                  <>
-                    <ArticleContent content={split.before} ctaLink={primaryCtaLink} />
-                    <RegionalAlternativeCard blockedExchange={exchange?.name} />
-                    <ArticleContent content={split.after} ctaLink={primaryCtaLink} />
-                  </>
-                )
+              const renderBody = (content: string) => {
+                if (!content.trim()) return null
+                const isHtml = /<[a-zA-Z]/.test(content)
+                const split = !isHtml ? splitAtRestricted(content) : null
+                if (split) {
+                  return (
+                    <>
+                      <ArticleContent content={split.before} ctaLink={primaryCtaLink} />
+                      <RegionalAlternativeCard blockedExchange={exchange?.name} />
+                      <ArticleContent content={split.after} ctaLink={primaryCtaLink} />
+                    </>
+                  )
+                }
+                return <ArticleContent content={content} ctaLink={primaryCtaLink} />
               }
-              return <ArticleContent content={displayContent} ctaLink={primaryCtaLink} />
+
+              if (!videoId) return renderBody(displayContent)
+
+              // Verdict → walkthrough → details: split before the 2nd H2 so the
+              // opening answer leads and the video sits above the deep-dive sections.
+              const { before, after } = splitAtSecondHeading(displayContent)
+              return (
+                <>
+                  {renderBody(before)}
+                  <div className="my-8">
+                    {videoStale && (
+                      <p className="mb-2 text-sm text-muted-foreground">
+                        Recorded {videoStale} — current fees and terms in the tables below.
+                      </p>
+                    )}
+                    <YouTubeLite videoId={videoId} title={article.title} />
+                  </div>
+                  {renderBody(after)}
+                </>
+              )
             })()}
 
             {/* Verdict Closer — before FAQs */}
