@@ -25,3 +25,8 @@ CREATE TABLE IF NOT EXISTS articles (
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS meta_title TEXT;
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS meta_description TEXT;
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS meta_keywords TEXT;
+
+-- Optional YouTube video embed per article (nullable; existing rows unaffected).
+-- video_url stores the canonical https://www.youtube.com/watch?v=<id> form.
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS video_url TEXT;
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS video_recorded_date DATE;

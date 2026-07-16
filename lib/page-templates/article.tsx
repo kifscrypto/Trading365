@@ -39,8 +39,11 @@ import {
   generateArticleSchema,
   generateBreadcrumbSchema,
   generateFAQSchema,
+  generateVideoSchema,
   toISODate,
 } from "@/lib/schema"
+import { YouTubeLite } from "@/components/article/youtube-lite"
+import { extractYouTubeId } from "@/lib/youtube"
 import { ReviewSchema } from "@/components/review-schema"
 import { slugifyHeading } from "@/lib/utils/heading"
 import { authorHref } from "@/lib/data/authors"
@@ -232,6 +235,21 @@ export default async function ArticlePageContent({ category, slug, preview = fal
     { name: article.title },
   ])
   const faqSchema = article.faqs?.length ? generateFAQSchema(article.faqs) : null
+  const videoSchema = generateVideoSchema(article)
+
+  // Optional YouTube embed shown at the top of the content column. `videoStale`
+  // is the "Recorded {Month Year}" label, set only when the recording is > 6
+  // months old (both null otherwise → nothing renders, identical to no-video).
+  const videoId = extractYouTubeId(article.videoUrl)
+  const videoStale = (() => {
+    if (!videoId || !article.videoRecordedDate) return null
+    const d = new Date(article.videoRecordedDate)
+    if (Number.isNaN(d.getTime())) return null
+    const sixMonthsAgo = new Date()
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+    if (d > sixMonthsAgo) return null
+    return d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
+  })()
 
   return (
     <>
@@ -268,6 +286,12 @@ export default async function ArticlePageContent({ category, slug, preview = fal
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        />
+      )}
+      {videoSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(videoSchema) }}
         />
       )}
       {/* Header */}
@@ -355,6 +379,20 @@ export default async function ArticlePageContent({ category, slug, preview = fal
         <div className="flex flex-col gap-12 lg:flex-row">
           {/* Main Content */}
           <div className="flex-1 min-w-0">
+            {/* Video embed — after the header verdict, before the first content
+                section (Quick Facts on reviews, first H2 on guides). Lite facade,
+                so no YouTube iframe loads until the user clicks play. */}
+            {videoId && (
+              <div className="mb-8">
+                {videoStale && (
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    Recorded {videoStale} — current fees and terms in the tables below.
+                  </p>
+                )}
+                <YouTubeLite videoId={videoId} title={article.title} />
+              </div>
+            )}
+
             {/* Exchange Quick Facts (for reviews) */}
             {exchange && (
               <div className="mb-8 rounded-xl border border-border bg-card p-6">

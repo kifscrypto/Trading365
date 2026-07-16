@@ -29,6 +29,8 @@ export function rowToArticle(row: ArticleRow): Article {
     metaTitle: row.meta_title ?? undefined,
     metaDescription: row.meta_description ?? undefined,
     metaKeywords: row.meta_keywords ?? undefined,
+    videoUrl: row.video_url ?? undefined,
+    videoRecordedDate: row.video_recorded_date ?? undefined,
   }
 }
 

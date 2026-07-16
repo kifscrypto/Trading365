@@ -58,6 +58,8 @@ export interface Article {
   metaTitle?: string
   metaDescription?: string
   metaKeywords?: string
+  videoUrl?: string
+  videoRecordedDate?: string
 }
 
 export interface Comparison {

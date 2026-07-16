@@ -3,8 +3,28 @@ import { randomBytes } from 'node:crypto'
 import { sanitizeInternalLinks } from '@/lib/seo/sanitize-internal-links'
 import { stripBodyFaqSection } from '@/lib/seo/strip-body-faq'
 import { stripYearFromSlug } from '@/lib/utils/slug'
+import { canonicalYouTubeUrl } from '@/lib/youtube'
 
 export const sql = neon(process.env.DATABASE_URL!)
+
+/**
+ * Validate + canonicalize the optional video fields on write. Empty URL → both
+ * null (no video anywhere). A present URL must be a valid YouTube watch/youtu.be
+ * link and must carry a recorded date (required for valid VideoObject markup and
+ * the staleness caveat).
+ */
+function prepareVideoFields(
+  video_url: string | null | undefined,
+  video_recorded_date: string | null | undefined,
+): { video_url: string | null; video_recorded_date: string | null } {
+  const raw = (video_url ?? '').trim()
+  if (!raw) return { video_url: null, video_recorded_date: null }
+  const canonical = canonicalYouTubeUrl(raw)
+  if (!canonical) throw new Error('Invalid YouTube URL — use a youtube.com/watch?v= or youtu.be/ link.')
+  const date = (video_recorded_date ?? '').toString().trim()
+  if (!date) throw new Error('A recorded date is required when a video URL is set.')
+  return { video_url: canonical, video_recorded_date: date }
+}
 
 /**
  * Strip/repair dead internal links in an article body before it is written.
@@ -48,6 +68,8 @@ export type ArticleRow = {
   meta_title: string | null
   meta_description: string | null
   meta_keywords: string | null
+  video_url: string | null
+  video_recorded_date: string | null
   published: boolean
   preview_token: string | null
   created_at: string
@@ -134,11 +156,12 @@ export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' |
   // Keep new URLs evergreen — a year in the slug forces a 301 every January.
   // Only applied on create; existing slugs are never rewritten (would break links).
   const slug = stripYearFromSlug(data.slug)
+  const video = prepareVideoFields(data.video_url, data.video_recorded_date)
   const rows = await sql`
     INSERT INTO articles (
       slug, title, excerpt, content, category, category_slug,
       date, updated_date, read_time, author, rating, thumbnail, tags, faqs, pros, cons,
-      meta_title, meta_description, meta_keywords, preview_token
+      meta_title, meta_description, meta_keywords, video_url, video_recorded_date, preview_token
     ) VALUES (
       ${slug}, ${data.title}, ${data.excerpt}, ${content},
       ${data.category}, ${data.category_slug}, ${data.date}, ${data.updated_date ?? null},
@@ -146,7 +169,7 @@ export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' |
       ${data.tags}, ${JSON.stringify(data.faqs ?? [])},
       ${JSON.stringify(data.pros ?? [])}, ${JSON.stringify(data.cons ?? [])},
       ${data.meta_title ?? null}, ${data.meta_description ?? null}, ${data.meta_keywords ?? null},
-      ${newPreviewToken()}
+      ${video.video_url}, ${video.video_recorded_date}::date, ${newPreviewToken()}
     )
     RETURNING *
   `
@@ -165,6 +188,10 @@ export async function updateArticle(id: number, data: Partial<Omit<ArticleRow, '
       if (stripped) { console.warn(`[stripBodyFaqSection] removed duplicate body FAQ from article id ${id}`); content = c2 }
     }
   }
+  // Only touch the video columns when the caller actually sent them (the admin
+  // form always does). Partial updates from other routes must leave them intact.
+  const videoProvided = data.video_url !== undefined || data.video_recorded_date !== undefined
+  const video = videoProvided ? prepareVideoFields(data.video_url, data.video_recorded_date) : null
   const rows = await sql`
     UPDATE articles SET
       slug = COALESCE(${data.slug ?? null}, slug),
@@ -186,6 +213,8 @@ export async function updateArticle(id: number, data: Partial<Omit<ArticleRow, '
       meta_title = COALESCE(${data.meta_title ?? null}, meta_title),
       meta_description = COALESCE(${data.meta_description ?? null}, meta_description),
       meta_keywords = COALESCE(${data.meta_keywords ?? null}, meta_keywords),
+      video_url = CASE WHEN ${videoProvided} THEN ${video ? video.video_url : null} ELSE video_url END,
+      video_recorded_date = CASE WHEN ${videoProvided} THEN ${video ? video.video_recorded_date : null}::date ELSE video_recorded_date END,
       updated_at = NOW()
     WHERE id = ${id}
     RETURNING *

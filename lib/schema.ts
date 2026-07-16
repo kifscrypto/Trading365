@@ -1,6 +1,7 @@
 import type { Article, Exchange } from "@/lib/data/types"
 import { siteConfig } from "@/lib/data/site-config"
 import { authorHref } from "@/lib/data/authors"
+import { extractYouTubeId, youTubeThumbnail } from "@/lib/youtube"
 
 const BASE_URL = siteConfig.url
 
@@ -111,6 +112,27 @@ export function generateArticleSchema(article: Article) {
       "@type": "WebPage",
       "@id": `${BASE_URL}/${article.categorySlug}/${article.slug}`,
     },
+  }
+}
+
+/**
+ * VideoObject for an article that embeds a YouTube video. Additive — rendered as
+ * a separate <script> block alongside (never replacing) the Article schema.
+ * Returns null when there's no valid video or no recorded date (uploadDate is
+ * required for Google video rich results).
+ */
+export function generateVideoSchema(article: Article) {
+  const id = extractYouTubeId(article.videoUrl)
+  if (!id || !article.videoRecordedDate) return null
+  return {
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    name: article.title,
+    description: article.excerpt,
+    thumbnailUrl: youTubeThumbnail(id),
+    uploadDate: toISODate(article.videoRecordedDate),
+    embedUrl: `https://www.youtube.com/embed/${id}`,
+    publisher: generateOrganizationSchema(),
   }
 }
 

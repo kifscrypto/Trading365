@@ -23,6 +23,10 @@ export default function ArticleForm({ article }: { article?: any }) {
     rating: article?.rating || '',
     read_time: article?.read_time || '',
     thumbnail: article?.thumbnail || '',
+    video_url: article?.video_url || '',
+    video_recorded_date: article?.video_recorded_date
+      ? String(article.video_recorded_date).split('T')[0]
+      : '',
     tags: Array.isArray(article?.tags) ? article.tags.join(', ') : '',
     meta_title: article?.meta_title || '',
     meta_description: article?.meta_description || '',
@@ -82,6 +86,11 @@ export default function ArticleForm({ article }: { article?: any }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (imageUploading) return
+    // A video needs its recorded date — otherwise the VideoObject markup is invalid.
+    if (formData.video_url.trim() && !formData.video_recorded_date) {
+      alert('Please set the video Recorded Date (required when a YouTube URL is provided).')
+      return
+    }
     setLoading(true)
 
     try {
@@ -92,6 +101,8 @@ export default function ArticleForm({ article }: { article?: any }) {
         meta_title: formData.meta_title || null,
         meta_description: formData.meta_description || null,
         meta_keywords: formData.meta_keywords || null,
+        video_url: formData.video_url.trim() || null,
+        video_recorded_date: formData.video_recorded_date || null,
         faqs: faqs.filter((f) => f.question.trim() || f.answer.trim()),
       }
 
@@ -270,6 +281,41 @@ export default function ArticleForm({ article }: { article?: any }) {
               {formData.thumbnail && (
                 <p className="mt-1 text-xs text-slate-400 break-all">{formData.thumbnail}</p>
               )}
+            </div>
+          </div>
+        </section>
+
+        {/* Video */}
+        <section className="bg-white rounded-lg border border-slate-200 p-8">
+          <h2 className="text-lg font-semibold text-slate-800 mb-1">Video</h2>
+          <p className="text-sm text-slate-500 mb-6">
+            Optional YouTube embed shown below the header. Leave the URL blank for no video.
+          </p>
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">YouTube URL</label>
+              <input
+                type="url"
+                value={formData.video_url}
+                onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                placeholder="https://www.youtube.com/watch?v=…  or  https://youtu.be/…"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Recorded Date {formData.video_url.trim() && <span className="text-red-500">*</span>}
+              </label>
+              <input
+                type="date"
+                required={!!formData.video_url.trim()}
+                value={formData.video_recorded_date}
+                onChange={(e) => setFormData({ ...formData, video_recorded_date: e.target.value })}
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Used for the VideoObject uploadDate and the “Recorded {'{'}month year{'}'}” caveat when older than 6 months.
+              </p>
             </div>
           </div>
         </section>
