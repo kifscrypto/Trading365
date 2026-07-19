@@ -260,7 +260,7 @@ export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
       const text = block.replace(/^>\s?/gm, "")
       elements.push(
         <div key={i} className="my-6 rounded-lg border border-primary/30 bg-primary/5 px-5 py-4">
-          <p className="text-sm leading-relaxed text-foreground">{parseInlineMarkdown(text)}</p>
+          <p className="text-base leading-relaxed text-foreground">{parseInlineMarkdown(text)}</p>
         </div>
       )
       wordCount += text.split(/\s+/).filter(Boolean).length
@@ -270,7 +270,7 @@ export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
       const rest = lines.slice(1).join("\n").trim()
       elements.push(
         <div key={i}>
-          <h2 id={slugifyHeading(headingText)} className="mb-4 mt-10 text-xl font-bold text-foreground first:mt-0 scroll-mt-24">
+          <h2 id={slugifyHeading(headingText)} className="mb-4 mt-10 text-2xl font-bold text-foreground first:mt-0 scroll-mt-24">
             {parseInlineMarkdown(headingText)}
           </h2>
           {rest && <ArticleContent content={rest} />}
@@ -282,7 +282,7 @@ export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
       const rest = lines.slice(1).join("\n").trim()
       elements.push(
         <div key={i}>
-          <h3 className="mb-3 mt-6 text-lg font-semibold text-foreground">
+          <h3 className="mb-3 mt-7 text-xl font-semibold text-foreground">
             {parseInlineMarkdown(headingText)}
           </h3>
           {rest && <ArticleContent content={rest} />}
@@ -293,7 +293,7 @@ export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
       elements.push(
         <ul key={i} className="mb-4 flex flex-col gap-2 pl-5">
           {items.map((item, j) => (
-            <li key={j} className="text-sm leading-relaxed text-muted-foreground list-disc">
+            <li key={j} className="text-base leading-relaxed text-foreground/90 list-disc">
               {parseInlineMarkdown(item.replace("- ", ""))}
             </li>
           ))}
@@ -305,7 +305,7 @@ export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
       elements.push(
         <ol key={i} className="mb-4 flex flex-col gap-2 pl-5">
           {items.map((item, j) => (
-            <li key={j} className="text-sm leading-relaxed text-muted-foreground list-decimal">
+            <li key={j} className="text-base leading-relaxed text-foreground/90 list-decimal">
               {parseInlineMarkdown(item.replace(/^\d+\.\s*/, ""))}
             </li>
           ))}
@@ -314,7 +314,7 @@ export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
       wordCount += block.split(/\s+/).filter(Boolean).length
     } else {
       elements.push(
-        <p key={i} className="mb-4 text-sm leading-relaxed text-muted-foreground">
+        <p key={i} className="mb-5 text-base leading-relaxed text-foreground/90">
           {parseInlineMarkdown(block)}
         </p>
       )

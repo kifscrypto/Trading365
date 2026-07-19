@@ -693,7 +693,7 @@ function ContentOptimizerInner() {
                   <p className="mt-1 text-xs text-zinc-600">
                     {auditMode === 'conversion'
                       ? 'Scores CTAs, verdict, objection handling — for exchange pages.'
-                      : 'Scores intent, accuracy, clarity, FAQ/snippets — won’t penalise missing CTAs.'}
+                      : 'Scores intent, accuracy, clarity, snippets — won’t penalise missing CTAs.'}
                   </p>
                 </div>
                 <button

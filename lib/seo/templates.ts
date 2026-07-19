@@ -147,7 +147,7 @@ SCORING (out of 100):
 - 30% Search-intent & answer quality (leads with the answer; directly satisfies the query)
 - 25% Topical depth & accuracy (covers what readers need; correct; balanced; no fabricated stats)
 - 20% Clarity & helpfulness (scannable, original, examples, no fluff/repetition)
-- 15% SEO & snippet readiness (FAQ present; headings target related queries; definitions/lists/tables where useful)
+- 15% SEO & snippet readiness (headings target related queries; definitions/lists/tables where useful)
 - 10% E-E-A-T / trust (accuracy, balance, credibility)
 
 SCORE BANDS - use the FULL scale, do not cluster in the 80s:
@@ -163,12 +163,13 @@ DO NOT PENALISE (CRITICAL — these are CORRECT for educational content):
 - Risk sections that aren't "counterbalanced" by a recommendation
 - Absence of a comparison/decision table (unless the topic itself is a comparison or listicle)
 - Not steering the reader toward an exchange
+- Absence of an in-body FAQ / "Frequently Asked Questions" section — FAQs are stored in a separate field and rendered separately, so they MUST NOT appear in the body. Never flag, request, or dock points for a missing body FAQ.
 
 DO PRIORITISE (in order):
 1. Search-intent gaps (intro not answering the query; missing subtopics readers expect)
 2. Accuracy / balance issues (vague, wrong, or one-sided claims)
-3. Clarity (repetition, fluff, weak structure, missing FAQ)
-4. SEO / snippet gaps (no FAQ; headings not matching related queries)
+3. Clarity (repetition, fluff, weak structure)
+4. SEO / snippet gaps (headings not matching related queries)
 5. Internal linking opportunities (link to related guides/reviews where it genuinely helps the reader)
 
 INTERNAL LINKING (educational): suggest links to related Trading365 pages where they answer the reader's next question (e.g. a staking explainer may link to relevant exchange reviews ONLY where natural). One soft CTA is acceptable; do NOT demand conversion links at every section.
