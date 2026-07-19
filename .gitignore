@@ -11,3 +11,12 @@ node_modules
 .vercel
 
 .vercel
+
+# Scratch / one-off recovery scripts (root only — codebase uses _config.ts/_core.ts legitimately)
+/_*.mjs
+/_*.ts
+/check.mjs
+scripts/_*-backup-*.json
+
+# TypeScript build cache
+*.tsbuildinfo

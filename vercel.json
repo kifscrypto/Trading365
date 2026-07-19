@@ -1,4 +1,5 @@
 {
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- ':(exclude)*.md' ':(exclude)docs/**' ':(exclude)pine-scripts/**'",
   "crons": [
     {
       "path": "/api/scanner/watchlist?cron=true",

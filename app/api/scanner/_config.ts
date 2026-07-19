@@ -58,11 +58,17 @@ const COMMODITY_BASES = new Set<string>([
   'WTI', 'BRENT', 'USOIL', 'UKOIL', 'CL', 'NG',
   'COPPER', 'XCU', 'XPT', 'XPD',
 ])
-// Tokenised equities (company tickers). The *STOCK suffix forms are caught by
-// the includes('STOCK') test, so they need not all be listed here.
+// Tokenised equities (company tickers) + tokenised single-country/sector ETFs.
+// These exchanges (esp. Bitunix) list real-world stocks as USDT perps; they have
+// no naming pattern, so confirmed ones are enumerated here. The *STOCK suffix
+// forms are caught by the includes('STOCK') test, so they need not all be listed.
 const EQUITY_BASES = new Set<string>([
   'TSLA', 'SPCX', 'SNDK', 'INTC', 'MU', 'NVDA', 'AAPL', 'AMZN', 'GOOGL', 'GOOG',
   'META', 'MSFT', 'MSTR', 'COIN', 'HOOD', 'PLTR', 'GME', 'AMC', 'NFLX', 'AMD',
+  // Tokenised stocks seen leaking into the crypto scanner (mostly Bitunix):
+  'SKHYNIX', 'SAMSUNG', 'ASML', 'IBM', 'NVIDIA', 'ANTHROPIC', 'CRCL', 'BILL', 'DRAM',
+  // Tokenised single-country ETFs (South Korea): EWY (iShares), KORU (Direxion 3x)
+  'EWY', 'KORU',
 ])
 // Stock indices and leveraged sector ETFs (whole-base match).
 const INDEX_ETF_RE = /^(NAS\d+|SPX\d*|US\d{2,3}|GER\d+|UK\d+|JP\d+|QQQ|TQQQ|SQQQ|SPXL|SPXS|SOXL|SOXS|DJI|DAX|FTSE|NIKKEI)$/

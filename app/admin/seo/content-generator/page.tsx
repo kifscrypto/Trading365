@@ -768,11 +768,20 @@ export default function ArticleStudioPage() {
   function insertQuickFacts() {
     if (!quickFactsMd.trim()) return
     const block = `## Quick Facts\n\n${quickFactsMd.trim()}\n\n`
-    // Insert after the first heading if one exists, otherwise prepend
-    const headingMatch = article.match(/^(#{1,3} .+\n)/m)
-    if (headingMatch && headingMatch.index !== undefined) {
-      const insertAt = headingMatch.index + headingMatch[0].length
-      setArticle(article.slice(0, insertAt) + '\n' + block + article.slice(insertAt))
+    // Place Quick Facts AFTER the opening verdict/answer section — before the 2nd
+    // heading — never between the first heading and its lead answer (that buries
+    // the verdict the reader/Google should see first).
+    const first = article.match(/^#{1,3} .+$/m)
+    if (first && first.index !== undefined) {
+      const afterFirst = first.index + first[0].length
+      const next = article.slice(afterFirst).match(/\n#{1,3} .+$/m)
+      if (next && next.index !== undefined) {
+        const at = afterFirst + next.index + 1
+        setArticle(article.slice(0, at) + block + article.slice(at))
+      } else {
+        // no second heading — append after the verdict section
+        setArticle(article.replace(/\s*$/, '') + '\n\n' + block.trimEnd() + '\n')
+      }
     } else {
       setArticle(block + article)
     }
