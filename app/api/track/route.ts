@@ -25,7 +25,7 @@ function visitorId(ip: string | null, ua: string): string | null {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { path, referrer, utm_source, utm_medium, utm_campaign } = body
+    const { path, referrer, utm_source, utm_medium, utm_campaign, session_id } = body
 
     // Skip admin pages, empty paths, and admin sessions
     if (!path || path.startsWith('/admin') || req.cookies.get('admin_auth')) {
@@ -55,8 +55,12 @@ export async function POST(req: NextRequest) {
     const isBot = !ua || BOT_UA.test(ua)
     const vid = visitorId(ip, ua)
 
-    await sql`
-      INSERT INTO page_views (path, referrer, utm_source, utm_medium, utm_campaign, country, device, user_agent, visitor_id, is_bot)
+    // Session id is minted client-side (30-min inactivity window) and grouped here.
+    // Constrain to a sane token so it can't be abused as an arbitrary text sink.
+    const sid = typeof session_id === 'string' && /^[a-z0-9-]{1,40}$/i.test(session_id) ? session_id : null
+
+    const rows = await sql`
+      INSERT INTO page_views (path, referrer, utm_source, utm_medium, utm_campaign, country, device, user_agent, visitor_id, is_bot, session_id)
       VALUES (
         ${path},
         ${referrer || null},
@@ -67,11 +71,14 @@ export async function POST(req: NextRequest) {
         ${device},
         ${ua || null},
         ${vid},
-        ${isBot}
+        ${isBot},
+        ${sid}
       )
+      RETURNING id
     `
 
-    return NextResponse.json({ ok: true })
+    // Return the row id so the client can backfill dwell time + scroll depth on leave.
+    return NextResponse.json({ ok: true, id: rows[0]?.id ?? null })
   } catch {
     // Silent fail — never break the user experience for tracking
     return NextResponse.json({ ok: true })

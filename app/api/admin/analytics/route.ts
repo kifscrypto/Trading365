@@ -16,7 +16,7 @@ export async function GET() {
     // Breakdowns are HUMAN-only (is_bot IS NOT TRUE). Legacy rows predate the bot
     // flag (is_bot NULL) and count as human/unknown, so history is unaffected;
     // only newly-flagged bots are excluded from top pages / sources / geo.
-    const [totals, visitors, bots, topPages, topReferrers, referringLinks, searchTerms, utmSources, countries, devices, daily] = await Promise.all([
+    const [totals, visitors, bots, sessions, engagement, sessionStats, entryPages, exitPages, topPages, topReferrers, referringLinks, searchTerms, utmSources, countries, devices, daily] = await Promise.all([
       sql`
         SELECT
           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day')   AS today,
@@ -43,6 +43,70 @@ export async function GET() {
           COUNT(*) FILTER (WHERE user_agent IS NOT NULL) AS classified
         FROM page_views
         WHERE created_at >= NOW() - INTERVAL '30 days'
+      `,
+      // ---- Engagement / behavior (populated from the engagement upgrade onward) ----
+      // Sessions = distinct session_id (30-min inactivity window, minted client-side).
+      sql`
+        SELECT
+          COUNT(DISTINCT session_id) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day')   AS today,
+          COUNT(DISTINCT session_id) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')  AS week,
+          COUNT(DISTINCT session_id) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') AS month
+        FROM page_views
+        WHERE created_at >= NOW() - INTERVAL '30 days' AND is_bot IS NOT TRUE AND session_id IS NOT NULL
+      `,
+      // Avg time on page + avg scroll depth (per page view, last 30 days). Only rows
+      // that received an engagement beacon count — a null/zero dwell means the beacon
+      // never arrived (e.g. hard tab-close on the session's last page) and is excluded.
+      sql`
+        SELECT
+          ROUND(AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL AND duration_ms > 0)) AS avg_duration_ms,
+          ROUND(AVG(max_scroll_pct) FILTER (WHERE max_scroll_pct IS NOT NULL))               AS avg_scroll_pct,
+          COUNT(*) FILTER (WHERE duration_ms IS NOT NULL AND duration_ms > 0)                 AS measured
+        FROM page_views
+        WHERE created_at >= NOW() - INTERVAL '30 days' AND is_bot IS NOT TRUE
+      `,
+      // Per-session rollup → bounce rate, pages/session, avg session length.
+      // Bounce = a session with a single page view.
+      sql`
+        WITH sess AS (
+          SELECT session_id,
+                 COUNT(*) AS hits,
+                 SUM(COALESCE(duration_ms, 0)) AS total_ms
+          FROM page_views
+          WHERE created_at >= NOW() - INTERVAL '30 days'
+            AND is_bot IS NOT TRUE AND session_id IS NOT NULL
+          GROUP BY session_id
+        )
+        SELECT
+          COUNT(*)                                     AS sessions,
+          COUNT(*) FILTER (WHERE hits = 1)             AS bounced,
+          ROUND(AVG(hits), 2)                          AS pages_per_session,
+          ROUND(AVG(total_ms))                         AS avg_session_ms
+        FROM sess
+      `,
+      // Entry pages: the first page of each session (where visitors land).
+      sql`
+        SELECT path, COUNT(*) AS sessions
+        FROM (
+          SELECT DISTINCT ON (session_id) session_id, path
+          FROM page_views
+          WHERE created_at >= NOW() - INTERVAL '30 days'
+            AND is_bot IS NOT TRUE AND session_id IS NOT NULL
+          ORDER BY session_id, created_at ASC
+        ) e
+        GROUP BY path ORDER BY sessions DESC LIMIT 15
+      `,
+      // Exit pages: the last page of each session (where visitors leave).
+      sql`
+        SELECT path, COUNT(*) AS sessions
+        FROM (
+          SELECT DISTINCT ON (session_id) session_id, path
+          FROM page_views
+          WHERE created_at >= NOW() - INTERVAL '30 days'
+            AND is_bot IS NOT TRUE AND session_id IS NOT NULL
+          ORDER BY session_id, created_at DESC
+        ) x
+        GROUP BY path ORDER BY sessions DESC LIMIT 15
       `,
       sql`
         SELECT path, COUNT(*) AS views
@@ -140,6 +204,10 @@ export async function GET() {
       totals: totals[0],
       visitors: visitors[0],
       bots: bots[0],
+      sessions: sessions[0],
+      engagement: engagement[0],
+      sessionStats: sessionStats[0],
+      entryPages, exitPages,
       topPages, topReferrers, referringLinks, searchTerms, utmSources, countries, devices, daily,
     })
   } catch (error: any) {

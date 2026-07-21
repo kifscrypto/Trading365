@@ -33,10 +33,17 @@ export async function POST() {
     await sql`ALTER TABLE page_views ADD COLUMN IF NOT EXISTS user_agent TEXT`
     await sql`ALTER TABLE page_views ADD COLUMN IF NOT EXISTS visitor_id TEXT`
     await sql`ALTER TABLE page_views ADD COLUMN IF NOT EXISTS is_bot BOOLEAN DEFAULT FALSE`
+    // Engagement / behavior columns: session grouping + dwell time + scroll depth.
+    // session_id groups hits into visits (30-min inactivity window, minted client-side);
+    // duration_ms + max_scroll_pct are backfilled by the /api/track/engage beacon on leave.
+    await sql`ALTER TABLE page_views ADD COLUMN IF NOT EXISTS session_id TEXT`
+    await sql`ALTER TABLE page_views ADD COLUMN IF NOT EXISTS duration_ms INTEGER`
+    await sql`ALTER TABLE page_views ADD COLUMN IF NOT EXISTS max_scroll_pct SMALLINT`
     await sql`CREATE INDEX IF NOT EXISTS idx_page_views_created_at ON page_views (created_at DESC)`
     await sql`CREATE INDEX IF NOT EXISTS idx_page_views_path ON page_views (path)`
     await sql`CREATE INDEX IF NOT EXISTS idx_page_views_visitor_id ON page_views (visitor_id)`
     await sql`CREATE INDEX IF NOT EXISTS idx_page_views_is_bot ON page_views (is_bot)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_page_views_session_id ON page_views (session_id)`
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

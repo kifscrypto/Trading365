@@ -8,6 +8,11 @@ type AnalyticsData = {
   totals: { today: string; week: string; month: string; total: string }
   visitors: { today: string; week: string; month: string }
   bots: { bots: string; humans: string; classified: string }
+  sessions: { today: string; week: string; month: string }
+  engagement: { avg_duration_ms: string | null; avg_scroll_pct: string | null; measured: string }
+  sessionStats: { sessions: string; bounced: string; pages_per_session: string | null; avg_session_ms: string | null }
+  entryPages: { path: string; sessions: string }[]
+  exitPages: { path: string; sessions: string }[]
   topPages: { path: string; views: string }[]
   topReferrers: { source: string; views: string }[]
   referringLinks: { url: string; views: string; visitors: string }[]
@@ -28,6 +33,15 @@ function Bar({ value, max }: { value: number; max: number }) {
       <span style={{ fontSize: '0.8rem', color: '#94a3b8', minWidth: 40, textAlign: 'right' }}>{value.toLocaleString()}</span>
     </div>
   )
+}
+
+// Human-readable duration from milliseconds: "0s" / "45s" / "2m 30s".
+function fmtDuration(ms: number | null): string {
+  if (!ms || ms <= 0) return '—'
+  const totalSec = Math.round(ms / 1000)
+  const m = Math.floor(totalSec / 60)
+  const s = totalSec % 60
+  return m > 0 ? `${m}m ${s}s` : `${s}s`
 }
 
 const card: React.CSSProperties = {
@@ -158,6 +172,66 @@ export default function AnalyticsPage() {
                     </div>
                   )
                 })()}
+              </div>
+            )}
+
+            {/* Engagement / behavior */}
+            {data.sessionStats && (
+              <div style={{ marginBottom: '2rem' }}>
+                <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>Engagement <span style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 400 }}>· last 30 days · humans only</span></h2>
+                {(() => {
+                  const sess = Number(data.sessionStats.sessions || 0)
+                  const bounced = Number(data.sessionStats.bounced || 0)
+                  const bounceRate = sess > 0 ? Math.round((bounced / sess) * 100) : 0
+                  const bounceColor = bounceRate >= 70 ? '#f87171' : bounceRate >= 50 ? '#fbbf24' : '#34d399'
+                  const tiles: { label: string; value: string; sub?: string; color?: string }[] = [
+                    { label: 'Sessions — 30d', value: sess.toLocaleString(), sub: `${Number(data.sessions?.today ?? 0).toLocaleString()} today · ${Number(data.sessions?.week ?? 0).toLocaleString()} this week` },
+                    { label: 'Pages / Session', value: data.sessionStats.pages_per_session ? Number(data.sessionStats.pages_per_session).toFixed(2) : '—' },
+                    { label: 'Bounce Rate', value: `${bounceRate}%`, sub: `${bounced.toLocaleString()} single-page`, color: bounceColor },
+                    { label: 'Avg Time on Page', value: fmtDuration(Number(data.engagement?.avg_duration_ms ?? 0)), sub: `${Number(data.engagement?.measured ?? 0).toLocaleString()} measured` },
+                    { label: 'Avg Session', value: fmtDuration(Number(data.sessionStats.avg_session_ms ?? 0)) },
+                    { label: 'Avg Scroll Depth', value: data.engagement?.avg_scroll_pct ? `${Number(data.engagement.avg_scroll_pct)}%` : '—' },
+                  ]
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem' }}>
+                      {tiles.map(t => (
+                        <div key={t.label} style={card}>
+                          <p style={{ margin: '0 0 0.25rem', fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{t.label}</p>
+                          <p style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, color: t.color ?? '#f1f5f9' }}>{t.value}</p>
+                          {t.sub && <p style={{ margin: '0.15rem 0 0', fontSize: '0.68rem', color: '#475569' }}>{t.sub}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+                <p style={{ margin: '0.6rem 0 0', fontSize: '0.68rem', color: '#475569' }}>Time-on-page for the last page of a session is approximate — browsers don't always report a hard tab-close.</p>
+              </div>
+            )}
+
+            {/* Entry & Exit pages */}
+            {(data.entryPages?.length > 0 || data.exitPages?.length > 0) && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+                {([
+                  { title: 'Entry Pages', hint: 'Where visitors land', rows: data.entryPages },
+                  { title: 'Exit Pages', hint: 'Where visitors leave', rows: data.exitPages },
+                ] as const).map(({ title, hint, rows }) => (
+                  <div key={title} style={card}>
+                    <h2 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>{title}</h2>
+                    <p style={{ margin: '0 0 1rem', fontSize: '0.72rem', color: '#475569' }}>{hint} · by sessions</p>
+                    {rows.length === 0
+                      ? <p style={{ color: '#64748b', fontSize: '0.875rem' }}>No data yet.</p>
+                      : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                          {rows.map(row => (
+                            <div key={row.path} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <span style={{ flex: '0 0 auto', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.8rem', color: '#94a3b8', fontFamily: 'monospace' }} title={row.path}>{row.path}</span>
+                              <Bar value={Number(row.sessions)} max={Number(rows[0]?.sessions ?? 1)} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                  </div>
+                ))}
               </div>
             )}
 
