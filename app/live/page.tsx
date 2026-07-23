@@ -14,33 +14,26 @@ export const metadata: Metadata = {
 export default function LivePage() {
   return (
     <>
-      <a
-        href="/"
-        aria-label="Back to Trading365"
-        style={{
-          position: "fixed",
-          top: "12px",
-          left: "12px",
-          zIndex: 2147483647,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "6px",
-          padding: "8px 14px",
-          borderRadius: "9999px",
-          background: "rgba(10,10,10,0.9)",
-          color: "#ffffff",
-          border: "1px solid rgba(255,255,255,0.18)",
-          fontFamily: "system-ui, -apple-system, sans-serif",
-          fontSize: "13px",
-          fontWeight: 600,
-          lineHeight: 1,
-          textDecoration: "none",
-          backdropFilter: "blur(4px)",
-          WebkitBackdropFilter: "blur(4px)",
-        }}
-      >
+      {/* Desktop: floating link back into the site over the scene. */}
+      <a href="/" aria-label="Back to Trading365" className="live-backlink">
         ← Back to Trading365
       </a>
+
+      {/* Mobile soft-landing: the 1920×1080 scanner canvas is unreadable scaled
+          to a phone, so small screens get a clean intro + links instead and the
+          scene is hidden (see live.css @media). */}
+      <div className="live-mobile">
+        <h1>Trading365 Live Scanner</h1>
+        <p>
+          Real-time long &amp; short crypto signals with live win-rate and P&amp;L.
+          Best viewed on a larger screen.
+        </p>
+        <div className="btns">
+          <a href="/scanner" className="btn primary">Explore the scanner →</a>
+          <a href="/" className="btn secondary">Back to Trading365</a>
+        </div>
+      </div>
+
       <LiveScene />
     </>
   )

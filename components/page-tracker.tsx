@@ -41,6 +41,10 @@ function PageTrackerInner() {
   useEffect(() => {
     let rowId: number | null = null
     const enteredAt = Date.now()
+    // Capture the session id ONCE so the pageview POST and the engagement beacon
+    // carry the same value (getSessionId can mint a fresh id if localStorage is
+    // blocked). The beacon uses it as a fallback key when rowId isn't ready.
+    const sid = getSessionId()
     let maxScroll = 0
     let sent = false
 
@@ -58,10 +62,15 @@ function PageTrackerInner() {
     // Fire the engagement beacon exactly once, on the first leave/hide signal.
     // sendBeacon is fire-and-forget so it never blocks the unload.
     const sendEngagement = () => {
-      if (sent || rowId == null) return
+      // Fire even when rowId isn't back yet (quick bounces): the beacon carries
+      // session_id + path so the server can still find and update the row.
+      // Skipping those visits biased dwell/scroll averages upward.
+      if (sent) return
       sent = true
       const payload = JSON.stringify({
         id: rowId,
+        session_id: sid,
+        path: pathname,
         duration_ms: Date.now() - enteredAt,
         scroll_pct: maxScroll,
       })
@@ -93,7 +102,7 @@ function PageTrackerInner() {
       body: JSON.stringify({
         path: pathname,
         referrer: document.referrer || null,
-        session_id: getSessionId(),
+        session_id: sid,
         utm_source: searchParams.get('utm_source'),
         utm_medium: searchParams.get('utm_medium'),
         utm_campaign: searchParams.get('utm_campaign'),

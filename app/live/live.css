@@ -302,3 +302,36 @@
   .t365-live .tri .seg.long.on,.t365-live .tri .seg.neutral.on,.t365-live .tri .seg.short.on,
   .t365-live .fireflash.go,.t365-live .firebanner.go,.t365-live .frow.firerow,.t365-live .qrcard.pulse{animation:none}
 }
+
+/* ── Public /live extras: back-to-site link + mobile soft-landing ──────────── */
+.live-backlink {
+  position: fixed; top: 12px; left: 12px; z-index: 2147483647;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 9999px;
+  background: rgba(10, 10, 10, 0.9); color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px; font-weight: 600; line-height: 1;
+  text-decoration: none; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.live-mobile { display: none; }
+
+@media (max-width: 640px) {
+  /* The dense 1920×1080 dashboard can't be read scaled to phone width — hide it
+     and show the landing instead. */
+  .t365-live { display: none !important; }
+  .live-backlink { display: none; }
+  .live-mobile {
+    display: flex; position: fixed; inset: 0; z-index: 2147483647;
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; padding: 32px 24px; text-align: center;
+    background: radial-gradient(120% 90% at 50% -10%, #15191f 0%, #0d0f13 55%, #060708 100%);
+    color: #e9ecf1; font-family: system-ui, -apple-system, sans-serif;
+  }
+  .live-mobile h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.01em; }
+  .live-mobile p { font-size: 15px; line-height: 1.5; color: #9aa3b2; max-width: 34ch; }
+  .live-mobile .btns { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 280px; margin-top: 6px; }
+  .live-mobile a.btn { display: block; padding: 13px 18px; border-radius: 10px; font-size: 15px; font-weight: 700; text-decoration: none; }
+  .live-mobile a.primary { background: #f0b94a; color: #1a1200; }
+  .live-mobile a.secondary { background: #1a1f28; color: #e9ecf1; border: 1px solid #272d38; }
+}
