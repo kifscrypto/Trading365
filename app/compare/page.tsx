@@ -59,7 +59,15 @@ export default async function ComparePage() {
   // auto-registered when a review is published + affiliate-link overrides.
   // getMergedExchanges falls back to static data if the DB is unavailable.
   const merged = await getMergedExchanges()
-  const exchanges = merged.filter((e) => !e.defunct)
+  // Only show exchanges with real comparison data. Auto-registered review stubs
+  // (and brand-new /admin/exchanges rows) with no maker fee yet would otherwise
+  // render as misleading empty "—"/"available nowhere" rows. Fill the row in
+  // at /admin/exchanges and it appears automatically.
+  const exchanges = merged.filter((e) => {
+    if (e.defunct) return false
+    const maker = (e.fees.maker ?? "").trim()
+    return maker !== "" && maker !== "—"
+  })
 
   return (
     <>

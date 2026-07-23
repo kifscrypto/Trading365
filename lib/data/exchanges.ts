@@ -870,6 +870,50 @@ export const exchanges: Exchange[] = [
     depositMethods: ["Crypto"],
     countries: { US: false, UK: false, AU: true, CA: false, EU: true, ASIA: true },
   },
+  {
+    // Promoted from an auto-registered review stub to a full built-in so the
+    // compare tool shows accurate data (the custom_exchanges schema can't hold
+    // cons/countries/security/etc). Data sourced from /reviews/btcc-review.
+    slug: "btcc",
+    name: "BTCC",
+    rating: 8,
+    fees: { maker: "0.025%", taker: "0.045%" },
+    kyc: false,
+    kycNote: "KYC unlocks higher limits; BTCC holds licences in multiple jurisdictions.",
+    bonus: "Up to 30,000 USDT",
+    bonusAmount: 30000,
+    bonusDetails: "Up to 30,000 USDT across new-user deposit and trading promotions via Trading365's link.",
+    referralLink: "https://www.btcc.com/en-US/promotions/newcomer/task?pno=AB230615A00151&inviteCode=PMCOSG&utm_source=kol&utm_medium=Branding_Trading365_EN",
+    founded: "2011",
+    headquarters: "Lithuania",
+    tradingPairs: 400,
+    leverage: "250x",
+    minDeposit: "—",
+    withdrawalSpeed: "Varies",
+    securityFeatures: ["No reported breach since 2011 (15-yr record)", "Licensed in multiple jurisdictions", "2FA"],
+    pros: [
+      "Operating since 2011 — the longest-running crypto futures exchange still active",
+      "Licensed in multiple jurisdictions — more legal recourse than offshore-only platforms",
+      "Demo trading account to test strategies with no capital at risk",
+      "Copy trading to mirror experienced traders",
+      "USDT-margined contracts for straightforward margin accounting",
+    ],
+    cons: [
+      "No meaningful spot trading — futures-first",
+      "Limited altcoin coverage — focused on BTC and ETH futures",
+      "Fees not the cheapest for high-volume derivatives traders",
+      "Licences give legal standing but don't guarantee fund insurance",
+    ],
+    summary: "BTCC is the longest-running crypto futures exchange still active (since 2011), licensed across multiple jurisdictions, with copy trading, demo accounts, and USDT-margined contracts up to 250x. Best for futures traders who value a regulated, long-track-record venue over spot depth or the lowest fees.",
+    fullReview: "/reviews/btcc-review",
+    category: "reviews",
+    copyTrading: true,
+    vipProgram: false,
+    debitCard: false,
+    fiatDeposit: true,
+    depositMethods: ["Crypto", "Fiat"],
+    countries: { US: false, UK: true, AU: true, CA: true, EU: true, ASIA: true },
+  },
 ]
 
 export function getExchangeBySlug(slug: string): Exchange | undefined {
