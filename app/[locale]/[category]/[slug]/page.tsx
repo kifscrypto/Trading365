@@ -4,7 +4,8 @@ import { notFound, permanentRedirect } from "next/navigation"
 import type { Metadata } from "next"
 import Link from "next/link"
 import Image from "next/image"
-import { isValidLocale, getLocale } from "@/lib/i18n/config"
+import { isValidLocale, getLocale, isIndexedLocale } from "@/lib/i18n/config"
+import { buildArticleLanguages } from "@/lib/i18n/hreflang"
 import { ArticleContent } from "@/components/article-content"
 import { ShareButton } from "@/components/share-button"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
@@ -22,10 +23,11 @@ export async function generateMetadata({
   const { locale, category, slug } = await params
   if (!isValidLocale(locale)) return {}
 
-  const { getTranslation, getArticleBySlug } = await import("@/lib/db")
-  const [translation, originalArticle] = await Promise.all([
+  const { getTranslation, getArticleBySlug, getTranslatedLocalesForSlug } = await import("@/lib/db")
+  const [translation, originalArticle, translatedLocales] = await Promise.all([
     getTranslation(slug, locale).catch(() => null),
     getArticleBySlug(slug).catch(() => null),
+    getTranslatedLocalesForSlug(slug).catch(() => [] as string[]),
   ])
   const loc = getLocale(locale)!
 
@@ -40,14 +42,18 @@ export async function generateMetadata({
 
   const ogImage = `${BASE_URL}/api/og?${new URLSearchParams({ title, category: loc.name }).toString()}`
 
+  // Indexable only for launched (fully-translated) locales; others stay noindex.
+  // hreflang lists English + every indexed locale that has this slug translated.
+  const indexable = isIndexedLocale(locale)
+  const languages = buildArticleLanguages(slug, canonicalCategory, translatedLocales)
+
   return {
     title: pageTitle,
     description,
-    // Translated article pages are noindex (partial translations). English is unaffected.
-    // No hreflang while locales are noindex.
-    robots: { index: false, follow: true },
+    robots: { index: indexable, follow: true },
     alternates: {
       canonical: canonicalUrl,
+      languages,
     },
     openGraph: {
       type: "article",

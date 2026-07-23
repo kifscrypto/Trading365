@@ -1,7 +1,10 @@
 import type { Metadata } from "next"
 import { CompareClient } from "@/components/compare-client"
-import { exchanges as baseExchanges } from "@/lib/data/exchanges"
-import { sql } from "@/lib/db"
+import { getMergedExchanges } from "@/lib/data/exchange-content"
+
+// Recompute at most hourly so newly-reviewed exchanges and admin edits at
+// /admin/exchanges surface without a redeploy.
+export const revalidate = 3600
 
 const BASE_URL = "https://trading365.org"
 const OG_IMAGE = `${BASE_URL}/trading365-crypto-exchange-reviews.jpg`
@@ -52,20 +55,11 @@ export const metadata: Metadata = {
 }
 
 export default async function ComparePage() {
-  // Merge DB referral link overrides on top of the hardcoded exchange data
-  const activeExchanges = baseExchanges.filter((e) => !e.defunct)
-  let exchanges = activeExchanges
-  try {
-    const rows = await sql`SELECT slug, affiliate_url FROM affiliate_links`
-    if (rows.length > 0) {
-      const overrides = Object.fromEntries(rows.map((r) => [r.slug as string, r.affiliate_url as string]))
-      exchanges = activeExchanges.map((e) =>
-        overrides[e.slug] ? { ...e, referralLink: overrides[e.slug] } : e
-      )
-    }
-  } catch {
-    // DB unavailable — fall back to static data silently
-  }
+  // Full exchange pool = static built-ins + admin overrides + custom exchanges
+  // auto-registered when a review is published + affiliate-link overrides.
+  // getMergedExchanges falls back to static data if the DB is unavailable.
+  const merged = await getMergedExchanges()
+  const exchanges = merged.filter((e) => !e.defunct)
 
   return (
     <>

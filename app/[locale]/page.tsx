@@ -2,7 +2,8 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import type { Metadata } from "next"
-import { isValidLocale, getLocale, LOCALE_CODES } from "@/lib/i18n/config"
+import { isValidLocale, getLocale, LOCALE_CODES, isIndexedLocale } from "@/lib/i18n/config"
+import { buildHomeLanguages } from "@/lib/i18n/hreflang"
 
 const UI: Record<string, {
   description: string
@@ -95,11 +96,11 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     title,
     description,
-    // Locale landing pages are noindex (translations are partial). English is unaffected.
-    // No hreflang while locales are noindex.
-    robots: { index: false, follow: true },
+    // Indexable only for launched locales; others stay noindex until finished.
+    robots: { index: isIndexedLocale(locale), follow: true },
     alternates: {
       canonical: url,
+      languages: buildHomeLanguages(),
     },
     openGraph: {
       type: "website",

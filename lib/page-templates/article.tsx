@@ -2,6 +2,7 @@ import { notFound, permanentRedirect } from "next/navigation"
 import type { Metadata } from "next"
 import Image from "next/image"
 import Link from "next/link"
+import { buildArticleLanguages } from "@/lib/i18n/hreflang"
 
 /** Render a string that may contain [text](href) markdown links as JSX */
 function InlineMarkdown({ text }: { text: string }) {
@@ -126,14 +127,20 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   const ogImage = `${BASE_URL}/api/og?${ogParams.toString()}`
   const pageDescription = article.metaDescription ?? article.excerpt
 
-  // No hreflang emitted while locale routes are noindex — noindexed pages must
-  // not be advertised as alternates. hreflang returns in a later phase.
+  // hreflang: advertise the English page plus every indexed locale that has a
+  // translation of this slug. Only indexed (fully-translated) locales are listed
+  // so we never point search engines at a noindexed page.
+  const { getTranslatedLocalesForSlug } = await import("@/lib/db")
+  const translatedLocales = await getTranslatedLocalesForSlug(slug).catch(() => [] as string[])
+  const languages = buildArticleLanguages(slug, canonicalCategory, translatedLocales)
+
   return {
     title: pageTitle,
     description: pageDescription,
     // meta keywords intentionally omitted (DB field retained for internal use).
     alternates: {
       canonical: canonicalUrl,
+      languages,
     },
     openGraph: {
       type: 'article',

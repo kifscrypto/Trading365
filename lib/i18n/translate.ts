@@ -87,6 +87,16 @@ export async function translateText(
     return stripMarkdownPrefix(raw)
   }
 
+  // For body content, strip a leading "# Title" / "<h1>…</h1>" the model
+  // sometimes prepends. The page renders the title as its own <h1>, so a leading
+  // H1 in the body is always a duplicate. (Non-leading ## / ### headings are kept.)
+  if (context === "content") {
+    return raw
+      .replace(/^﻿?\s*<h1\b[^>]*>[\s\S]*?<\/h1>\s*/i, "")
+      .replace(/^﻿?\s*#\s+.+(?:\r?\n)+/, "")
+      .trimStart()
+  }
+
   return raw
 }
 

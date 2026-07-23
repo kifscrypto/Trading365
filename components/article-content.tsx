@@ -207,7 +207,23 @@ interface ArticleContentProps {
   ctaLink?: string
 }
 
+// The page shell already renders the article title as the page <h1>. Some
+// articles/translations begin the body with a duplicate title — "# Title"
+// (markdown) or "<h1>Title</h1>" (HTML) — which previously rendered as a second
+// H1 or, in the markdown path (no "# " handler), as an ugly literal "# …"
+// paragraph. Strip a single leading duplicate H1 so every page is fixed
+// regardless of what's stored in the DB.
+function stripLeadingH1(content: string): string {
+  return content
+    .replace(/^﻿?\s*<h1\b[^>]*>[\s\S]*?<\/h1>\s*/i, "")
+    .replace(/^﻿?\s*#\s+.+(?:\r?\n)+/, "")
+    .replace(/^﻿?\s*#\s+.+$/, "")
+    .trimStart()
+}
+
 export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
+  content = stripLeadingH1(content)
+
   if (/<(p|div|h[1-6]|ul|ol|li|table|thead|tbody|tr|th|td|strong|em|br|blockquote|a|span|pre|code|hr|img)\b/i.test(content)) {
     return (
       <div
@@ -264,6 +280,20 @@ export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
         </div>
       )
       wordCount += text.split(/\s+/).filter(Boolean).length
+    } else if (block.startsWith("# ")) {
+      // A stray single-# heading (rare after the leading-H1 strip). Render as an
+      // H2 so we never emit a second page <h1> or a literal "# …" paragraph.
+      const lines = block.split("\n")
+      const headingText = lines[0].replace(/^#\s+/, "")
+      const rest = lines.slice(1).join("\n").trim()
+      elements.push(
+        <div key={i}>
+          <h2 id={slugifyHeading(headingText)} className="mb-4 mt-10 text-2xl font-bold text-foreground first:mt-0 scroll-mt-24">
+            {parseInlineMarkdown(headingText)}
+          </h2>
+          {rest && <ArticleContent content={rest} />}
+        </div>
+      )
     } else if (block.startsWith("## ")) {
       const lines = block.split("\n")
       const headingText = lines[0].replace("## ", "")

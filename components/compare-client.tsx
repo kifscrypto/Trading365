@@ -166,7 +166,7 @@ export function CompareClient({ exchanges }: { exchanges: Exchange[] }) {
                 <select
                   value={slots[i]}
                   onChange={(ev) => setSlot(i, ev.target.value)}
-                  className="rounded-lg border border-border bg-secondary/50 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  className="rounded-lg border border-border bg-zinc-900 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none [&>option]:bg-zinc-900 [&>option]:text-foreground"
                 >
                   <option value="">— Select exchange —</option>
                   {optionsFor(i).map((ex) => (

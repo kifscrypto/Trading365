@@ -242,10 +242,11 @@ export function LiveScene() {
   useEffect(() => {
     let alive = true
     const pull = async () => {
+      // /live is public — no token required. A ?k= is still forwarded when present
+      // (e.g. old broadcast links) but is no longer needed to load data.
       const k = tokenRef.current
-      if (!k) return
       try {
-        const r = await fetch(`/api/live?k=${encodeURIComponent(k)}&book=${bookRef.current}`, { cache: "no-store" })
+        const r = await fetch(`/api/live?book=${bookRef.current}${k ? `&k=${encodeURIComponent(k)}` : ""}`, { cache: "no-store" })
         if (!r.ok) return
         const d: LiveData = await r.json()
         if (!alive) return
@@ -283,9 +284,8 @@ export function LiveScene() {
     let alive = true
     const pull = async () => {
       const k = tokenRef.current
-      if (!k) return
       try {
-        const r = await fetch(`/api/live?k=${encodeURIComponent(k)}&mode=prices`, { cache: "no-store" })
+        const r = await fetch(`/api/live?mode=prices${k ? `&k=${encodeURIComponent(k)}` : ""}`, { cache: "no-store" })
         if (!r.ok) return
         const d = await r.json()
         if (!alive) return

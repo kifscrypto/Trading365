@@ -14,6 +14,18 @@ export type LocaleCode = typeof LOCALES[number]["code"]
 
 export const LOCALE_CODES = LOCALES.map((l) => l.code)
 
+// Locales whose translation coverage is complete enough to expose to search
+// engines: their pages are indexable and advertised via hreflang. Other locales
+// stay noindex (and are omitted from hreflang) until they're finished, so we
+// never advertise a half-translated section. Add a code here once its coverage
+// is complete. Traffic + coverage data drove starting with the two Chinese
+// variants (see the i18n memory).
+export const INDEXED_LOCALES: readonly string[] = ["zh-CN", "zh-TW"]
+
+export function isIndexedLocale(code: string): boolean {
+  return INDEXED_LOCALES.includes(code)
+}
+
 export function getLocale(code: string) {
   return LOCALES.find((l) => l.code === code)
 }

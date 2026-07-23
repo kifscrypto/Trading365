@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 
-// Token-gate the private broadcast surface. BOTH /live and /api/live require
+// Token-gate the private broadcast surface. /live-arcade requires
 // ?k=<LIVE_ACCESS_TOKEN>. Any missing/wrong token (or no token configured)
-// returns a bare 404 so the routes' existence is never confirmed to crawlers
-// or probers. Valid /live responses are additionally marked noindex.
-// (The page is showcased only during live streams via the ?k= URL — it is NOT
-// linked publicly.)
+// returns a bare 404 so the route's existence is never confirmed to crawlers
+// or probers. Valid responses are additionally marked noindex.
+//
+// NOTE: /live and /api/live are intentionally PUBLIC — /live is a live scanner
+// demo people land on (it must never 404 them). It stays noindex via page
+// metadata; a paid-user gate can be reintroduced here later.
 export const config = {
-  matcher: ["/live", "/live-arcade", "/api/live"],
+  matcher: ["/live-arcade"],
 }
 
 function notFound() {

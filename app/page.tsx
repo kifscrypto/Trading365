@@ -22,13 +22,16 @@ import { DiscordCta } from "@/components/discord-cta"
 import { getFeaturedSlot } from "@/lib/data/featured"
 import { getMergedExchanges } from "@/lib/data/exchange-content"
 import { generateWebsiteSchema } from "@/lib/schema"
+import { buildHomeLanguages } from "@/lib/i18n/hreflang"
 
 const BASE_URL = 'https://trading365.org'
 
-// No hreflang while locale routes are noindex — see app/sitemap.ts.
+// hreflang links the homepage to the launched locale landings (reciprocal with
+// their x-default → EN). See INDEXED_LOCALES in lib/i18n/config.
 export const metadata: Metadata = {
   alternates: {
     canonical: BASE_URL,
+    languages: buildHomeLanguages(),
   },
 }
 

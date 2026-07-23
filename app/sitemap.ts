@@ -1,5 +1,8 @@
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
+import { getTranslationLocalesBySlug } from "@/lib/db"
 import { categories } from "@/lib/data/categories"
+import { INDEXED_LOCALES } from "@/lib/i18n/config"
+import { buildArticleLanguages, buildHomeLanguages } from "@/lib/i18n/hreflang"
 import type { MetadataRoute } from "next"
 
 const BASE_URL = "https://trading365.org"
@@ -15,14 +18,24 @@ function parseArticleDate(dateStr: string): string {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // English-only sitemap. Locale routes (/es, /pt, …) are noindex, so they are
-  // intentionally excluded here along with any hreflang alternates to them.
+  // English pages, plus localized article + landing URLs for INDEXED_LOCALES
+  // (fully-translated locales). Non-indexed locales are still excluded. Each
+  // entry carries hreflang alternates so search engines cluster the versions.
   const articles = await getAllArticlesFromDB()
+  const localesBySlug = await getTranslationLocalesBySlug().catch(() => ({} as Record<string, string[]>))
   const now = new Date().toISOString()
 
   // Static pages
   const staticPages: MetadataRoute.Sitemap = [
-    { url: BASE_URL, lastModified: now, changeFrequency: "daily", priority: 1.0 },
+    { url: BASE_URL, lastModified: now, changeFrequency: "daily", priority: 1.0, alternates: { languages: buildHomeLanguages() } },
+    // Localized landing pages for launched locales.
+    ...INDEXED_LOCALES.map((lc) => ({
+      url: `${BASE_URL}/${lc}`,
+      lastModified: now,
+      changeFrequency: "daily" as const,
+      priority: 0.7,
+      alternates: { languages: buildHomeLanguages() },
+    })),
     { url: `${BASE_URL}/scanner`, lastModified: now, changeFrequency: "daily", priority: 0.8 },
     { url: `${BASE_URL}/scanner/longs`, lastModified: now, changeFrequency: "daily", priority: 0.8 },
     { url: `${BASE_URL}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
@@ -44,15 +57,35 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }))
 
-  // Article pages — use actual article date (or updatedDate if present)
-  const articlePages: MetadataRoute.Sitemap = articles.map((article) => {
+  // Article pages — English entry plus one entry per indexed locale that has a
+  // translation of that slug. Every version shares the same hreflang alternates.
+  const articlePages: MetadataRoute.Sitemap = articles.flatMap((article) => {
     const dateStr = article.updatedDate || article.date
-    return {
-      url: `${BASE_URL}/${article.categorySlug}/${article.slug}`,
-      lastModified: parseArticleDate(dateStr),
-      changeFrequency: "monthly" as const,
-      priority: 0.7,
+    const lastModified = parseArticleDate(dateStr)
+    const translatedLocales = localesBySlug[article.slug] ?? []
+    const languages = buildArticleLanguages(article.slug, article.categorySlug, translatedLocales)
+
+    const entries: MetadataRoute.Sitemap = [
+      {
+        url: `${BASE_URL}/${article.categorySlug}/${article.slug}`,
+        lastModified,
+        changeFrequency: "monthly" as const,
+        priority: 0.7,
+        alternates: { languages },
+      },
+    ]
+    for (const lc of translatedLocales) {
+      if (INDEXED_LOCALES.includes(lc)) {
+        entries.push({
+          url: `${BASE_URL}/${lc}/${article.categorySlug}/${article.slug}`,
+          lastModified,
+          changeFrequency: "monthly" as const,
+          priority: 0.6,
+          alternates: { languages },
+        })
+      }
     }
+    return entries
   })
 
   return [...staticPages, ...categoryPages, ...articlePages]
