@@ -61,6 +61,16 @@ function stripMarkdownPrefix(text: string): string {
   return text.replace(/^#+\s+/, "").trim()
 }
 
+// The model occasionally keeps generating past a short field (a title, especially)
+// and appends an entire article body. A title/excerpt is never multi-paragraph, so
+// collapse to the first non-empty line — this stops a runaway body ever being stored
+// in title/meta and rendered as a giant <h1>.
+function firstNonEmptyLine(text: string): string {
+  return (text.split(/\r?\n/).find((l) => l.trim().length) || "").trim()
+}
+
+const CJK_LOCALES = new Set<LocaleCode>(["zh-CN", "zh-TW", "ja", "ko"])
+
 export async function translateText(
   text: string,
   targetLocale: LocaleCode,
@@ -70,34 +80,53 @@ export async function translateText(
   const preserveList = PRESERVE_TERMS.join(", ")
   const systemPrompt = buildSystemPrompt(language, context, preserveList)
 
-  const message = await getClient().messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 8192,
-    system: systemPrompt,
-    messages: [{ role: "user", content: text }],
-  })
+  // Minimum plausible output length vs. the source, below which we treat the result
+  // as abridged (the model summarised instead of translating). CJK is denser than
+  // Latin text, so its floor is lower. Only enforced for body content.
+  const minChars =
+    context === "content" ? text.length * (CJK_LOCALES.has(targetLocale) ? 0.25 : 0.55) : 0
 
-  const result = message.content[0]
-  if (result.type !== "text") throw new Error("Unexpected response type from Claude")
+  let lastLen = 0
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const message = await getClient().messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 16384, // headroom so long articles are never truncated mid-body
+      system:
+        attempt === 0
+          ? systemPrompt
+          : systemPrompt +
+            "\n\nCRITICAL: Translate the FULL text in its entirety. Do NOT summarise, abridge, condense, or drop any section. Every heading, paragraph, table row, and list item in the input MUST appear in the output.",
+      messages: [{ role: "user", content: text }],
+    })
 
-  const raw = result.text.trim()
+    const result = message.content[0]
+    if (result.type !== "text") throw new Error("Unexpected response type from Claude")
 
-  // For title/excerpt always strip any accidental heading markers
-  if (context === "title" || context === "excerpt") {
-    return stripMarkdownPrefix(raw)
-  }
+    const raw = result.text.trim()
 
-  // For body content, strip a leading "# Title" / "<h1>…</h1>" the model
-  // sometimes prepends. The page renders the title as its own <h1>, so a leading
-  // H1 in the body is always a duplicate. (Non-leading ## / ### headings are kept.)
-  if (context === "content") {
-    return raw
+    // Short fields are single-line/single-paragraph — never a body. Collapse any
+    // runaway content the model appended, then strip stray heading markers.
+    if (context === "title") return stripMarkdownPrefix(firstNonEmptyLine(raw))
+    if (context === "excerpt") return stripMarkdownPrefix(raw.split(/\r?\n\s*\r?\n/)[0] || raw)
+
+    if (context !== "content") return raw
+
+    // For body content, strip a leading "# Title" / "<h1>…</h1>" the model
+    // sometimes prepends. The page renders the title as its own <h1>, so a leading
+    // H1 in the body is always a duplicate. (Non-leading ## / ### headings are kept.)
+    const body = raw
       .replace(/^﻿?\s*<h1\b[^>]*>[\s\S]*?<\/h1>\s*/i, "")
       .replace(/^﻿?\s*#\s+.+(?:\r?\n)+/, "")
       .trimStart()
+
+    lastLen = body.length
+    if (body.length >= minChars) return body
+    // Otherwise it looks abridged — retry with a stronger no-summarising instruction.
   }
 
-  return raw
+  throw new Error(
+    `Translation into ${language} looks abridged (${lastLen} chars vs ${text.length} source) after retries — refusing to store a truncated translation.`
+  )
 }
 
 export interface TranslatedArticle {
