@@ -6,6 +6,7 @@ import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/site-footer'
 import { GoogleAnalytics } from '@/components/google-analytics'
 import { PageTracker } from '@/components/page-tracker'
+import { AffiliateClickTracker } from '@/components/affiliate-click-tracker'
 import { generateOrganizationStandaloneSchema } from '@/lib/schema'
 import { ExitIntentPopup } from '@/components/exit-intent-popup'
 import './globals.css'
@@ -71,6 +72,7 @@ export default function RootLayout({
       <GoogleAnalytics />
       <body className="font-sans antialiased min-h-screen flex flex-col">
         <PageTracker />
+        <AffiliateClickTracker />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <SiteHeader />
           <main className="flex-1">{children}</main>

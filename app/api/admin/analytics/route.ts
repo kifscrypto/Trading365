@@ -200,6 +200,41 @@ export async function GET() {
       `,
     ])
 
+    // Affiliate-link clicks (humans only). Queried separately and guarded so a
+    // missing affiliate_clicks table can never break the rest of the dashboard.
+    let affiliateClicks: {
+      totals: { today: number; week: number; month: number; total: number }
+      byExchange: any[]
+      byArticle: any[]
+    } = { totals: { today: 0, week: 0, month: 0, total: 0 }, byExchange: [], byArticle: [] }
+    try {
+      const [ac, byExchange, byArticle] = await Promise.all([
+        sql`
+          SELECT
+            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day')   AS today,
+            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')  AS week,
+            COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') AS month,
+            COUNT(*) AS total
+          FROM affiliate_clicks WHERE is_bot IS NOT TRUE
+        `,
+        sql`
+          SELECT exchange, COUNT(*) AS clicks
+          FROM affiliate_clicks
+          WHERE is_bot IS NOT TRUE AND created_at >= NOW() - INTERVAL '30 days'
+          GROUP BY exchange ORDER BY clicks DESC
+        `,
+        sql`
+          SELECT article_slug, locale, COUNT(*) AS clicks
+          FROM affiliate_clicks
+          WHERE is_bot IS NOT TRUE AND created_at >= NOW() - INTERVAL '30 days' AND article_slug IS NOT NULL
+          GROUP BY article_slug, locale ORDER BY clicks DESC LIMIT 20
+        `,
+      ])
+      affiliateClicks = { totals: ac[0] as any, byExchange, byArticle }
+    } catch {
+      // affiliate_clicks table not created yet — leave empty defaults
+    }
+
     return NextResponse.json({
       totals: totals[0],
       visitors: visitors[0],
@@ -209,6 +244,7 @@ export async function GET() {
       sessionStats: sessionStats[0],
       entryPages, exitPages,
       topPages, topReferrers, referringLinks, searchTerms, utmSources, countries, devices, daily,
+      affiliateClicks,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

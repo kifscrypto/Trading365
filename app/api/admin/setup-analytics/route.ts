@@ -44,6 +44,29 @@ export async function POST() {
     await sql`CREATE INDEX IF NOT EXISTS idx_page_views_visitor_id ON page_views (visitor_id)`
     await sql`CREATE INDEX IF NOT EXISTS idx_page_views_is_bot ON page_views (is_bot)`
     await sql`CREATE INDEX IF NOT EXISTS idx_page_views_session_id ON page_views (session_id)`
+
+    // Outbound affiliate-link clicks (populated by /api/track/click).
+    await sql`
+      CREATE TABLE IF NOT EXISTS affiliate_clicks (
+        id SERIAL PRIMARY KEY,
+        exchange TEXT NOT NULL,
+        target_url TEXT NOT NULL,
+        path TEXT,
+        article_slug TEXT,
+        locale TEXT,
+        visitor_id TEXT,
+        session_id TEXT,
+        country TEXT,
+        is_bot BOOLEAN DEFAULT FALSE,
+        user_agent TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `
+    await sql`CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_created_at ON affiliate_clicks (created_at DESC)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_exchange ON affiliate_clicks (exchange)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_slug ON affiliate_clicks (article_slug)`
+    await sql`CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_is_bot ON affiliate_clicks (is_bot)`
+
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

@@ -21,6 +21,11 @@ type AnalyticsData = {
   countries: { country: string; views: string }[]
   devices: { device: string; views: string }[]
   daily: { day: string; views: string }[]
+  affiliateClicks: {
+    totals: { today: number | string; week: number | string; month: number | string; total: number | string }
+    byExchange: { exchange: string; clicks: string }[]
+    byArticle: { article_slug: string; locale: string | null; clicks: string }[]
+  }
 }
 
 function Bar({ value, max }: { value: number; max: number }) {
@@ -295,6 +300,66 @@ export default function AnalyticsPage() {
                   )}
               </div>
             </div>
+
+            {/* Affiliate Link Clicks — outbound clicks to exchange referral links */}
+            {data.affiliateClicks && (
+              <div style={{ ...card, marginBottom: '1.5rem' }}>
+                <h2 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>Affiliate Link Clicks</h2>
+                <p style={{ margin: '0 0 1rem', fontSize: '0.72rem', color: '#475569' }}>Outbound clicks to exchange referral links · humans only</p>
+                <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                  {([['Today', 'today'], ['7 days', 'week'], ['30 days', 'month'], ['All time', 'total']] as const).map(([label, key]) => (
+                    <div key={key}>
+                      <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{label}</div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#f1f5f9' }}>{Number(data.affiliateClicks.totals[key] || 0).toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '1.5rem' }}>
+                  {/* By exchange */}
+                  <div>
+                    <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', fontWeight: 600, color: '#cbd5e1' }}>Clicks by Exchange · 30d</h3>
+                    {data.affiliateClicks.byExchange.length === 0
+                      ? <p style={{ color: '#64748b', fontSize: '0.8rem' }}>No affiliate clicks yet.</p>
+                      : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                          {data.affiliateClicks.byExchange.map(row => (
+                            <div key={row.exchange} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <span style={{ flex: '0 0 auto', width: 90, fontSize: '0.8rem', color: '#94a3b8' }}>{row.exchange}</span>
+                              <Bar value={Number(row.clicks)} max={Number(data.affiliateClicks.byExchange[0]?.clicks ?? 1)} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                  </div>
+                  {/* By article */}
+                  <div>
+                    <h3 style={{ margin: '0 0 0.75rem', fontSize: '0.82rem', fontWeight: 600, color: '#cbd5e1' }}>Top Converting Articles · 30d</h3>
+                    {data.affiliateClicks.byArticle.length === 0
+                      ? <p style={{ color: '#64748b', fontSize: '0.8rem' }}>No affiliate clicks yet.</p>
+                      : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', tableLayout: 'fixed' }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: 'left', color: '#64748b', fontWeight: 500, paddingBottom: '0.5rem', fontSize: '0.72rem' }}>Article</th>
+                              <th style={{ textAlign: 'left', color: '#64748b', fontWeight: 500, paddingBottom: '0.5rem', fontSize: '0.72rem', width: 60 }}>Locale</th>
+                              <th style={{ textAlign: 'right', color: '#64748b', fontWeight: 500, paddingBottom: '0.5rem', fontSize: '0.72rem', width: 60 }}>Clicks</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.affiliateClicks.byArticle.map((row, i) => (
+                              <tr key={i} style={{ borderTop: '1px solid #1e293b' }}>
+                                <td style={{ padding: '0.4rem 0.5rem 0.4rem 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#94a3b8', fontFamily: 'monospace' }} title={row.article_slug}>{row.article_slug}</td>
+                                <td style={{ padding: '0.4rem 0', color: '#64748b' }}>{row.locale || 'en'}</td>
+                                <td style={{ padding: '0.4rem 0', textAlign: 'right', color: '#f1f5f9', fontWeight: 600 }}>{Number(row.clicks).toLocaleString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Referring Links (full URLs) + Search Terms */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
