@@ -48,7 +48,10 @@ export async function generateMetadata({
   const languages = buildArticleLanguages(slug, canonicalCategory, translatedLocales)
 
   return {
-    title: pageTitle,
+    // pageTitle already carries the brand + locale ("… | Trading365 简体中文"), so
+    // mark it absolute — otherwise the root layout's "%s | Trading365" template
+    // appends the brand a second time (duplicate branding in the SERP title).
+    title: { absolute: pageTitle },
     description,
     robots: { index: indexable, follow: true },
     alternates: {
