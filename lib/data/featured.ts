@@ -18,9 +18,13 @@ export const FEATURED_SLOTS: { slot: FeaturedSlot; label: string; kind: "exchang
   { slot: "featured_articles", label: "Homepage — Featured Reviews & Guides", kind: "article", help: "Up to 6 articles in the \"Featured Reviews & Guides\" grid. Empty = latest 6 automatically." },
 ]
 
-// Baked-in fallbacks — mirror the values the pages used before this was editable.
+// Baked-in fallbacks, used only when a slot is unset/empty or the DB is
+// unreachable. Keep homepage_deals free of anything in the above-the-fold Top
+// Picks strip (lib/data/top-picks.ts) — it used to be ["weex","bybit","bitunix"],
+// which meant a missing row silently put Bybit on the page twice, once in the
+// hero strip and again in "Top Sign-Up Bonuses" one screen below.
 export const FEATURED_DEFAULTS: Record<FeaturedSlot, string[]> = {
-  homepage_deals: ["weex", "bybit", "bitunix"],
+  homepage_deals: ["btcc", "bitunix", "weex"],
   bonus_pins: ["weex", "bydfi", "bitunix"],
   featured_articles: [], // empty → page falls back to latest N
 }
