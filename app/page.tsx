@@ -165,13 +165,19 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Stats — every figure here is checkable against the database.
+          {/* Stats. The scanner and bonus figures are checkable against the
+              database (scanner_signals row count; summed bonusAmount).
+              "50+ Exchanges Tested" is the site owner's figure and counts
+              exchanges tested over time — the current data holds 34 distinct
+              across lib/data/exchanges.ts, affiliate_links and custom_exchanges,
+              so don't "correct" it downward from the DB alone. It also matches
+              the H1 subline, which makes the same claim.
               The "50K+ Monthly Readers" stat and the "Trusted by 50,000+ traders"
               pill were removed: neither was measurable, and analytics puts real
               30-day traffic three orders of magnitude below the pill's claim. */}
           <div className="mt-12 grid w-full max-w-xl grid-cols-3 gap-8">
             {[
-              { value: "30+", label: "Exchanges Tested" },
+              { value: "50+", label: "Exchanges Tested" },
               { value: "23,000+", label: "Scanner Signals Tracked" },
               { value: "$145K+", label: "In Bonuses Listed" },
             ].map((stat) => (
