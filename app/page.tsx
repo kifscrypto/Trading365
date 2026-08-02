@@ -2,7 +2,6 @@ export const revalidate = 300
 
 import type { Metadata } from "next"
 import Link from "next/link"
-import Image from "next/image"
 import { ArrowRight, Star, Zap, ShieldOff, Gift } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,6 +20,8 @@ import { ScannerTickerLive } from "@/components/scanner-ticker-live"
 import { DiscordCta } from "@/components/discord-cta"
 import { getFeaturedSlot } from "@/lib/data/featured"
 import { getMergedExchanges } from "@/lib/data/exchange-content"
+import { TopPicks } from "@/components/top-picks"
+import { getTopPicks } from "@/lib/data/top-picks"
 import { generateWebsiteSchema } from "@/lib/schema"
 import { buildHomeLanguages } from "@/lib/i18n/hreflang"
 
@@ -39,10 +40,11 @@ export default async function HomePage() {
   const allArticles = await getAllArticlesFromDB()
 
   // Editable via /admin/featured (falls back to the previous hardcoded lists).
-  const [dealSlugs, featuredSlugs, mergedExchanges] = await Promise.all([
+  const [dealSlugs, featuredSlugs, mergedExchanges, topPicks] = await Promise.all([
     getFeaturedSlot("homepage_deals"),
     getFeaturedSlot("featured_articles"),
     getMergedExchanges(),
+    getTopPicks(),
   ])
   const topExchanges = dealSlugs
     .map((slug) => mergedExchanges.find((e) => e.slug === slug))
@@ -120,56 +122,58 @@ export default async function HomePage() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,oklch(0.8_0.15_85/0.06),transparent_60%)]" />
         <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 pt-20 pb-6 text-center lg:px-6 lg:pt-28 lg:pb-8">
-          <Link href="/" className="mb-8">
-            <Image
-              src="/images/logo-wide.png"
-              alt="Trading365 - Trade Smarter. Earn Bigger."
-              width={280}
-              height={70}
-              priority
-              className="mx-auto h-auto w-[280px]"
-            />
-          </Link>
-          <Badge variant="outline" className="mb-6 border-primary/30 text-primary">
-            Trusted by 50,000+ traders worldwide
-          </Badge>
+          {/* The hero logo image was removed: it repeated the nav logo directly
+              above it and pushed the only content that answers a visitor's
+              actual question below the fold. The nav logo still brands the page,
+              and /images/logo-wide.png is untouched for other uses. */}
           <h1 className="max-w-3xl text-4xl font-bold leading-tight tracking-tight text-foreground md:text-5xl lg:text-6xl text-balance">
-            Trade Smarter.{" "}
-            <span className="text-primary">Earn Bigger.</span>
+            Find the Right{" "}
+            <span className="text-primary">Crypto Exchange</span>
           </h1>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
-            Expert crypto exchange reviews, unbiased comparisons, and exclusive bonus deals to maximize your trading profits.
+            50+ exchanges reviewed, tested and ranked — plus the best bonuses available right now.
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+
+          {/* The answer, above the fold. Slots are editable in lib/data/top-picks.ts. */}
+          <TopPicks picks={topPicks} />
+
+          {/* One primary action; the rest demoted to a compact secondary row.
+              Four equal buttons gave a visitor no steer on what to do next. */}
+          <div className="mt-8 flex flex-col items-center gap-3">
             <Button size="lg" className="gap-2 font-semibold px-8" asChild>
               <Link href="/reviews">
                 Browse Reviews
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            <Button size="lg" variant="outline" className="font-semibold px-8 border-primary/30 text-foreground hover:bg-primary/10" asChild>
-              <Link href="/compare">Compare Exchanges</Link>
-            </Button>
-            <Button size="lg" variant="outline" className="gap-2 font-semibold px-8 border-primary/30 text-foreground hover:bg-primary/10" asChild>
-              <Link href="/scanner">
-                <Zap className="h-4 w-4" />
-                Short Scanner
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" className="gap-2 font-semibold px-8 border-emerald-500/30 text-foreground hover:bg-emerald-500/10" asChild>
-              <Link href="/scanner/longs">
-                <Zap className="h-4 w-4 text-emerald-400" />
-                Long Scanner
-              </Link>
-            </Button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button size="sm" variant="outline" className="font-medium border-primary/30 text-foreground hover:bg-primary/10" asChild>
+                <Link href="/compare">Compare Exchanges</Link>
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5 font-medium border-primary/30 text-foreground hover:bg-primary/10" asChild>
+                <Link href="/scanner">
+                  <Zap className="h-3.5 w-3.5" />
+                  Short Scanner
+                </Link>
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5 font-medium border-emerald-500/30 text-foreground hover:bg-emerald-500/10" asChild>
+                <Link href="/scanner/longs">
+                  <Zap className="h-3.5 w-3.5 text-emerald-400" />
+                  Long Scanner
+                </Link>
+              </Button>
+            </div>
           </div>
 
-          {/* Stats */}
-          <div className="mt-16 grid w-full max-w-lg grid-cols-3 gap-8">
+          {/* Stats — every figure here is checkable against the database.
+              The "50K+ Monthly Readers" stat and the "Trusted by 50,000+ traders"
+              pill were removed: neither was measurable, and analytics puts real
+              30-day traffic three orders of magnitude below the pill's claim. */}
+          <div className="mt-12 grid w-full max-w-xl grid-cols-3 gap-8">
             {[
-              { value: "50+", label: "Exchanges Reviewed" },
-              { value: "$2M+", label: "In Bonuses Listed" },
-              { value: "50K+", label: "Monthly Readers" },
+              { value: "30+", label: "Exchanges Tested" },
+              { value: "23,000+", label: "Scanner Signals Tracked" },
+              { value: "$145K+", label: "In Bonuses Listed" },
             ].map((stat) => (
               <div key={stat.label} className="flex flex-col items-center gap-1">
                 <span className="text-2xl font-bold text-primary md:text-3xl">{stat.value}</span>
@@ -177,11 +181,14 @@ export default async function HomePage() {
               </div>
             ))}
           </div>
-
-          {/* Join Discord — compact CTA under the hero stats */}
-          <DiscordCta />
         </div>
       </section>
+
+      {/* Discord moved below the fold — it is a community ask, not the answer a
+          first-time visitor came for, and it was occupying prime hero space. */}
+      <div className="mx-auto flex max-w-7xl justify-center px-4 pb-8 lg:px-6">
+        <DiscordCta />
+      </div>
 
       {/* Scanner spotlight — live performance */}
       <ScannerSpotlight short={shortStats} long={longStats} />
