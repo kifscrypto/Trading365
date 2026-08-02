@@ -190,12 +190,6 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Discord moved below the fold — it is a community ask, not the answer a
-          first-time visitor came for, and it was occupying prime hero space. */}
-      <div className="mx-auto flex max-w-7xl justify-center px-4 pb-8 lg:px-6">
-        <DiscordCta />
-      </div>
-
       {/* Scanner spotlight — live performance */}
       <ScannerSpotlight short={shortStats} long={longStats} />
 
@@ -291,6 +285,14 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* Discord — grouped with the newsletter near the foot of the page. Both
+          are "join us" asks, so they belong together and after the content, not
+          interrupting the path to it. It previously sat second on the page,
+          directly under the hero. */}
+      <div className="mx-auto flex max-w-7xl justify-center px-4 pb-4 lg:px-6">
+        <DiscordCta />
+      </div>
 
       {/* Newsletter */}
       <NewsletterCta />
