@@ -5,9 +5,9 @@ Endpoints:
   PUT /api/<collection>              → replace the collection from the request body
   GET /api/<prefix>-YYYY-MM-DD       → dated snapshot (prefix: briefing, traffic, health)
   PUT /api/<prefix>-YYYY-MM-DD       → store a dated snapshot
-  GET /api/briefing/latest           → newest briefing file
-  GET /api/traffic/latest            → newest traffic snapshot
-  GET /api/health/latest             → newest health snapshot
+  GET /api/latest/briefing           → newest briefing file
+  GET /api/latest/traffic            → newest traffic snapshot
+  GET /api/latest/health             → newest health snapshot
 
 CORS is wide open (``Access-Control-Allow-Origin: *``) for the local dashboard.
 """
@@ -54,15 +54,12 @@ class OpsHandler(BaseHTTPRequestHandler):
         parts = path.split("/")
         if len(parts) < 2 or parts[0] != "api":
             return self._send_json({"error": "not found"}, 404)
-        if parts[1:] == ["briefing", "latest"]:
-            data = store.latest_briefing()
-            return self._send_json(data if data is not None else {"error": "no briefing yet"}, 200 if data else 404)
-        if parts[1:] == ["traffic", "latest"]:
-            data = store.latest_traffic()
-            return self._send_json(data if data is not None else {"error": "no traffic snapshot yet"}, 200 if data else 404)
-        if parts[1:] == ["health", "latest"]:
-            data = store.latest_health()
-            return self._send_json(data if data is not None else {"error": "no health snapshot yet"}, 200 if data else 404)
+        if len(parts) == 3 and parts[1] == "latest" and parts[2] in ("briefing", "traffic", "health"):
+            kind = parts[2]
+            data = (store.latest_briefing if kind == "briefing"
+                    else store.latest_traffic if kind == "traffic"
+                    else store.latest_health)()
+            return self._send_json(data if data is not None else {"error": f"no {kind} yet"}, 200 if data else 404)
         if len(parts) == 2 and parts[1] in store.COLLECTIONS:
             return self._send_json(store.load(parts[1]))
         if len(parts) == 2 and DATED_NAME.match(parts[1]):

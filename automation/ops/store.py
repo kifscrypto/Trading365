@@ -184,7 +184,7 @@ def save_health(day: str, data: dict[str, Any]) -> None:
 
 def _latest(subdir: str, prefix: str) -> dict[str, Any] | None:
     if _http_enabled():
-        status, data = _request("GET", f"{prefix}/latest")
+        status, data = _request("GET", f"latest/{prefix}")
         return None if status == 404 else data
     folder = config.DATA_DIR / subdir
     if not folder.exists():
