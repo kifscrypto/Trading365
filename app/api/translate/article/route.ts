@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { verifyAdmin } from "@/lib/auth"
 
 export const maxDuration = 300 // 5 minutes — needed for translating one article into all 9 locales
 import { getArticleBySlug, upsertTranslation, getAllArticles } from "@/lib/db"
@@ -8,6 +9,11 @@ import type { LocaleCode } from "@/lib/i18n/config"
 
 // POST /api/translate/article — translate a single article into one locale
 export async function POST(req: NextRequest) {
+  // Unauthenticated until 2026-08-14: anyone could burn Anthropic credits and
+  // write article_translations rows. Requires the signed admin session now.
+  if (!(await verifyAdmin(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
   try {
     const body = await req.json()
     const { slug, locale } = body
