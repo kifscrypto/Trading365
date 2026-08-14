@@ -1,10 +1,15 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function AdminLogin() {
+function AdminLoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // ?next=/ops — where to go after login (middleware redirects gated pages here).
+  // Only same-origin absolute paths are honoured.
+  const next = searchParams.get('next')
+  const postLogin = next && next.startsWith('/') && !next.startsWith('//') ? next : '/admin'
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -23,7 +28,7 @@ export default function AdminLogin() {
       })
 
       if (res.ok) {
-        router.push('/admin')
+        router.push(postLogin)
       } else {
         setError('Invalid credentials')
       }
@@ -80,5 +85,13 @@ export default function AdminLogin() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function AdminLogin() {
+  return (
+    <Suspense>
+      <AdminLoginForm />
+    </Suspense>
   )
 }

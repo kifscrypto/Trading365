@@ -37,6 +37,17 @@ const nextConfig = {
   },
   async rewrites() {
     return [
+      // Ops dashboard — static build baked into public/ops (see scripts/sync-ops.mjs).
+      // Next does not serve public/index.html at the bare directory path, so
+      // rewrite /ops and /ops/ to it explicitly. Assets resolve directly.
+      {
+        source: '/ops',
+        destination: '/ops/index.html',
+      },
+      {
+        source: '/ops/',
+        destination: '/ops/index.html',
+      },
       {
         source: '/llms.txt',
         destination: '/api/llms',

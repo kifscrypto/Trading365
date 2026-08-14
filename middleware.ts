@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server"
 // demo people land on (it must never 404 them). It stays noindex via page
 // metadata; a paid-user gate can be reintroduced here later.
 export const config = {
-  matcher: ["/live-arcade"],
+  matcher: ["/live-arcade", "/ops", "/ops/:path*"],
 }
 
 function notFound() {
@@ -20,6 +20,20 @@ function notFound() {
 }
 
 export function middleware(req: NextRequest) {
+  // /ops — Operations Command Center (static dashboard baked into public/ops).
+  // Gated behind the same admin_auth cookie as the admin panel; unauthenticated
+  // visitors are sent to the admin login. Always noindex.
+  if (req.nextUrl.pathname.startsWith("/ops")) {
+    if (!req.cookies.get("admin_auth")) {
+      const login = new URL("/admin/login", req.url)
+      login.searchParams.set("next", req.nextUrl.pathname)
+      return NextResponse.redirect(login)
+    }
+    const res = NextResponse.next()
+    res.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive")
+    return res
+  }
+
   const expected = process.env.LIVE_ACCESS_TOKEN
   const provided = req.nextUrl.searchParams.get("k")
 
