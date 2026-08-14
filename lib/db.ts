@@ -166,7 +166,8 @@ export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' |
     INSERT INTO articles (
       slug, title, excerpt, content, category, category_slug,
       date, updated_date, read_time, author, rating, thumbnail, tags, faqs, pros, cons,
-      meta_title, meta_description, meta_keywords, video_url, video_recorded_date, preview_token
+      meta_title, meta_description, meta_keywords, video_url, video_recorded_date, preview_token,
+      published
     ) VALUES (
       ${slug}, ${data.title}, ${data.excerpt}, ${content},
       ${data.category}, ${data.category_slug}, ${data.date}, ${data.updated_date ?? null},
@@ -174,7 +175,8 @@ export async function createArticle(data: Omit<ArticleRow, 'id' | 'created_at' |
       ${data.tags}, ${JSON.stringify(data.faqs ?? [])},
       ${JSON.stringify(data.pros ?? [])}, ${JSON.stringify(data.cons ?? [])},
       ${data.meta_title ?? null}, ${data.meta_description ?? null}, ${data.meta_keywords ?? null},
-      ${video.video_url}, ${video.video_recorded_date}::date, ${newPreviewToken()}
+      ${video.video_url}, ${video.video_recorded_date}::date, ${newPreviewToken()},
+      ${data.published ?? true}
     )
     RETURNING *
   `

@@ -4,7 +4,13 @@ import { cookies } from 'next/headers'
 export async function POST(request: Request) {
   try {
     const { password } = await request.json()
-    const adminPassword = process.env.ADMIN_PASSWORD || 'Trading365Admin'
+    const adminPassword = process.env.ADMIN_PASSWORD
+
+    // Fail closed: never fall back to a hardcoded password in any environment.
+    if (!adminPassword) {
+      console.error('ADMIN_PASSWORD env var is not set — refusing admin login')
+      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
+    }
 
     if (password === adminPassword) {
       const cookieStore = await cookies()
