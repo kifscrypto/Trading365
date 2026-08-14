@@ -8,6 +8,7 @@ import Image from "next/image"
 import { isValidLocale, getLocale, isIndexedLocale } from "@/lib/i18n/config"
 import { buildArticleLanguages } from "@/lib/i18n/hreflang"
 import { ArticleContent } from "@/components/article-content"
+import { sanitizeArticleHtml } from "@/lib/sanitize-article"
 import { ShareButton } from "@/components/share-button"
 import { getExchangeBySlug } from "@/lib/data/exchanges"
 import { generateOrganizationSchema, toISODate } from "@/lib/schema"
@@ -201,7 +202,7 @@ export default async function LocaleArticlePage({
           </div>
         )}
 
-        <ArticleContent content={translation.content} />
+        <ArticleContent content={sanitizeArticleHtml(translation.content)} />
 
         {exchange && (
           <div className="mt-10 rounded-xl border border-primary/30 bg-primary/5 p-6 text-center">

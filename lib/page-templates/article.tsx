@@ -31,6 +31,7 @@ import { Separator } from "@/components/ui/separator"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 import { ProsConsList } from "@/components/pros-cons-list"
 import { ArticleContent } from "@/components/article-content"
+import { sanitizeArticleHtml } from "@/lib/sanitize-article"
 import { ArticleCard } from "@/components/article-card"
 import { getCategoryBySlug } from "@/lib/data/categories"
 import { getAllArticlesFromDB, getArticleBySlugFromDB, getArticleForPreviewFromDB, getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
@@ -495,6 +496,9 @@ export default async function ArticlePageContent({ category, slug, preview = fal
             {(() => {
               const renderBody = (content: string) => {
                 if (!content.trim()) return null
+                // DB content is untrusted — sanitize before ArticleContent's
+                // raw-HTML branch can reach dangerouslySetInnerHTML.
+                content = sanitizeArticleHtml(content)
                 const isHtml = /<[a-zA-Z]/.test(content)
                 const split = !isHtml ? splitAtRestricted(content) : null
                 if (split) {
