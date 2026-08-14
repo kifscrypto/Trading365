@@ -16,6 +16,14 @@ DROP_THRESHOLD = 0.30
 SPIKE_THRESHOLD = 0.30
 
 
+def _num(v: Any) -> float:
+    """Neon returns COUNT(*) as strings; fixtures may return ints. Coerce."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _compare(metric: str, yesterday_val: float, week_ago_val: float, anomalies: list[dict[str, Any]]) -> None:
     if week_ago_val <= 0:
         return
@@ -50,51 +58,62 @@ def build_snapshot(api: admin_api.AdminAPI) -> dict[str, Any]:
     week_ago = shift_days(yesterday, -7)
     start = shift_days(today, -8)
 
-    # --- GSC ---
-    by_date = _daily_map(
-        gsc.query_search_analytics(start, yesterday, dimensions=("date",))
-    )
-    by_query = gsc.query_search_analytics(start, yesterday, dimensions=("query",), row_limit=10)
-    by_page = gsc.query_search_analytics(start, yesterday, dimensions=("page",), row_limit=10)
+    # --- GSC (optional — skip cleanly when creds are missing/API fails) ---
+    gsc_block: dict[str, Any] | None = None
+    gsc_error: str | None = None
+    try:
+        by_date = _daily_map(
+            gsc.query_search_analytics(start, yesterday, dimensions=("date",))
+        )
+        by_query = gsc.query_search_analytics(start, yesterday, dimensions=("query",), row_limit=10)
+        by_page = gsc.query_search_analytics(start, yesterday, dimensions=("page",), row_limit=10)
 
-    def _totals(row: dict[str, Any] | None) -> dict[str, Any]:
-        if not row:
-            return {"clicks": 0, "impressions": 0, "ctr": 0.0, "position": 0.0}
-        return {k: row[k] for k in ("clicks", "impressions", "ctr", "position")}
+        def _totals(row: dict[str, Any] | None) -> dict[str, Any]:
+            if not row:
+                return {"clicks": 0, "impressions": 0, "ctr": 0.0, "position": 0.0}
+            return {k: row[k] for k in ("clicks", "impressions", "ctr", "position")}
 
-    gsc_block = {
-        "range": {"start": start, "end": yesterday},
-        "yesterday": _totals(by_date.get(yesterday)),
-        "weekAgo": _totals(by_date.get(week_ago)),
-        "byDate": [
-            {"date": day, **_totals(by_date.get(day))}
-            for day in sorted(by_date)
-        ],
-        "topQueries": [
-            {"query": r["keys"][0], "clicks": r["clicks"], "impressions": r["impressions"],
-             "ctr": r["ctr"], "position": r["position"]}
-            for r in by_query[:10]
-        ],
-        "topPages": [
-            {"page": r["keys"][0], "clicks": r["clicks"], "impressions": r["impressions"],
-             "ctr": r["ctr"], "position": r["position"]}
-            for r in by_page[:10]
-        ],
-    }
+        gsc_block = {
+            "range": {"start": start, "end": yesterday},
+            "yesterday": _totals(by_date.get(yesterday)),
+            "weekAgo": _totals(by_date.get(week_ago)),
+            "byDate": [
+                {"date": day, **_totals(by_date.get(day))}
+                for day in sorted(by_date)
+            ],
+            "topQueries": [
+                {"query": r["keys"][0], "clicks": r["clicks"], "impressions": r["impressions"],
+                 "ctr": r["ctr"], "position": r["position"]}
+                for r in by_query[:10]
+            ],
+            "topPages": [
+                {"page": r["keys"][0], "clicks": r["clicks"], "impressions": r["impressions"],
+                 "ctr": r["ctr"], "position": r["position"]}
+                for r in by_page[:10]
+            ],
+        }
+    except Exception as e:
+        gsc_error = str(e)
 
     # --- On-site analytics ---
     analytics = api.get_analytics()
     daily = {d["day"]: d for d in analytics.get("daily", [])}
+    # The daily series only carries pageviews; sessions come from the
+    # aggregate block (today/week/month windows).
+    sess_raw = analytics.get("sessions", {})
+    sess = sess_raw if isinstance(sess_raw, dict) else {}
     onsite_block = {
         "yesterday": {
-            "pageviews": daily.get(yesterday, {}).get("views", 0),
-            "sessions": daily.get(yesterday, {}).get("sessions", 0),
+            "pageviews": _num(daily.get(yesterday, {}).get("views", 0)),
+            "sessions": _num(sess.get("today", 0)),
         },
         "weekAgo": {
-            "pageviews": daily.get(week_ago, {}).get("views", 0),
-            "sessions": daily.get(week_ago, {}).get("sessions", 0),
+            "pageviews": _num(daily.get(week_ago, {}).get("views", 0)),
+            "sessions": _num(sess.get("week", 0)),
         },
         "totals": analytics.get("totals", {}),
+        "sessionsAgg": sess,
+        "visitors": analytics.get("visitors", {}),
         "sessionStats": analytics.get("sessionStats", {}),
         "topPages": analytics.get("topPages", [])[:10],
         "topReferrers": analytics.get("topReferrers", [])[:10],
@@ -103,10 +122,11 @@ def build_snapshot(api: admin_api.AdminAPI) -> dict[str, Any]:
 
     # --- Anomalies ---
     anomalies: list[dict[str, Any]] = []
-    _compare("gsc.clicks", gsc_block["yesterday"]["clicks"], gsc_block["weekAgo"]["clicks"], anomalies)
+    if gsc_block:
+        _compare("gsc.clicks", gsc_block["yesterday"]["clicks"], gsc_block["weekAgo"]["clicks"], anomalies)
     _compare("onsite.pageviews", onsite_block["yesterday"]["pageviews"], onsite_block["weekAgo"]["pageviews"], anomalies)
 
-    return {"date": today, "onsite": onsite_block, "gsc": gsc_block, "anomalies": anomalies}
+    return {"date": today, "onsite": onsite_block, "gsc": gsc_block, "gscError": gsc_error, "anomalies": anomalies}
 
 
 def main() -> int:
@@ -116,6 +136,8 @@ def main() -> int:
     config.set_dry_run(args.dry_run)
 
     api = admin_api.AdminAPI()
+    if not config.DRY_RUN:
+        api.login()
     snapshot = build_snapshot(api)
 
     if config.DRY_RUN:
@@ -127,10 +149,13 @@ def main() -> int:
     g = snapshot["gsc"]
     o = snapshot["onsite"]
     print(f"\nTraffic digest — {snapshot['date']}")
-    print(f"  GSC yesterday:  {g['yesterday']['clicks']} clicks, {g['yesterday']['impressions']} impressions, "
-          f"pos {g['yesterday']['position']}")
+    if g:
+        print(f"  GSC yesterday:  {g['yesterday']['clicks']} clicks, {g['yesterday']['impressions']} impressions, "
+              f"pos {g['yesterday']['position']}")
+    else:
+        print(f"  GSC: skipped ({snapshot.get('gscError', 'unavailable')})")
     print(f"  On-site yesterday: {o['yesterday']['pageviews']} pageviews, {o['yesterday']['sessions']} sessions")
-    if g["topQueries"]:
+    if g and g["topQueries"]:
         top = g["topQueries"][0]
         print(f"  Top query: \"{top['query']}\" ({top['clicks']} clicks)")
     if snapshot["anomalies"]:
