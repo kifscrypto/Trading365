@@ -45,6 +45,21 @@ python serve.py          # serves http://127.0.0.1:4173 — Ctrl+C to stop
 Day boundaries use **local-time** `YYYY-MM-DD` strings throughout
 (`ops/dates.py`) — never UTC conversion.
 
+## Shared data layer
+
+`ops/store.py` has two backends, selected by environment:
+
+- **`OPS_API_URL` unset (default):** local JSON files under `data/` exactly as
+  before, with `serve.py` exposing them on :4173 for the dashboard.
+- **`OPS_API_URL` + `OPS_API_TOKEN` set** (e.g.
+  `OPS_API_URL=https://trading365.org/api/ops`): every collection load/save,
+  traffic snapshot and briefing reads/writes the site's Postgres via the
+  site's `/api/ops` routes, authenticated with `Authorization: Bearer
+  $OPS_API_TOKEN`. The dashboard then reads the same data same-origin.
+
+`--dry-run` never uses the HTTP backend — no network, no writes, local files
+only, regardless of these variables.
+
 ## Windows Task Scheduler setup
 
 Concrete `schtasks` commands (run from an elevated or normal prompt; adjust the

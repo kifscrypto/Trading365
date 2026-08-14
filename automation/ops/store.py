@@ -9,6 +9,8 @@ dashboard's starter data so the suite runs standalone.
 import json
 import random
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Callable
 
@@ -16,6 +18,46 @@ from . import config
 from .dates import shift_days, today_iso
 
 COLLECTIONS = ("content", "tasks", "inbox", "outreach", "templates", "cycles", "quora_queue")
+
+HTTP_TIMEOUT = 30
+
+
+# --- Optional HTTP backend (shared data layer via the site's /api/ops) --------
+# Active only when OPS_API_URL is set AND dry-run is off; dry-run stays fully
+# local (no network, no writes) as before.
+
+
+def _api_base() -> str | None:
+    url = config.get("OPS_API_URL")
+    return url.rstrip("/") if url else None
+
+
+def _http_enabled() -> bool:
+    return _api_base() is not None and not config.DRY_RUN
+
+
+def _request(method: str, path: str, body: Any = None) -> tuple[int, Any]:
+    """Call the ops API. Returns (status, parsed JSON). Raises on any HTTP or
+    network error other than 404, which returns (404, None)."""
+    url = f"{_api_base()}/{path}"
+    headers = {"Accept": "application/json"}
+    token = config.get("OPS_API_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+            return resp.status, json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return 404, None
+        raise RuntimeError(f"ops API {method} {url} failed: HTTP {e.code} {e.read()[:200]!r}") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"ops API {method} {url} failed: {e.reason}") from e
 
 _B36 = "0123456789abcdefghijklmnopqrstuvwxyz"
 
@@ -36,9 +78,13 @@ def uid() -> str:
     return rand + _b36(int(time.time() * 1000))
 
 
-def _path(name: str) -> Path:
+def _check_name(name: str) -> None:
     if name not in COLLECTIONS:
         raise ValueError(f"unknown collection {name!r}; expected one of {COLLECTIONS}")
+
+
+def _path(name: str) -> Path:
+    _check_name(name)
     return config.DATA_DIR / f"{name}.json"
 
 
@@ -58,6 +104,14 @@ def _write_json(path: Path, data: Any) -> None:
 
 def load(name: str, seed: Callable[[], list[dict[str, Any]]] | None = None) -> list[dict[str, Any]]:
     """Load a collection, seeding and persisting starter data if missing."""
+    _check_name(name)
+    if _http_enabled():
+        status, data = _request("GET", name)
+        if status == 404:
+            items = seed() if seed is not None else []
+            _request("PUT", name, items)
+            return items
+        return data
     path = _path(name)
     if not path.exists() and seed is not None:
         items = seed()
@@ -67,22 +121,38 @@ def load(name: str, seed: Callable[[], list[dict[str, Any]]] | None = None) -> l
 
 
 def save(name: str, items: list[dict[str, Any]]) -> None:
+    if _http_enabled():
+        _check_name(name)
+        _request("PUT", name, items)
+        return
     _write_json(_path(name), items)
 
 
 def load_traffic(day: str) -> dict[str, Any] | None:
+    if _http_enabled():
+        status, data = _request("GET", f"traffic-{day}")
+        return None if status == 404 else data
     return _read_json(config.DATA_DIR / "traffic" / f"traffic-{day}.json", None)
 
 
 def save_traffic(day: str, data: dict[str, Any]) -> None:
+    if _http_enabled():
+        _request("PUT", f"traffic-{day}", data)
+        return
     _write_json(config.DATA_DIR / "traffic" / f"traffic-{day}.json", data)
 
 
 def save_briefing(day: str, data: dict[str, Any]) -> None:
+    if _http_enabled():
+        _request("PUT", f"briefing-{day}", data)
+        return
     _write_json(config.DATA_DIR / "briefings" / f"briefing-{day}.json", data)
 
 
 def _latest(subdir: str, prefix: str) -> dict[str, Any] | None:
+    if _http_enabled():
+        status, data = _request("GET", f"{prefix}/latest")
+        return None if status == 404 else data
     folder = config.DATA_DIR / subdir
     if not folder.exists():
         return None
