@@ -5,7 +5,7 @@
 // Usage:  node scripts/sync-ops.mjs [path-to-ops-repo]
 //         OPS_REPO=/path/to/trading365-ops node scripts/sync-ops.mjs
 //
-// Default repo location: ../trading365-ops (sibling directory).
+// Default repo location: ./trading365-ops (subdirectory).
 
 import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, rmSync } from 'node:fs'
