@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { jsonLd } from '@/lib/utils/json-ld'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -63,7 +64,7 @@ export default function RootLayout({
         {/* Sitewide Organization schema */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(generateOrganizationStandaloneSchema()) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd(generateOrganizationStandaloneSchema()) }}
         />
         <link rel="alternate" type="application/rss+xml" title="Trading365 RSS Feed" href="/feed.xml" />
         <link rel="alternate" type="text/plain" title="Trading365 LLM Index" href="/llms.txt" />

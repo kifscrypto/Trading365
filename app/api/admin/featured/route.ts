@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
+import { verifyAdmin } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import {
   FEATURED_SLOTS,
@@ -11,9 +11,8 @@ import {
 import { getMergedExchanges } from "@/lib/data/exchange-content"
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get("admin_auth")
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
 const VALID_SLOTS = new Set(FEATURED_SLOTS.map((s) => s.slot))
@@ -25,8 +24,8 @@ const AFFECTED_PATHS: Record<string, string[]> = {
   bonus_pins: ["/bonuses"],
 }
 
-export async function GET() {
-  if (!(await checkAuth())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+export async function GET(request: Request) {
+  if (!(await checkAuth(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const configured = await getAllFeaturedSlots()
   // Current value per slot = configured (if any) else the baked-in default.
@@ -56,7 +55,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  if (!(await checkAuth())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { slot, items } = await request.json()
   if (!VALID_SLOTS.has(slot)) {

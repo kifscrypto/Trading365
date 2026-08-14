@@ -1,17 +1,9 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { verifyAdmin } from '@/lib/auth'
 
-export async function GET() {
-  try {
-    const cookieStore = await cookies()
-    const isAuth = !!cookieStore.get('admin_auth')
-    
-    if (!isAuth) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-    
-    return NextResponse.json({ authenticated: true })
-  } catch (error) {
-    return NextResponse.json({ error: 'Session check failed' }, { status: 500 })
-  }
+// 401 when unauthenticated — the admin UI gates on res.ok. The body always
+// carries the boolean for callers that parse JSON instead.
+export async function GET(request: Request) {
+  const authenticated = await verifyAdmin(request)
+  return NextResponse.json({ authenticated }, { status: authenticated ? 200 : 401 })
 }

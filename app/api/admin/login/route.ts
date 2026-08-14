@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { mintAdminToken, SESSION_TTL } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
@@ -14,11 +15,11 @@ export async function POST(request: Request) {
 
     if (password === adminPassword) {
       const cookieStore = await cookies()
-      cookieStore.set('admin_auth', 'true', {
+      cookieStore.set('admin_auth', await mintAdminToken(), {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7, // 7 days
+        maxAge: SESSION_TTL,
       })
 
       return NextResponse.json({ success: true })

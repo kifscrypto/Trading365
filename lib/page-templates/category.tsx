@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import { jsonLd } from "@/lib/utils/json-ld"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { Breadcrumbs } from "@/components/breadcrumbs"
@@ -113,19 +114,19 @@ export default async function CategoryPageContent({ category }: { category: stri
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbSchema),
+          __html: jsonLd(breadcrumbSchema),
         }}
       />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(itemListSchema),
+          __html: jsonLd(itemListSchema),
         }}
       />
       {faqSchema && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd(faqSchema) }}
         />
       )}
       <section className="border-b border-border">

@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { jsonLd } from "@/lib/utils/json-ld"
 import Image from "next/image"
 import Link from "next/link"
 import { ShieldCheck, BookOpen, Scale, Target, Mail, ArrowRight } from "lucide-react"
@@ -115,7 +116,7 @@ export default function AboutPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutPageSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(aboutPageSchema) }}
       />
       {/* Header */}
       <section className="border-b border-border">

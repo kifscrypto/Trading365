@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { verifyAdmin } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { ensureTables } from '../route'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get('admin_auth')
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
 const STABLES = new Set(['USD', 'USDT', 'USDC', 'DAI', 'BUSD', 'TUSD', 'FDUSD', 'USDE'])
@@ -61,7 +60,7 @@ export async function GET(request: Request) {
 
 // POST — log an earnings reading for an account.
 export async function POST(request: Request) {
-  if (!(await checkAuth())) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {
@@ -100,7 +99,7 @@ export async function POST(request: Request) {
 
 // DELETE ?id=N — remove a mistaken snapshot.
 export async function DELETE(request: Request) {
-  if (!(await checkAuth())) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {

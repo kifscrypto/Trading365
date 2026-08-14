@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { verifyAdmin } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { exchanges } from '@/lib/data/exchanges'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get('admin_auth')
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
 async function ensureTable() {
@@ -23,7 +22,10 @@ async function ensureTable() {
 }
 
 // GET — return all links (DB rows merged with exchanges.ts as seed/fallback)
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await checkAuth(request))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     await ensureTable()
 
@@ -48,7 +50,7 @@ export async function GET() {
 
 // POST — upsert a link
 export async function POST(request: Request) {
-  if (!(await checkAuth())) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {

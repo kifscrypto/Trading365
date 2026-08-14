@@ -1,18 +1,17 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { verifyAdmin } from '@/lib/auth'
 import { getAllArticles, createArticle } from '@/lib/db'
 import { pingIndexNow, articleUrl } from '@/lib/indexnow'
 import { autoRegisterExchangeFromReview } from '@/lib/data/exchange-content'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get('admin_auth')
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
-  if (!(await checkAuth())) {
+export async function GET(request: Request) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -26,7 +25,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!(await checkAuth())) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

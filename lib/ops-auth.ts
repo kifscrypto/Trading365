@@ -1,5 +1,5 @@
-import { cookies } from 'next/headers'
 import { timingSafeEqual } from 'node:crypto'
+import { verifyAdmin } from '@/lib/auth'
 
 // Constant-time bearer check. When OPS_API_TOKEN is unset, bearer auth is
 // simply unavailable — an empty token is never accepted.
@@ -16,10 +16,9 @@ function bearerMatches(request: Request): boolean {
   return timingSafeEqual(a, b)
 }
 
-// Ops API access: admin session cookie (same check the admin routes use)
-// OR a matching bearer token for the automation suite.
+// Ops API access: a valid admin session token (same check the admin routes
+// use) OR a matching bearer token for the automation suite.
 export async function isOpsAuthorized(request: Request): Promise<boolean> {
-  const cookieStore = await cookies()
-  if (cookieStore.get('admin_auth')) return true
+  if (await verifyAdmin(request)) return true
   return bearerMatches(request)
 }

@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless"
+import { verifyAdmin } from "@/lib/auth"
 import { NextResponse } from "next/server"
 import type { SqlClient } from "@/app/api/scanner/_core"
 import {
@@ -47,8 +48,7 @@ export async function GET(request: Request) {
     if (wantPersist) {
       // Writing the table → require cron secret or an admin session.
       const auth = request.headers.get("authorization")
-      const cookies = request.headers.get("cookie") ?? ""
-      const hasSession = cookies.split(";").some((c) => c.trim().startsWith("admin_auth="))
+      const hasSession = await verifyAdmin(request)
       const isCron = url.searchParams.get("cron") === "true"
       if (!isCron && auth !== `Bearer ${process.env.CRON_SECRET}` && !hasSession) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

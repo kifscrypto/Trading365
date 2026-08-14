@@ -1,6 +1,7 @@
 export const revalidate = 3600
 
 import { notFound, permanentRedirect } from "next/navigation"
+import { jsonLd } from "@/lib/utils/json-ld"
 import type { Metadata } from "next"
 import Link from "next/link"
 import Image from "next/image"
@@ -136,11 +137,11 @@ export default async function LocaleArticlePage({
     <main className="min-h-screen">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(articleSchema) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbSchema) }}
       />
       <div className="border-b border-border bg-secondary/30">
         <div className="mx-auto max-w-4xl px-4 py-2 flex items-center justify-between">

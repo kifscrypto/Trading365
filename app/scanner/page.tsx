@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { jsonLd } from "@/lib/utils/json-ld"
 import Link from "next/link"
 import { neon } from "@neondatabase/serverless"
 import { Badge } from "@/components/ui/badge"
@@ -163,7 +164,7 @@ export default async function ScannerPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(schemaData) }}
       />
       {/* Hero */}
       <section className="relative border-b border-border bg-zinc-950 overflow-hidden">

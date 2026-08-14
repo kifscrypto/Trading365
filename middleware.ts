@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { verifyAdmin } from "@/lib/auth"
 
 // Token-gate the private broadcast surface. /live-arcade requires
 // ?k=<LIVE_ACCESS_TOKEN>. Any missing/wrong token (or no token configured)
@@ -19,12 +20,12 @@ function notFound() {
   })
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   // /ops — Operations Command Center (static dashboard baked into public/ops).
-  // Gated behind the same admin_auth cookie as the admin panel; unauthenticated
+  // Gated behind the same admin session as the admin panel; unauthenticated
   // visitors are sent to the admin login. Always noindex.
   if (req.nextUrl.pathname.startsWith("/ops")) {
-    if (!req.cookies.get("admin_auth")) {
+    if (!(await verifyAdmin(req))) {
       const login = new URL("/admin/login", req.url)
       login.searchParams.set("next", req.nextUrl.pathname)
       return NextResponse.redirect(login)

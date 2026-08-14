@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { cookies } from "next/headers"
+import { verifyAdmin } from "@/lib/auth"
 import { sql } from "@/lib/db"
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get("admin_auth")
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
 /**
@@ -14,7 +13,7 @@ async function checkAuth() {
  * - Strips a leading "# Title line" from content when the content is otherwise HTML
  */
 export async function POST(req: NextRequest) {
-  if (!(await checkAuth())) {
+  if (!(await checkAuth(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

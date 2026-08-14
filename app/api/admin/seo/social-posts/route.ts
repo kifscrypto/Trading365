@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { verifyAdmin } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { getArticleBySlugFromDB } from '@/lib/data/articles-db'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get('admin_auth')
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
 export const maxDuration = 60
 
 export async function POST(request: Request) {
-  if (!(await checkAuth())) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { verifyAdmin } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { exchanges } from '@/lib/data/exchanges'
 
@@ -9,9 +9,8 @@ import { exchanges } from '@/lib/data/exchanges'
 // time series. No credentials are stored — that only arrives if/when we add
 // automated scrapers for the highest-value exchanges.
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get('admin_auth')
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
 export async function ensureTables() {
@@ -46,7 +45,10 @@ export async function ensureTables() {
 }
 
 // GET — accounts with their latest + previous snapshot and a grand total.
-export async function GET() {
+export async function GET(request: Request) {
+  if (!(await checkAuth(request))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     await ensureTables()
 
@@ -112,7 +114,7 @@ export async function GET() {
 
 // POST — create / upsert an account.
 export async function POST(request: Request) {
-  if (!(await checkAuth())) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {

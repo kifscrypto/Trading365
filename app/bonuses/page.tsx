@@ -1,6 +1,7 @@
 export const revalidate = 300
 
 import type { Metadata } from "next"
+import { jsonLd } from "@/lib/utils/json-ld"
 import Link from "next/link"
 import { ExternalLink, Star, Shield, Zap, Gift, CheckCircle2, Trophy, Flame, TrendingUp, BadgeCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -99,11 +100,11 @@ export default async function BonusesPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(itemListSchema) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(faqSchema) }}
       />
       {/* Hero */}
       <section className="relative overflow-hidden border-b border-border">

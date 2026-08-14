@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { verifyAdmin } from '@/lib/auth'
 import { sql } from '@/lib/db'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get('admin_auth')
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await checkAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const { name, image_url, destination_url, active, display_order } = await request.json()
   const rows = await sql`
@@ -26,8 +25,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   return NextResponse.json(rows[0])
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await checkAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   await sql`DELETE FROM promotions WHERE id = ${parseInt(id)}`
   return NextResponse.json({ ok: true })

@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { verifyAdmin } from '@/lib/auth'
 import { sql } from '@/lib/db'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get('admin_auth')
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
 // PUT — edit an account (name / dashboard_url / notes / enabled).
 export async function PUT(request: Request, { params }: { params: Promise<{ slug: string }> }) {
-  if (!(await checkAuth())) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {
@@ -35,8 +34,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ slug
 }
 
 // DELETE — remove an account and its snapshots (FK cascade).
-export async function DELETE(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
-  if (!(await checkAuth())) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  if (!(await checkAuth(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {

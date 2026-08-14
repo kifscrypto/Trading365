@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
+import { verifyAdmin } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import { sql } from "@/lib/db"
 import { exchanges } from "@/lib/data/exchanges"
@@ -10,9 +10,8 @@ import {
   type CustomExchangeRow,
 } from "@/lib/data/exchange-content"
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get("admin_auth")
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
 const SLUGS = new Set(exchanges.map((e) => e.slug))
@@ -32,8 +31,8 @@ async function upsertAffiliateLink(slug: string, name: string, url: string) {
 }
 
 // GET — static exchanges (with current overrides + defaults) and custom (DB-only) exchanges.
-export async function GET() {
-  if (!(await checkAuth())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+export async function GET(request: Request) {
+  if (!(await checkAuth(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   await ensureExchangeOverridesTable()
   await ensureCustomExchangesTable()
   const ovs = (await sql`SELECT * FROM exchange_overrides`) as unknown as ExchangeOverrideRow[]
@@ -115,7 +114,7 @@ const num = (v: unknown) => {
 
 // PUT — save one STATIC exchange's overrides (+ affiliate URL). Empty field = revert to code default.
 export async function PUT(request: Request) {
-  if (!(await checkAuth())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { slug, fields, affiliateUrl } = await request.json()
   if (!SLUGS.has(slug)) return NextResponse.json({ error: `Unknown exchange "${slug}"` }, { status: 400 })
 
@@ -140,7 +139,7 @@ export async function PUT(request: Request) {
 
 // POST — create or update a CUSTOM (DB-only) exchange, which renders as its own bonus box + comparison row.
 export async function POST(request: Request) {
-  if (!(await checkAuth())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const b = await request.json()
 
   const name = str(b.name)
@@ -189,7 +188,7 @@ export async function POST(request: Request) {
 
 // DELETE — remove a custom exchange (?slug=...).
 export async function DELETE(request: Request) {
-  if (!(await checkAuth())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const slug = new URL(request.url).searchParams.get("slug")
   if (!slug) return NextResponse.json({ error: "slug required" }, { status: 400 })
   await ensureCustomExchangesTable()

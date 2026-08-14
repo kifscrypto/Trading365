@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation"
+import { jsonLd } from "@/lib/utils/json-ld"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft, Linkedin } from "lucide-react"
@@ -59,7 +60,7 @@ export default async function AuthorPage({ params }: { params: Promise<{ slug: s
     <div className="min-h-screen">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(personSchema) }}
       />
       <section className="border-b border-border bg-secondary/30">
         <div className="mx-auto max-w-3xl px-4 py-10 lg:px-6">

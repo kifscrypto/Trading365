@@ -1,7 +1,26 @@
 "use client"
 
+import DOMPurify from "isomorphic-dompurify"
 import { slugifyHeading } from "@/lib/utils/heading"
 import { ExternalLink, ShieldCheck } from "lucide-react"
+
+// Allowlist sanitizer for DB article HTML before it hits dangerouslySetInnerHTML.
+// Blocks script/iframe/form/svg/math, all on* handlers, style, and
+// javascript: URLs. Runs in SSR and the client (isomorphic-dompurify).
+const SANITIZE_CONFIG = {
+  ALLOWED_TAGS: [
+    'p', 'div', 'span', 'h2', 'h3', 'h4', 'ul', 'ol', 'li',
+    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td',
+    'strong', 'em', 'b', 'i', 'u', 'br', 'hr', 'blockquote',
+    'pre', 'code', 'a', 'img',
+  ],
+  ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'id', 'class', 'target', 'rel'],
+  ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|\/|#)/i,
+}
+
+function sanitize(html: string): string {
+  return DOMPurify.sanitize(html, SANITIZE_CONFIG) as string
+}
 
 // Domains that get rel="sponsored nofollow"
 const AFFILIATE_DOMAINS = [
@@ -228,7 +247,7 @@ export function ArticleContent({ content, ctaLink }: ArticleContentProps) {
     return (
       <div
         className="article-prose"
-        dangerouslySetInnerHTML={{ __html: rewriteExternalLinks(addHeadingIds(content)) }}
+        dangerouslySetInnerHTML={{ __html: rewriteExternalLinks(addHeadingIds(sanitize(content))) }}
       />
     )
   }

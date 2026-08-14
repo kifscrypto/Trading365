@@ -1,22 +1,21 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
+import { verifyAdmin } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { ensurePromotionsTable } from '@/lib/data/promotions'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get('admin_auth')
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
-export async function GET() {
-  if (!(await checkAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function GET(request: Request) {
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   await ensurePromotionsTable()
   const rows = await sql`SELECT * FROM promotions ORDER BY display_order ASC, created_at DESC`
   return NextResponse.json(rows)
 }
 
 export async function POST(request: Request) {
-  if (!(await checkAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!(await checkAuth(request))) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   await ensurePromotionsTable()
   const { name, image_url, destination_url, active, display_order } = await request.json()
   if (!name || !image_url || !destination_url) {

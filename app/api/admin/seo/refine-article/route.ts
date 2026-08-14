@@ -1,15 +1,14 @@
-import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
+import { verifyAdmin } from '@/lib/auth'
 
-async function checkAuth() {
-  const cookieStore = await cookies()
-  return !!cookieStore.get('admin_auth')
+function checkAuth(request: Request) {
+  return verifyAdmin(request)
 }
 
 export const maxDuration = 300
 
 export async function POST(request: Request) {
-  if (!(await checkAuth())) {
+  if (!(await checkAuth(request))) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
   }
 

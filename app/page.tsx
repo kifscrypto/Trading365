@@ -1,6 +1,7 @@
 export const revalidate = 300
 
 import type { Metadata } from "next"
+import { jsonLd } from "@/lib/utils/json-ld"
 import Link from "next/link"
 import { ArrowRight, Star, Zap, ShieldOff, Gift } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -112,7 +113,7 @@ export default async function HomePage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(generateWebsiteSchema()),
+          __html: jsonLd(generateWebsiteSchema()),
         }}
       />
       {/* Live scanner wins ticker — client-only, keeps symbols out of SSR HTML */}

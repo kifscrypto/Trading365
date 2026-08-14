@@ -1,12 +1,11 @@
-import { cookies } from 'next/headers'
+import { verifyAdmin } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { isGeneric, genericContentPrompt } from '@/lib/seo/templates'
 
 export const maxDuration = 300
 
 export async function POST(request: Request) {
-  const cookieStore = await cookies()
-  if (!cookieStore.get('admin_auth')) {
+  if (!(await verifyAdmin(request))) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
   }
 

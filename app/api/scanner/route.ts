@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless'
 import { NextResponse } from 'next/server'
+import { verifyAdmin } from '@/lib/auth'
 import {
   runOKXScan, runHyperliquidScan, runMEXCScan, runWEEXScan, runBitunixScan,
   fetchBtcSentimentData, applyBtcSentiment,
@@ -20,16 +21,15 @@ interface ScanResult extends RawResult {
   sentiment_flags: string[]
 }
 
-function isAuthorized(request: Request): boolean {
+async function isAuthorized(request: Request): Promise<boolean> {
   const url = new URL(request.url)
   if (url.searchParams.get('cron') === 'true') return true
   if (request.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`) return true
-  const cookies = request.headers.get('cookie') ?? ''
-  return cookies.split(';').some(c => c.trim().startsWith('admin_auth='))
+  return verifyAdmin(request)
 }
 
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!(await isAuthorized(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

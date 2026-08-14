@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { jsonLd } from "@/lib/utils/json-ld"
 import { CompareClient } from "@/components/compare-client"
 import { getMergedExchanges } from "@/lib/data/exchange-content"
 
@@ -73,7 +74,7 @@ export default async function ComparePage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(webApplicationSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(webApplicationSchema) }}
       />
       <CompareClient exchanges={exchanges} />
     </>

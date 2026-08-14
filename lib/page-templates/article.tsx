@@ -1,4 +1,5 @@
 import { notFound, permanentRedirect } from "next/navigation"
+import { jsonLd } from "@/lib/utils/json-ld"
 import type { Metadata } from "next"
 import Image from "next/image"
 import Link from "next/link"
@@ -295,13 +296,13 @@ export default async function ArticlePageContent({ category, slug, preview = fal
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(articleSchema),
+          __html: jsonLd(articleSchema),
         }}
       />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbSchema),
+          __html: jsonLd(breadcrumbSchema),
         }}
       />
       {exchange && (
@@ -314,13 +315,13 @@ export default async function ArticlePageContent({ category, slug, preview = fal
       {faqSchema && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd(faqSchema) }}
         />
       )}
       {videoSchema && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(videoSchema) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd(videoSchema) }}
         />
       )}
       {/* Header */}

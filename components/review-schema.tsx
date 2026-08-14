@@ -1,4 +1,5 @@
 import { siteConfig } from "@/lib/data/site-config"
+import { jsonLd } from "@/lib/utils/json-ld"
 
 interface ReviewSchemaProps {
   exchangeName: string
@@ -62,7 +63,7 @@ export function ReviewSchema({
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      dangerouslySetInnerHTML={{ __html: jsonLd(schema) }}
     />
   )
 }
