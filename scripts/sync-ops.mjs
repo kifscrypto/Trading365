@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..')
-const opsRepo = resolve(process.argv[2] ?? process.env.OPS_REPO ?? resolve(repoRoot, '../trading365-ops'))
+const opsRepo = resolve(process.argv[2] ?? process.env.OPS_REPO ?? resolve(repoRoot, 'trading365-ops'))
 const target = resolve(repoRoot, 'public/ops')
 
 if (!existsSync(resolve(opsRepo, 'package.json'))) {

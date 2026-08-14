@@ -20,3 +20,8 @@ scripts/_*-backup-*.json
 
 # TypeScript build cache
 *.tsbuildinfo
+
+# Local tools (nested repos / exports)
+/trading365-ops/
+/trading365-ops.zip
+*-log-export-*.csv
