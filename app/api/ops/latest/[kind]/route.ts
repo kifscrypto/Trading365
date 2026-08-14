@@ -6,14 +6,14 @@ export const dynamic = 'force-dynamic'
 
 const NO_STORE = { 'Cache-Control': 'no-store' }
 
-// GET /api/ops/latest/<kind> — newest briefing-* or traffic-* entry's data
-// object (names sort chronologically), 404 when none exists yet.
+// GET /api/ops/latest/<kind> — newest briefing-*, traffic-* or health-*
+// entry's data object (names sort chronologically), 404 when none exists yet.
 export async function GET(request: Request, { params }: { params: Promise<{ kind: string }> }) {
   if (!(await isOpsAuthorized(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE })
   }
   const { kind } = await params
-  if (kind !== 'briefing' && kind !== 'traffic') {
+  if (kind !== 'briefing' && kind !== 'traffic' && kind !== 'health') {
     return NextResponse.json({ error: 'not found' }, { status: 404, headers: NO_STORE })
   }
   try {

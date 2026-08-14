@@ -2,7 +2,8 @@
 
 Collections map to ``<name>.json``; traffic snapshots to
 ``traffic/traffic-YYYY-MM-DD.json``; briefings to
-``briefings/briefing-YYYY-MM-DD.json``. Seed functions mirror the ops
+``briefings/briefing-YYYY-MM-DD.json``; health snapshots to
+``health/health-YYYY-MM-DD.json``. Seed functions mirror the ops
 dashboard's starter data so the suite runs standalone.
 """
 
@@ -149,6 +150,38 @@ def save_briefing(day: str, data: dict[str, Any]) -> None:
     _write_json(config.DATA_DIR / "briefings" / f"briefing-{day}.json", data)
 
 
+DATED_SUBDIRS = {"briefing": "briefings", "traffic": "traffic", "health": "health"}
+
+
+def load_dated(name: str) -> dict[str, Any] | None:
+    """Load a dated snapshot (``<prefix>-YYYY-MM-DD``) from its subdir."""
+    subdir = DATED_SUBDIRS.get(name.split("-", 1)[0])
+    if subdir is None:
+        return None
+    if _http_enabled():
+        status, data = _request("GET", name)
+        return None if status == 404 else data
+    return _read_json(config.DATA_DIR / subdir / f"{name}.json", None)
+
+
+def save_dated(name: str, data: dict[str, Any]) -> None:
+    subdir = DATED_SUBDIRS.get(name.split("-", 1)[0])
+    if subdir is None:
+        raise ValueError(f"unknown dated collection {name!r}; expected one of {tuple(DATED_SUBDIRS)}")
+    if _http_enabled():
+        _request("PUT", name, data)
+        return
+    _write_json(config.DATA_DIR / subdir / f"{name}.json", data)
+
+
+def load_health(day: str) -> dict[str, Any] | None:
+    return load_dated(f"health-{day}")
+
+
+def save_health(day: str, data: dict[str, Any]) -> None:
+    save_dated(f"health-{day}", data)
+
+
 def _latest(subdir: str, prefix: str) -> dict[str, Any] | None:
     if _http_enabled():
         status, data = _request("GET", f"{prefix}/latest")
@@ -168,6 +201,10 @@ def latest_traffic() -> dict[str, Any] | None:
 
 def latest_briefing() -> dict[str, Any] | None:
     return _latest("briefings", "briefing")
+
+
+def latest_health() -> dict[str, Any] | None:
+    return _latest("health", "health")
 
 
 # --- Seed data (mirrors the dashboard's starter items) -----------------------

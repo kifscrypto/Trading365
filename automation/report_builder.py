@@ -1,8 +1,9 @@
 """Morning briefing builder — scheduled 07:30 (or at logon).
 
 Assembles ``briefings/briefing-YYYY-MM-DD.json`` from the latest traffic
-snapshot, today's content item, tasks, inbox counts, due follow-ups and voting
-cycle phases, and prints a plain-text briefing to the console.
+snapshot, the latest site-health snapshot, today's content item, tasks,
+inbox counts, due follow-ups and voting cycle phases, and prints a
+plain-text briefing to the console.
 """
 
 import argparse
@@ -38,6 +39,7 @@ def build_briefing() -> dict[str, Any]:
     today_date = _parse_day(today)
 
     traffic = store.latest_traffic()
+    health = store.latest_health()
 
     content = store.load("content", store.seed_content)
     today_article = next((c for c in content if c.get("date") == today), None)
@@ -66,6 +68,7 @@ def build_briefing() -> dict[str, Any]:
     return {
         "date": today,
         "traffic": traffic,
+        "health": health,
         "todayArticle": today_article,
         "tasks": {"today": tasks_today, "doing": tasks_doing},
         "inbox": {"new": inbox_new, "drafted": inbox_drafted},
@@ -86,6 +89,24 @@ def print_briefing(b: dict[str, Any]) -> None:
             print(f"  [{a['level']}] {a['message']}")
     else:
         print("Traffic: no snapshot yet")
+    health = b["health"]
+    if health:
+        sites = health.get("sites", {})
+        critical_failures = [
+            (host, c)
+            for host, site in sites.items()
+            for c in site.get("checks", [])
+            if c.get("critical") and not c.get("ok")
+        ]
+        if critical_failures:
+            print("Sites: CRITICAL — " + "; ".join(
+                f"{c['name'].upper()} ({host})" for host, c in critical_failures
+            ))
+        else:
+            ok_sites = sum(1 for site in sites.values() if site.get("ok"))
+            print(f"Sites: {ok_sites}/{len(sites)} OK")
+    else:
+        print("Sites: no health snapshot yet")
     article = b["todayArticle"]
     if article:
         print(f"Today's article: {article.get('title')} [{article.get('status')}]")

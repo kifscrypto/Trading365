@@ -15,7 +15,7 @@ const FIXED_COLLECTIONS = new Set([
   'cycles',
   'quora_queue',
 ])
-const DATED_NAME = /^(briefing|traffic)-\d{4}-\d{2}-\d{2}$/
+const DATED_NAME = /^(briefing|traffic|health)-\d{4}-\d{2}-\d{2}$/
 
 function isValidName(name: string): boolean {
   return FIXED_COLLECTIONS.has(name) || DATED_NAME.test(name)
@@ -32,7 +32,7 @@ async function ensureTable() {
 }
 
 // GET /api/ops/<name> — the stored JSON (array for the fixed collections,
-// data object for dated briefing-/traffic- names), 404 if never written.
+// data object for dated briefing-/traffic-/health- names), 404 if never written.
 export async function GET(request: Request, { params }: { params: Promise<{ name: string }> }) {
   if (!(await isOpsAuthorized(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE })
@@ -54,8 +54,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ name
 }
 
 // PUT /api/ops/<name> — replace the collection. Fixed collections must be
-// JSON arrays (matches serve.py); dated briefing-/traffic- names store their
-// data object as-is.
+// JSON arrays (matches serve.py); dated briefing-/traffic-/health- names
+// store their data object as-is.
 export async function PUT(request: Request, { params }: { params: Promise<{ name: string }> }) {
   if (!(await isOpsAuthorized(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE })
