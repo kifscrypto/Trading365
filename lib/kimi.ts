@@ -53,13 +53,22 @@ function getModel(): string {
 }
 
 async function postChat(body: Record<string, unknown>): Promise<Response> {
+  // kimi-k2.x enables thinking mode by default; the hidden reasoning tokens
+  // burn most of the invocation budget and trip Vercel function timeouts.
+  // Content generation doesn't need reasoning (and our stream parser only
+  // reads delta.content anyway), so disable it. The `thinking` param is k2.x
+  // only — kimi-k3 rejects it (it uses top-level reasoning_effort instead).
+  const model = typeof body.model === 'string' ? body.model : ''
+  const payload = model.startsWith('kimi-k2')
+    ? { ...body, thinking: { type: 'disabled' } }
+    : body
   const res = await fetch(KIMI_API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${getApiKey()}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     throw new Error(`Kimi API error ${res.status}: ${await res.text()}`)

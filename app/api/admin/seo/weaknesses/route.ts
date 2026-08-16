@@ -6,7 +6,7 @@ function checkAuth(request: Request) {
   return verifyAdmin(request)
 }
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 export async function POST(request: Request) {
   if (!(await checkAuth(request))) {

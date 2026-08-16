@@ -6,7 +6,7 @@ function checkAuth(request: Request) {
   return verifyAdmin(request)
 }
 
-export const maxDuration = 120
+export const maxDuration = 300
 
 function isHtml(content: string): boolean {
   return /<(p|div|h[1-6]|ul|ol|li|table|thead|tbody|tr|th|td|strong|em|br|blockquote|a|span|pre|code|hr|img)\b/i.test(content)

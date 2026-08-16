@@ -6,7 +6,7 @@ function checkAuth(request: Request) {
   return verifyAdmin(request)
 }
 
-export const maxDuration = 120
+export const maxDuration = 300
 
 // Same detection logic the ArticleContent component uses
 function isHtml(content: string): boolean {

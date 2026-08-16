@@ -7,7 +7,7 @@ function checkAuth(request: Request) {
   return verifyAdmin(request)
 }
 
-export const maxDuration = 120
+export const maxDuration = 300
 
 function extractJsonArray(raw: string): string {
   // Strip markdown fences if the model wraps output
