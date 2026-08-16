@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
 import { getAllArticles, createArticle } from '@/lib/db'
 import { pingIndexNow, articleUrl } from '@/lib/indexnow'
+import { announceArticle } from '@/lib/announce-article'
 import { autoRegisterExchangeFromReview } from '@/lib/data/exchange-content'
 
 function checkAuth(request: Request) {
@@ -33,6 +34,17 @@ export async function POST(request: Request) {
     const data = await request.json()
     const article = await createArticle(data)
     pingIndexNow([articleUrl(article.category_slug, article.slug)])
+    // Created already-published → announce like the PATCH publish-toggle does.
+    // Fire-and-forget: a notify failure must never fail the create.
+    if (article.published) {
+      await announceArticle({
+        title: article.title,
+        excerpt: article.excerpt,
+        url: articleUrl(article.category_slug, article.slug),
+        image: article.thumbnail,
+        category: article.category,
+      }).catch((err) => console.error('Failed to announce article:', err))
+    }
     // If this is an exchange review, add the exchange to the featurable pool.
     autoRegisterExchangeFromReview({
       slug: article.slug,

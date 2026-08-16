@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChat } from '@/lib/kimi'
 
 function checkAuth(request: Request) {
   return verifyAdmin(request)
@@ -17,14 +17,9 @@ export async function POST(request: Request) {
     const { content, keyword } = await request.json()
     const excerpt = typeof content === 'string' ? content.slice(0, 600) : ''
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 400,
-      messages: [{
-        role: 'user',
-        content: `You are a visual creative director generating Higgsfield AI image prompts for featured article images on a professional crypto/trading website.
+    const prompt = (await kimiChat([{
+      role: 'user',
+      content: `You are a visual creative director generating Higgsfield AI image prompts for featured article images on a professional crypto/trading website.
 
 Generate a single cinematic image prompt for the featured image of this article.
 
@@ -43,10 +38,8 @@ Rules:
 
 KEYWORD: ${keyword}
 ARTICLE EXCERPT: ${excerpt}`,
-      }],
-    })
+    }], { maxTokens: 400 })).trim()
 
-    const prompt = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
     return NextResponse.json({ prompt })
   } catch (error: any) {
     return NextResponse.json({ error: error.message ?? 'Image prompt generation failed' }, { status: 500 })

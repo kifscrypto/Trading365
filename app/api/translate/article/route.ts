@@ -9,7 +9,7 @@ import type { LocaleCode } from "@/lib/i18n/config"
 
 // POST /api/translate/article — translate a single article into one locale
 export async function POST(req: NextRequest) {
-  // Unauthenticated until 2026-08-14: anyone could burn Anthropic credits and
+  // Unauthenticated until 2026-08-14: anyone could burn LLM credits and
   // write article_translations rows. Requires the signed admin session now.
   if (!(await verifyAdmin(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -63,7 +63,12 @@ export async function POST(req: NextRequest) {
 }
 
 // PUT /api/translate/article — translate ALL articles into all locales
-export async function PUT() {
+export async function PUT(req: NextRequest) {
+  // Same admin requirement as POST: this burns LLM credits across every
+  // article × locale, so it must not be callable anonymously.
+  if (!(await verifyAdmin(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
   try {
     const articles = await getAllArticles()
     const results: Record<string, Record<string, string>> = {}

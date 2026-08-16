@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChatStream } from '@/lib/kimi'
 import { verifyAdmin } from '@/lib/auth'
 import { getPublishedArticles } from '@/lib/db'
 import { getPageGSCData, formatGSCForPrompt } from '@/lib/gsc'
@@ -49,8 +49,6 @@ export async function POST(request: Request) {
       .map(a => `/${a.category_slug}/${a.slug} — ${a.title}`)
       .join('\n')
     const gscContext = gscData ? `\n\n${formatGSCForPrompt(gscData)}\n\n` : ''
-
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     // Rubric: explicit auditMode wins (from the optimizer dropdown); otherwise
     // fall back to the article type (generic types → educational).
@@ -209,23 +207,13 @@ ${gscContext}
 SITE PAGES (for internal link suggestions):
 ${siteUrls || 'None available'}`
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-8',
-      max_tokens: 4000,
-      messages: [{ role: 'user', content: promptContent }],
-    })
-
     const encoder = new TextEncoder()
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of stream) {
-            if (
-              chunk.type === 'content_block_delta' &&
-              chunk.delta.type === 'text_delta'
-            ) {
-              controller.enqueue(encoder.encode(chunk.delta.text))
-            }
+          const deltas = kimiChatStream([{ role: 'user', content: promptContent }], { maxTokens: 4000 })
+          for await (const text of deltas) {
+            controller.enqueue(encoder.encode(text))
           }
           controller.close()
         } catch (err) {

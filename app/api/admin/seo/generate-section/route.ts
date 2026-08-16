@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChat } from '@/lib/kimi'
 import { getArticleById, updateArticle } from '@/lib/db'
 
 function checkAuth(request: Request) {
@@ -28,14 +28,9 @@ export async function POST(request: Request) {
 
     const isHtml = /<[a-z][\s\S]*>/i.test(article.content)
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 10000,
-      messages: [{
-        role: 'user',
-        content: `CRITICAL: Never wrap links in bold. Write [text](url) — NEVER **[text](url)**. This applies to every single link without exception.
+    const result = (await kimiChat([{
+      role: 'user',
+      content: `CRITICAL: Never wrap links in bold. Write [text](url) — NEVER **[text](url)**. This applies to every single link without exception.
 
 You are editing a crypto article for trading365.org.
 
@@ -66,10 +61,7 @@ ARTICLE TITLE: ${article.title}
 
 ARTICLE:
 ${article.content}`,
-      }],
-    })
-
-    const result = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+    }], { maxTokens: 10000 })).trim()
 
     if (result === 'SKIP' || result.toUpperCase().startsWith('SKIP')) {
       return NextResponse.json({ skipped: true, reason: 'Not applicable for this article type' })

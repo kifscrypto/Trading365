@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChat } from '@/lib/kimi'
 import { isGeneric, genericOutlinePrompt } from '@/lib/seo/templates'
 
 function checkAuth(request: Request) {
@@ -16,8 +16,6 @@ export async function POST(request: Request) {
 
   try {
     const { keyword, intent, weaknesses, articleType } = await request.json()
-
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     const weaknessList = Array.isArray(weaknesses)
       ? (weaknesses as string[]).join('\n')
@@ -85,13 +83,7 @@ ${intent}
 WEAKNESSES:
 ${weaknessList}`
 
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: promptContent }],
-    })
-
-    const outline = message.content[0].type === 'text' ? message.content[0].text : ''
+    const outline = await kimiChat([{ role: 'user', content: promptContent }], { maxTokens: 1500 })
     return NextResponse.json({ outline })
   } catch (error: any) {
     return NextResponse.json({ error: error.message ?? 'Outline generation failed' }, { status: 500 })

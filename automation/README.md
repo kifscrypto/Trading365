@@ -39,7 +39,7 @@ python serve.py          # serves http://127.0.0.1:4173 — Ctrl+C to stop
 |---|---|---|
 | `health_check.py` | 06:15 daily | Site health + security-regression monitor for trading365.org and memeasylum.com: uptime + latency, and re-probes the 2026-08-13 breach holes (forged `admin_auth` cookie must get 401, open admin/translate endpoints must get 401, `/ops` must 307 when unauthenticated). Saves `data/health/health-YYYY-MM-DD.json`. **Exit code 1 if any critical check fails** (Task Scheduler shows the run as failed); a down site is a failed check, not a crash. |
 | `traffic_digest.py` | 06:30 daily | GSC (yesterday + last 8 days) + on-site analytics → merged snapshot with anomaly flags (>30% drop vs same weekday last week warns; spikes are informational). Saves `data/traffic/traffic-YYYY-MM-DD.json`. |
-| `article_pipeline.py` | 07:00 daily | Takes today's content-calendar `idea` (keyword required), runs outline → streaming content → meta tags via the admin API, publishes the article, marks the item published, cross-posts to X + queues a Quora draft. Guards: duplicate-keyword blocking, already-published refusal. `--review` saves the article unpublished for manual review in the admin. |
+| `article_pipeline.py` | 07:00 daily | Takes today's content-calendar `idea` (keyword required), runs outline → streaming content → meta tags via the admin API, publishes the article, marks the item published, cross-posts to X + queues a Quora draft. Guards: duplicate-keyword blocking, already-published refusal. `--review` saves the article unpublished for manual review in the admin (item marked `drafted`, no cross-post). |
 | `crosspost.py` | on demand | Standalone pass over published-but-unposted items (X post + Quora draft queue). Also called by the pipeline after publishing. |
 | `kifs_gmail.py` | every 30–60 min | Polls the KIFS Gmail inbox, classifies sponsorship emails (review/sponsor/collab/partnership/promotion/media kit), files them in `inbox` and creates Gmail **drafts** (never sends). Also creates follow-up drafts for due outreach contacts and bumps their stage (+4 days). |
 | `report_builder.py` | 07:30 daily / logon | Assembles `data/briefings/briefing-YYYY-MM-DD.json` (traffic, site health, today's article, tasks, inbox, follow-ups, voting-cycle phases) and prints a plain-text morning briefing. |
@@ -96,6 +96,11 @@ Notes:
 
 - **ADMIN_PASSWORD** — the admin password configured in Vercel env for the
   Trading365 app (same one the `/api/admin/login` route checks).
+- **Moonshot Kimi API (site-side, Vercel env — nothing to set locally)** — all
+  site LLM features run on Kimi (article generation, the admin SEO tools, and
+  i18n translations): `MOONSHOT_API_KEY` (required) and `KIMI_MODEL`
+  (optional, defaults to `kimi-k2.5`). The pipeline only calls the admin API;
+  if the key is missing the site returns 500 and generation fails.
 - **GSC service account** — create one in Google Cloud Console, enable the
   Search Console API, add the service-account email as a user on the
   trading365.org Search Console property, then set `GSC_CLIENT_EMAIL` and

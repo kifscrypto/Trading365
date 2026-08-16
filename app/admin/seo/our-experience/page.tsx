@@ -247,7 +247,7 @@ export default function OurExperiencePage() {
         )}
 
         <p className="mt-4 text-xs text-zinc-600">
-          Guides, educational articles, and roundups are automatically skipped — Claude identifies which articles need the section.
+          Guides, educational articles, and roundups are automatically skipped — the AI identifies which articles need the section.
         </p>
       </div>
     </div>

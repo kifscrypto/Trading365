@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChat } from '@/lib/kimi'
 import { getPublishedArticles } from '@/lib/db'
 
 function checkAuth(request: Request) {
@@ -24,16 +24,12 @@ export async function POST(request: Request) {
     const { content, mode } = await request.json()
     if (!content?.trim()) return NextResponse.json({ error: 'Content required' }, { status: 400 })
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const results: Record<string, unknown> = {}
 
     if (mode === 'compress' || mode === 'both') {
-      const msg = await anthropic.messages.create({
-        model: 'claude-opus-4-8',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: `You are a content optimization expert.
+      results.compressionMarkdown = await kimiChat([{
+        role: 'user',
+        content: `You are a content optimization expert.
 
 Your job is to identify:
 - where content is too long
@@ -66,10 +62,7 @@ OUTPUT FORMAT:
 
 ARTICLE:
 ${content}`,
-        }],
-      })
-      const raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
-      results.compressionMarkdown = raw
+      }], { maxTokens: 2000 })
     }
 
     if (mode === 'links' || mode === 'both') {
@@ -78,12 +71,9 @@ ${content}`,
         .map(a => `/${a.category_slug}/${a.slug} — ${a.title}`)
         .join('\n')
 
-      const msg = await anthropic.messages.create({
-        model: 'claude-opus-4-8',
-        max_tokens: 2000,
-        messages: [{
-          role: 'user',
-          content: `You are an SEO internal linking specialist.
+      results.linkingMarkdown = await kimiChat([{
+        role: 'user',
+        content: `You are an SEO internal linking specialist.
 
 Your job is to suggest EXACT internal links.
 
@@ -117,10 +107,7 @@ ${content}
 
 SITE PAGES:
 ${sitePages}`,
-        }],
-      })
-      const raw = msg.content[0].type === 'text' ? msg.content[0].text : ''
-      results.linkingMarkdown = raw
+      }], { maxTokens: 2000 })
     }
 
     return NextResponse.json(results)

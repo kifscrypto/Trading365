@@ -232,7 +232,7 @@ export default function KeywordAnalysisPage() {
               <h2 className="text-xl font-bold text-zinc-100">"{analysis.keyword}"</h2>
               {!analysis.hasSerpData && (
                 <span className="px-2 py-0.5 bg-yellow-900/40 text-yellow-400 border border-yellow-700 rounded text-xs">
-                  No live SERP — Claude knowledge used
+                  No live SERP — AI knowledge used
                 </span>
               )}
             </div>

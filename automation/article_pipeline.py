@@ -5,7 +5,8 @@ admin SEO pipeline (outline → streaming content → meta tags), publishes the
 article, marks the item published, then cross-posts (X + Quora draft).
 
 Publishing is live by default; pass ``--review`` to save the article as an
-unpublished draft in the admin for manual review.
+unpublished draft in the admin for manual review (calendar item marked
+``drafted``, cross-posting skipped).
 """
 
 import argparse
@@ -61,11 +62,23 @@ def run_pipeline(item: dict[str, Any], review: bool) -> dict[str, Any]:
     print(f"  1/4 outline   ({keyword}, {intent}, {article_type})")
     outline = api.seo_outline(keyword, intent, article_type=article_type)
 
+    affiliate_links = api.get_affiliate_links()
+    affiliate_link = admin_api.detect_affiliate_link(keyword, affiliate_links)
+    if affiliate_link:
+        print(f"  affiliate   CTA link detected ({affiliate_link})")
+
     print("  2/4 content   (streaming, may take a few minutes)")
     title = body = ""
     for attempt in (1, 2):
         try:
-            title, body = api.seo_content(keyword, outline, intent, article_type)
+            title, body = api.seo_content(
+                keyword,
+                outline,
+                intent,
+                article_type,
+                affiliate_link=affiliate_link,
+                affiliate_links=affiliate_links,
+            )
             break
         except Exception as exc:
             if attempt == 2:
@@ -83,8 +96,13 @@ def run_pipeline(item: dict[str, Any], review: bool) -> dict[str, Any]:
         print("  --review: saved as unpublished draft — publish manually in the admin")
     article = api.publish_article(payload)
 
-    item["status"] = "published"
-    item["publishedUrl"] = f"https://trading365.org/{article['category_slug']}/{article['slug']}"
+    if review:
+        # Draft only: "drafted" keeps the item out of find_todays_item ("idea")
+        # and out of crosspost's published-but-unposted sweep ("published").
+        item["status"] = "drafted"
+    else:
+        item["status"] = "published"
+        item["publishedUrl"] = f"https://trading365.org/{article['category_slug']}/{article['slug']}"
     return {"title": title, "body": body, "article": article}
 
 
@@ -109,13 +127,15 @@ def main() -> int:
     print(f"article pipeline: '{item.get('title')}' [{item.get('articleType') or 'explainer'}]")
     result = run_pipeline(item, args.review)
 
-    crosspost.run_for_item(item, result["body"])
+    if not args.review:
+        crosspost.run_for_item(item, result["body"])
 
     if config.DRY_RUN:
-        print("[dry-run] would save content collection (item marked published)")
+        print(f"[dry-run] would save content collection (item marked {item['status']})")
     else:
         store.save("content", items)
-        print(f"published → {item['publishedUrl']}")
+        if item.get("publishedUrl"):
+            print(f"published → {item['publishedUrl']}")
     return 0
 
 

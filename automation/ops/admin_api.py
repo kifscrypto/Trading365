@@ -37,6 +37,24 @@ def category_label_for(article_type: str) -> str:
     return article_type.replace("_", " ").title()
 
 
+def detect_affiliate_link(keyword: str, links: list[dict[str, Any]]) -> str | None:
+    """Pick the CTA affiliate URL for a keyword, mirroring the admin content
+    generator's detection: exact whole-word match of the link slug, or of every
+    word in the link name; longest slug wins ties."""
+    words = [w for w in re.split(r"[\s\-_/]+", keyword.lower()) if w]
+    best: tuple[int, str] | None = None
+    for link in links:
+        slug = str(link.get("slug", "")).lower()
+        name_words = str(link.get("name", "")).lower().split()
+        url = link.get("affiliate_url")
+        if not url:
+            continue
+        if slug in words or (name_words and all(w in words for w in name_words)):
+            if best is None or len(slug) > best[0]:
+                best = (len(slug), str(url))
+    return best[1] if best else None
+
+
 class AdminAPI:
     def __init__(self, base_url: str | None = None) -> None:
         self.base_url = (base_url or config.BASE_URL).rstrip("/")
@@ -82,7 +100,7 @@ class AdminAPI:
                 "keyword": keyword,
                 "intent": intent,
                 "weaknesses": weaknesses or [],
-                "article_type": article_type,
+                "articleType": article_type,
             },
             timeout=120,
         )
@@ -113,9 +131,9 @@ class AdminAPI:
                     "keyword": keyword,
                     "outline": outline,
                     "intent": intent,
-                    "article_type": article_type,
-                    "affiliate_link": affiliate_link,
-                    "affiliate_links": affiliate_links or [],
+                    "articleType": article_type,
+                    "affiliateLink": affiliate_link,
+                    "affiliateLinks": affiliate_links or [],
                 },
                 stream=True,
                 timeout=CONTENT_TIMEOUT_S,

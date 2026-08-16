@@ -1,13 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk"
+import { kimiChat, type KimiMessage } from "../kimi"
 import type { LocaleCode } from "./config"
 import { LOCALE_FULL_NAMES } from "./config"
-
-function getClient() {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY environment variable is not set")
-  }
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-}
 
 // Terms that must NEVER be translated
 const PRESERVE_TERMS = [
@@ -56,7 +49,7 @@ ${sharedRules}
 7. Do not add any commentary — return ONLY the translated content in the exact same format as the input`
 }
 
-// Strip accidental markdown heading prefixes Claude sometimes adds to short-field translations
+// Strip accidental markdown heading prefixes the model sometimes adds to short-field translations
 function stripMarkdownPrefix(text: string): string {
   return text.replace(/^#+\s+/, "").trim()
 }
@@ -88,21 +81,17 @@ export async function translateText(
 
   let lastLen = 0
   for (let attempt = 0; attempt < 3; attempt++) {
-    const message = await getClient().messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 16384, // headroom so long articles are never truncated mid-body
-      system:
-        attempt === 0
-          ? systemPrompt
-          : systemPrompt +
-            "\n\nCRITICAL: Translate the FULL text in its entirety. Do NOT summarise, abridge, condense, or drop any section. Every heading, paragraph, table row, and list item in the input MUST appear in the output.",
-      messages: [{ role: "user", content: text }],
-    })
-
-    const result = message.content[0]
-    if (result.type !== "text") throw new Error("Unexpected response type from Claude")
-
-    const raw = result.text.trim()
+    const system =
+      attempt === 0
+        ? systemPrompt
+        : systemPrompt +
+          "\n\nCRITICAL: Translate the FULL text in its entirety. Do NOT summarise, abridge, condense, or drop any section. Every heading, paragraph, table row, and list item in the input MUST appear in the output."
+    const messages: KimiMessage[] = [
+      { role: "system", content: system },
+      { role: "user", content: text },
+    ]
+    // 16384 tokens of headroom so long articles are never truncated mid-body
+    const raw = (await kimiChat(messages, { maxTokens: 16384 })).trim()
 
     // Short fields are single-line/single-paragraph — never a body. Collapse any
     // runaway content the model appended, then strip stray heading markers.

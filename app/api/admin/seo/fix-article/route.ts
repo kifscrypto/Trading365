@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChat } from '@/lib/kimi'
 import { getArticleById } from '@/lib/db'
 
 function checkAuth(request: Request) {
@@ -10,7 +10,7 @@ function checkAuth(request: Request) {
 export const maxDuration = 120
 
 function extractJsonArray(raw: string): string {
-  // Strip markdown fences if Claude wraps output
+  // Strip markdown fences if the model wraps output
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
   if (fenced) return fenced[1].trim()
   // Slice from first [ to last ] to handle any preamble/postamble
@@ -60,16 +60,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No article content to fix' }, { status: 400 })
     }
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    // Normalise before sending to Claude so "find" snippets use LF (not CRLF)
+    // Normalise before sending to the model so "find" snippets use LF (not CRLF)
     const normalisedContent = articleContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
     const truncatedContent = normalisedContent.slice(0, 18000)
 
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 4000,
-      system: 'You output only a valid JSON array of find-replace patches. No explanation, no markdown fences, no preamble. Output starts with [ and ends with ].',
-      messages: [{
+    const raw = (await kimiChat([
+      { role: 'system', content: 'You output only a valid JSON array of find-replace patches. No explanation, no markdown fences, no preamble. Output starts with [ and ends with ].' },
+      {
         role: 'user',
         content: `Apply these fixes to the article below.
 
@@ -91,10 +88,9 @@ RULES:
 
 ARTICLE:
 ${truncatedContent}`,
-      }],
-    })
+      },
+    ], { maxTokens: 4000 })).trim()
 
-    const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
     const cleaned = extractJsonArray(raw)
 
     let patches: { find: string; replace: string }[]
@@ -110,7 +106,7 @@ ${truncatedContent}`,
       }
     }
 
-    // normalisedContent is already LF-only (done above before sending to Claude)
+    // normalisedContent is already LF-only (done above before sending to the model)
     let patched = normalisedContent
     const results: { find: string; applied: boolean }[] = []
 

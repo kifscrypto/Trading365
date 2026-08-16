@@ -20,6 +20,9 @@ export async function POST(request: Request) {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         maxAge: SESSION_TTL,
+        // Default cookie path would be /api/admin (the request's directory),
+        // so the browser would never send it to /ops or /admin pages.
+        path: '/',
       })
 
       return NextResponse.json({ success: true })

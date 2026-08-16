@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChat } from '@/lib/kimi'
 import { scrapeSerp } from '@/lib/seo/scraper'
 
 function checkAuth(request: Request) {
@@ -27,14 +27,9 @@ export async function POST(request: Request) {
         ).join('\n\n')
       : `No live SERP data retrieved. Apply your training knowledge of what typically ranks for crypto exchange content related to "${keyword}".`
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 2000,
-      messages: [{
-        role: 'user',
-        content: `You are an SEO strategist focused on beating current SERP results, not copying them.
+    const analysis = await kimiChat([{
+      role: 'user',
+      content: `You are an SEO strategist focused on beating current SERP results, not copying them.
 
 Analyze the keyword below using the provided SERP data.
 
@@ -84,10 +79,7 @@ ${keyword}
 
 SERP DATA:
 ${serpData}`,
-      }],
-    })
-
-    const analysis = message.content[0].type === 'text' ? message.content[0].text : ''
+    }], { maxTokens: 2000 })
 
     return NextResponse.json({ keyword, serpResults, hasSerpData, analysis })
   } catch (error: any) {

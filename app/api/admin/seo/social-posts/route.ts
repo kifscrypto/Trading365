@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChat } from '@/lib/kimi'
 import { getArticleBySlugFromDB } from '@/lib/data/articles-db'
 
 function checkAuth(request: Request) {
@@ -32,14 +32,9 @@ export async function POST(request: Request) {
     }
     const excerpt = typeof content === 'string' ? content.slice(0, 4000) : ''
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 1200,
-      messages: [{
-        role: 'user',
-        content: `Write social media promo posts for this newly published crypto/trading article.
+    const raw = (await kimiChat([{
+      role: 'user',
+      content: `Write social media promo posts for this newly published crypto/trading article.
 
 Goal: drive readers to the article without sounding spammy. Lead with genuine value/insight, not hype.
 
@@ -59,10 +54,8 @@ Return valid JSON only — no markdown wrapper, no explanation:
 ARTICLE TITLE: ${title ?? ''}
 ARTICLE URL: ${url}
 ARTICLE CONTENT: ${excerpt}`,
-      }],
-    })
+    }], { maxTokens: 1200, json: true })).trim()
 
-    const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
     let parsed: { reddit_title: string; reddit_body: string; x_post: string }
     try {
       const jsonMatch = raw.match(/\{[\s\S]*\}/)

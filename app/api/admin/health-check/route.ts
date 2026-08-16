@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChat } from '@/lib/kimi'
 
 function checkAuth(request: Request) {
   return verifyAdmin(request)
@@ -31,7 +31,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
     }
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const truncated = content.slice(0, 20000)
     const contentIsHtml = isHtml(content)
 
@@ -64,12 +63,9 @@ DO NOT flag: ## headings, **bold**, *italic*, | tables, --- separators, - list i
 
 Scoring: start at 100, subtract 15 per error-severity issue, subtract 5 per warning-severity issue, floor at 0.`
 
-      const message = await anthropic.messages.create({
-        model: 'claude-opus-4-8',
-        max_tokens: 4000,
-        messages: [{
-          role: 'user',
-          content: `${scanPrompt}
+      const raw = extractJson(await kimiChat([{
+        role: 'user',
+        content: `${scanPrompt}
 
 IMPORTANT: Output ONLY a raw JSON object. No markdown fences. No explanation. No text before or after. Start your response with { and end with }.
 
@@ -80,10 +76,7 @@ If no issues: {"issues":[],"score":100}
 
 CONTENT TO AUDIT:
 ${truncated}`,
-        }],
-      })
-
-      const raw = extractJson(message.content[0].type === 'text' ? message.content[0].text : '')
+      }], { maxTokens: 4000, json: true }))
       const start = raw.indexOf('{')
       const end = raw.lastIndexOf('}')
 
@@ -117,12 +110,9 @@ ${truncated}`,
       ? 'Fix the issues in this HTML article content.'
       : 'Fix the issues in this Markdown article content. Preserve all valid Markdown syntax — headings, bold, italic, tables, lists, and horizontal rules must remain as-is. Only fix the specific issues listed.'
 
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 8000,
-      messages: [{
-        role: 'user',
-        content: `You are a content fixer. ${fixContext}
+    const raw = extractJson(await kimiChat([{
+      role: 'user',
+      content: `You are a content fixer. ${fixContext}
 
 ISSUES TO FIX:
 ${issuesList}
@@ -143,10 +133,7 @@ IMPORTANT: Output ONLY a raw JSON array. No markdown fences. No explanation. Sta
 
 CONTENT:
 ${truncated}`,
-      }],
-    })
-
-    const raw = extractJson(message.content[0].type === 'text' ? message.content[0].text : '')
+    }], { maxTokens: 8000 }))
     const start = raw.indexOf('[')
     const end = raw.lastIndexOf(']')
 

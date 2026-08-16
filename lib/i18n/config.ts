@@ -34,7 +34,7 @@ export function isValidLocale(code: string): code is LocaleCode {
   return LOCALE_CODES.includes(code as LocaleCode)
 }
 
-// Language names for Claude translation prompts
+// Language names for the translation prompts
 export const LOCALE_FULL_NAMES: Record<LocaleCode, string> = {
   "es": "Spanish",
   "pt": "Brazilian Portuguese",

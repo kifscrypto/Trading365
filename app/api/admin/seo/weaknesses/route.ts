@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChatStream } from '@/lib/kimi'
 import { verifyAdmin } from '@/lib/auth'
 import { scrapeSerp, type SerpResult } from '@/lib/seo/scraper'
 
@@ -30,14 +30,7 @@ export async function POST(request: Request) {
         ).join('\n\n')
       : `No live SERP data. Apply your training knowledge of crypto exchange content ranking for "${keyword}".`
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-    const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-8',
-      max_tokens: 2500,
-      messages: [{
-        role: 'user',
-        content: `You are an SEO strategist.
+    const promptContent = `You are an SEO strategist.
 
 Your job is to identify EXACTLY where current top-ranking pages are weak and how to beat them.
 
@@ -74,21 +67,15 @@ KEYWORD:
 ${keyword}
 
 SERP DATA:
-${serpData}`,
-      }],
-    })
+${serpData}`
 
     const encoder = new TextEncoder()
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of stream) {
-            if (
-              chunk.type === 'content_block_delta' &&
-              chunk.delta.type === 'text_delta'
-            ) {
-              controller.enqueue(encoder.encode(chunk.delta.text))
-            }
+          const deltas = kimiChatStream([{ role: 'user', content: promptContent }], { maxTokens: 2500 })
+          for await (const text of deltas) {
+            controller.enqueue(encoder.encode(text))
           }
           controller.close()
         } catch (err) {

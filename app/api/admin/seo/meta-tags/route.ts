@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChat } from '@/lib/kimi'
 
 function checkAuth(request: Request) {
   return verifyAdmin(request)
@@ -17,14 +17,9 @@ export async function POST(request: Request) {
     const { content, keyword, title } = await request.json()
     const excerpt = typeof content === 'string' ? content.slice(0, 2000) : ''
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 2000,
-      messages: [{
-        role: 'user',
-        content: `Generate SEO metadata, pros/cons, and quick facts for this crypto/trading article.
+    const raw = (await kimiChat([{
+      role: 'user',
+      content: `Generate SEO metadata, pros/cons, and quick facts for this crypto/trading article.
 
 Rules:
 - meta_title: 50-60 characters, includes keyword, compelling
@@ -51,10 +46,8 @@ Return valid JSON only — no markdown wrapper, no explanation:
 KEYWORD: ${keyword}
 ARTICLE TITLE: ${title ?? ''}
 ARTICLE CONTENT: ${excerpt}`,
-      }],
-    })
+    }], { maxTokens: 2000, json: true })).trim()
 
-    const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
     let parsed: {
       meta_title: string
       meta_description: string

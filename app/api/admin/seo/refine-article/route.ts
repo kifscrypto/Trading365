@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChatStream, type KimiMessage } from '@/lib/kimi'
 import { verifyAdmin } from '@/lib/auth'
 
 function checkAuth(request: Request) {
@@ -15,19 +15,18 @@ export async function POST(request: Request) {
   try {
     const { content, instructions, keyword, affiliateLink, affiliateLinks } = await request.json()
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
     const affiliateListBlock = affiliateLinks?.length
       ? `REFERRAL LINK ALLOWLIST — use ONLY these exact URLs for any referral or affiliate links. Never invent, guess, or substitute other URLs:\n${affiliateLinks.map((a: { name: string; affiliate_url: string }) => `- ${a.name}: ${a.affiliate_url}`).join('\n')}\nIf an exchange is not in this list, do not add a referral link for it.`
       : ''
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-8',
-      max_tokens: 8000,
-      system: `You are an article editor. Your output IS the article — nothing else.
+    const messages: KimiMessage[] = [
+      {
+        role: 'system',
+        content: `You are an article editor. Your output IS the article — nothing else.
 
 ABSOLUTE OUTPUT RULE: The very first character you output must be the first character of the article (the # in ## Verdict). Do not write "Here is the updated article", "I've made the following changes", "Done", or any other preamble or postamble. Zero commentary. Zero acknowledgment. The output is the article and only the article. If you add even one word of commentary, the output is corrupted.`,
-      messages: [{
+      },
+      {
         role: 'user',
         content: `MAKE THIS CHANGE TO THE ARTICLE:
 ${instructions}
@@ -55,20 +54,16 @@ ${affiliateLink ? `CTA LINK: ${affiliateLink} — use this exact URL for all cli
 
 ARTICLE:
 ${content}`,
-      }],
-    })
+      },
+    ]
 
     const encoder = new TextEncoder()
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of stream) {
-            if (
-              chunk.type === 'content_block_delta' &&
-              chunk.delta.type === 'text_delta'
-            ) {
-              controller.enqueue(encoder.encode(chunk.delta.text))
-            }
+          const deltas = kimiChatStream(messages, { maxTokens: 8000 })
+          for await (const text of deltas) {
+            controller.enqueue(encoder.encode(text))
           }
           controller.close()
         } catch (err) {

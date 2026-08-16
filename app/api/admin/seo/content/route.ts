@@ -1,5 +1,5 @@
 import { verifyAdmin } from '@/lib/auth'
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChatStream } from '@/lib/kimi'
 import { isGeneric, genericContentPrompt } from '@/lib/seo/templates'
 
 export const maxDuration = 300
@@ -11,8 +11,6 @@ export async function POST(request: Request) {
 
   try {
     const { keyword, outline, intent, affiliateLink, affiliateLinks, articleType } = await request.json()
-
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     // Generic (educational) article types use the template prompt; exchange
     // reviews keep the original money-page prompt below.
@@ -220,23 +218,13 @@ Use this exact URL for ALL clickable CTAs ("Start Trading", "Open Account", "Cla
 OUTLINE TO FOLLOW:
 ${outline}`
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-opus-4-8',
-      max_tokens: 8000,
-      messages: [{ role: 'user', content: promptContent }],
-    })
-
     const encoder = new TextEncoder()
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of stream) {
-            if (
-              chunk.type === 'content_block_delta' &&
-              chunk.delta.type === 'text_delta'
-            ) {
-              controller.enqueue(encoder.encode(chunk.delta.text))
-            }
+          const deltas = kimiChatStream([{ role: 'user', content: promptContent }], { maxTokens: 8000 })
+          for await (const text of deltas) {
+            controller.enqueue(encoder.encode(text))
           }
           controller.close()
         } catch (err) {

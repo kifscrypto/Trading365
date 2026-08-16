@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import Anthropic from '@anthropic-ai/sdk'
+import { kimiChatToolCall, type KimiTool } from '@/lib/kimi'
 
 function checkAuth(request: Request) {
   return verifyAdmin(request)
@@ -14,11 +14,11 @@ function isHtml(content: string): boolean {
 
 // Tool the model must call — guarantees parseable structured output and lets it
 // return ONLY the fields the instruction actually changed (body, pros/cons, SEO…).
-const APPLY_EDITS_TOOL: Anthropic.Tool = {
+const APPLY_EDITS_TOOL: KimiTool = {
   name: 'apply_edits',
   description:
     'Return the article fields you modified. Include ONLY the fields the instruction changed; omit every field you left unchanged.',
-  input_schema: {
+  parameters: {
     type: 'object',
     properties: {
       content: {
@@ -61,7 +61,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 })
     }
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const contentIsHtml = isHtml(content)
     const formatNote = contentIsHtml
       ? 'The article body is HTML — preserve all HTML tags and structure, and return valid HTML.'
@@ -80,12 +79,8 @@ FAQs: ${JSON.stringify(faqs ?? [])}
 ARTICLE BODY (${contentIsHtml ? 'HTML' : 'Markdown'}):
 ${content}`
 
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
-      max_tokens: 16000,
-      tools: [APPLY_EDITS_TOOL],
-      tool_choice: { type: 'tool', name: 'apply_edits' },
-      messages: [
+    const { args, text } = await kimiChatToolCall(
+      [
         {
           role: 'user',
           content: `You are an article editor for a trading and finance website. Apply the instruction below to the article, then call apply_edits with ONLY the fields you changed.
@@ -103,19 +98,19 @@ Rules:
 ${currentFields}`,
         },
       ],
-    })
+      APPLY_EDITS_TOOL,
+      { maxTokens: 16000 }
+    )
 
-    const toolUse = message.content.find((b) => b.type === 'tool_use')
-    if (!toolUse || toolUse.type !== 'tool_use') {
+    if (!args) {
       // Fell back to plain text — treat it as a body edit so the feature still works.
-      const text = message.content.find((b) => b.type === 'text')
-      if (text && text.type === 'text') {
-        return NextResponse.json({ edits: { content: text.text.trim() } })
+      if (text) {
+        return NextResponse.json({ edits: { content: text.trim() } })
       }
       return NextResponse.json({ error: 'No edits returned' }, { status: 500 })
     }
 
-    return NextResponse.json({ edits: toolUse.input })
+    return NextResponse.json({ edits: args })
   } catch (error: any) {
     console.error('edit-with-prompt error:', error)
     return NextResponse.json({ error: error.message ?? 'Edit failed' }, { status: 500 })
