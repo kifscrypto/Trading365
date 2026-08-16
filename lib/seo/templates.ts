@@ -247,6 +247,12 @@ PRINCIPLES (E-E-A-T):
 - Be balanced — cover benefits AND risks/trade-offs honestly.
 - No hype, no filler, no generic phrases ("revolutionary", "game-changing", "user-friendly").
 
+CITATIONS (E-E-A-T):
+- When you state a factual or quantitative claim, cite the authoritative external source with a real markdown link — official documentation, regulators, reputable research. Target several citations per article.
+- These neutral, non-commercial citations are ENCOURAGED — the referral-link allowlist below restricts ONLY commercial/affiliate links, not citations to authoritative sources.
+- NEVER link to competing review or affiliate sites.
+- Never fabricate statistics, rankings, or source names — if a figure isn't certain, write qualitatively instead. Verifiable specificity over generic filler.
+
 STRUCTURE (adapt to the topic — drop or add sections as needed; do NOT add an FAQ section, FAQs are generated separately):
 ${structure}
 

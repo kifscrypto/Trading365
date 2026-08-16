@@ -325,3 +325,17 @@ export async function getTranslationLocalesBySlug(): Promise<Record<string, stri
   }
   return map
 }
+
+// Like getTranslationLocalesBySlug but also returns each translation's
+// translated_at (bumped on every upsert) — used by the sitemap for lastmod.
+export async function getTranslationDatesBySlug(): Promise<Record<string, Record<string, string>>> {
+  const rows = await sql`
+    SELECT article_slug, locale, translated_at FROM article_translations ORDER BY article_slug, locale
+  ` as { article_slug: string; locale: string; translated_at: string }[]
+  const map: Record<string, Record<string, string>> = {}
+  for (const row of rows) {
+    if (!map[row.article_slug]) map[row.article_slug] = {}
+    map[row.article_slug][row.locale] = row.translated_at
+  }
+  return map
+}

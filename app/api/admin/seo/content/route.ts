@@ -83,6 +83,14 @@ INTERNAL LINKING RULES:
 - NEVER use trading365.com — the site is trading365.org only. trading365.com does not exist.
 - NEVER use absolute URLs like https://trading365.org/... — all internal links must be relative paths like /reviews/slug
 
+EXTERNAL CITATIONS (E-E-A-T):
+- When you make a factual or quantitative claim (fees, limits, leverage caps, regulations, security incidents), cite the authoritative external source with a real markdown link — official documentation, regulators, reputable research
+- Target several such citations per article
+- These neutral, non-commercial citations are ENCOURAGED — the referral-link allowlist below restricts ONLY commercial/affiliate links, not citations to authoritative sources
+- NEVER link to competing review or affiliate sites
+- Never fabricate statistics, rankings, or source names — if a figure isn't certain, write qualitatively instead
+- Verifiable specificity over generic filler: name the source, give the real figure
+
 CONVERSION RULES:
 - CTA after fees section or key verdict
 - CTA at the end
