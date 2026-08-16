@@ -202,6 +202,15 @@ class AdminAPI:
             raise RuntimeError(f"publish failed: HTTP {res.status_code} {res.text[:300]}")
         return res.json()
 
+    def list_articles(self) -> list[dict[str, Any]]:
+        """All articles (id, slug, title, category_slug, published, …) — the
+        duplicate-detection corpus for the pipeline and planner."""
+        if config.DRY_RUN:
+            return _fixture_articles()
+        res = self.session.get(f"{self.base_url}/api/admin/articles", timeout=30)
+        res.raise_for_status()
+        return res.json()
+
 
 def build_article_payload(
     keyword: str,
@@ -306,3 +315,19 @@ def _fixture_meta_tags(keyword: str, title: str) -> dict[str, Any]:
             {"question": "What are the fees?", "answer": "From 0.1% per trade."},
         ],
     }
+
+
+def _fixture_articles() -> list[dict[str, Any]]:
+    return [
+        {"id": 111, "slug": "crypto-com-review-what-actually-changed",
+         "title": "Crypto.com Review 2026: What Actually Changed (Fees, CRO, Cards & Regulation)",
+         "category_slug": "reviews", "published": True},
+        {"id": 110, "slug": "best-crypto-exchanges-for-chinese-residents",
+         "title": "Best Crypto Exchanges for Chinese Residents (2026 Guide)",
+         "category_slug": "guides", "published": True},
+        {"id": 106, "slug": "coinbase-vs-crypto-com-which-is-better",
+         "title": "Coinbase vs Crypto.com 2026: Which Crypto Exchange Is Better?",
+         "category_slug": "comparisons", "published": True},
+        {"id": 95, "slug": "weex-review", "title": "WEEX Review 2026: Fees, Leverage & Safety",
+         "category_slug": "reviews", "published": True},
+    ]

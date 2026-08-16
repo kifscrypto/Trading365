@@ -13,7 +13,7 @@ import argparse
 from typing import Any
 
 import crosspost
-from ops import admin_api, config, store
+from ops import admin_api, config, dedupe, store
 from ops.dates import today_iso
 
 COMMERCIAL_TYPES = ("exchange_review", "comparison", "listicle")
@@ -27,16 +27,24 @@ def _intent_for(article_type: str) -> str:
     return "commercial" if article_type in COMMERCIAL_TYPES else "informational"
 
 
-def find_todays_item(items: list[dict[str, Any]]) -> dict[str, Any] | None:
-    today = today_iso()
+def find_todays_item(items: list[dict[str, Any]], date: str | None = None) -> dict[str, Any] | None:
+    day = date or today_iso()
     for item in items:
-        if item.get("date") == today and item.get("status") == "idea" and item.get("keyword"):
+        if item.get("date") == day and item.get("status") == "idea" and item.get("keyword"):
             return item
     return None
 
 
-def guard(item: dict[str, Any], items: list[dict[str, Any]]) -> str | None:
-    """Return a refusal reason, or None if the pipeline may proceed."""
+def guard(
+    item: dict[str, Any],
+    items: list[dict[str, Any]],
+    articles: list[dict[str, Any]],
+) -> str | None:
+    """Return a refusal reason, or None if the pipeline may proceed.
+
+    Checks the calendar collection AND every live article on the site — the
+    site corpus is what stops us re-generating a topic that already ranks.
+    """
     if item.get("status") == "published":
         return f"item '{item.get('title')}' is already published"
     target = _normalized(item["keyword"])
@@ -48,6 +56,15 @@ def guard(item: dict[str, Any], items: list[dict[str, Any]]) -> str | None:
                 f"duplicate keyword '{item['keyword']}' — already covered by "
                 f"'{other.get('title')}' ({other.get('status')})"
             )
+    corpus = dedupe.corpus_from_articles(articles)
+    match = dedupe.coverage_match(item["keyword"], corpus)
+    if match:
+        return f"site already covers '{item['keyword']}' — {match}"
+    # Also check the planned title, not just the keyword.
+    if item.get("title"):
+        match = dedupe.coverage_match(item["title"], corpus)
+        if match:
+            return f"site already covers '{item['title']}' — {match}"
     return None
 
 
@@ -110,16 +127,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Daily article pipeline for Trading365")
     parser.add_argument("--dry-run", action="store_true", help="fixture data, no network, no writes")
     parser.add_argument("--review", action="store_true", help="publish=False — manual publish in admin")
+    parser.add_argument("--date", help="run a specific calendar day (YYYY-MM-DD) instead of today")
     args = parser.parse_args()
     config.set_dry_run(args.dry_run)
 
     items = store.load("content", store.seed_content)
-    item = find_todays_item(items)
+    item = find_todays_item(items, args.date)
     if item is None:
-        print(f"article pipeline: nothing scheduled for {today_iso()} — exiting")
+        print(f"article pipeline: nothing scheduled for {args.date or today_iso()} — exiting")
         return 0
 
-    refusal = guard(item, items)
+    # Duplicate scan runs against the LIVE article list, not just the calendar.
+    api = admin_api.AdminAPI()
+    if not config.DRY_RUN:
+        api.login()
+    articles = api.list_articles()
+    print(f"duplicate scan: {len(articles)} live articles + {len(items)} calendar items")
+
+    refusal = guard(item, items, articles)
     if refusal:
         print(f"article pipeline: REFUSED — {refusal}")
         return 0

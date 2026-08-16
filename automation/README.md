@@ -77,11 +77,13 @@ Concrete `schtasks` commands (run from an elevated or normal prompt; adjust the
 path if the repo moves):
 
 ```bat
-schtasks /create /tn "T365 Health Check"    /tr "\"C:\Users\Lee\AppData\Local\Programs\Python\Python314\python.exe\" \"C:\Users\Lee\OneDrive\JOEY (Asylum)\MAX clone with games\meme-asylum\Trading365\automation\health_check.py\"" /sc daily /st 06:15 /f
-schtasks /create /tn "T365 Traffic Digest"  /tr "\"C:\Users\Lee\AppData\Local\Programs\Python\Python314\python.exe\" \"C:\Users\Lee\OneDrive\JOEY (Asylum)\MAX clone with games\meme-asylum\Trading365\automation\traffic_digest.py\"" /sc daily /st 06:30 /f
-schtasks /create /tn "T365 Article Pipeline" /tr "\"C:\Users\Lee\AppData\Local\Programs\Python\Python314\python.exe\" \"C:\Users\Lee\OneDrive\JOEY (Asylum)\MAX clone with games\meme-asylum\Trading365\automation\article_pipeline.py\"" /sc daily /st 07:00 /f
-schtasks /create /tn "T365 Report Builder"  /tr "\"C:\Users\Lee\AppData\Local\Programs\Python\Python314\python.exe\" \"C:\Users\Lee\OneDrive\JOEY (Asylum)\MAX clone with games\meme-asylum\Trading365\automation\report_builder.py\"" /sc daily /st 07:30 /f
-schtasks /create /tn "T365 KIFS Gmail"      /tr "\"C:\Users\Lee\AppData\Local\Programs\Python\Python314\python.exe\" \"C:\Users\Lee\OneDrive\JOEY (Asylum)\MAX clone with games\meme-asylum\Trading365\automation\kifs_gmail.py\"" /sc hourly /f
+schtasks /create /tn "T365 Health Check" /tr "\"C:/Python314/python.exe\" \"C:/Users/Lee/OneDrive/Trading/trading365/automation/health_check.py\"" /sc daily /st 06:15 /f
+schtasks /create /tn "T365 Traffic Digest" /tr "\"C:/Python314/python.exe\" \"C:/Users/Lee/OneDrive/Trading/trading365/automation/traffic_digest.py\"" /sc daily /st 06:30 /f
+schtasks /create /tn "T365 Article Pipeline" /tr "\"C:/Python314/python.exe\" \"C:/Users/Lee/OneDrive/Trading/trading365/automation/article_pipeline.py\"" /sc daily /st 07:00 /f
+schtasks /create /tn "T365 Report Builder" /tr "\"C:/Python314/python.exe\" \"C:/Users/Lee/OneDrive/Trading/trading365/automation/report_builder.py\"" /sc daily /st 07:30 /f
+schtasks /create /tn "T365 Push To Site" /tr "\"C:/Python314/python.exe\" \"C:/Users/Lee/OneDrive/Trading/trading365/automation/push_to_site.py\"" /sc daily /st 07:45 /f
+schtasks /create /tn "T365 KIFS Gmail" /tr "\"C:/Python314/python.exe\" \"C:/Users/Lee/OneDrive/Trading/trading365/automation/kifs_gmail.py\"" /sc hourly /f
+schtasks /create /tn "T365 Calendar Planner" /tr "\"C:/Python314/python.exe\" \"C:/Users/Lee/OneDrive/Trading/trading365/automation/calendar_planner.py\"" /sc weekly /d SUN /st 08:00 /f
 ```
 
 Notes:
