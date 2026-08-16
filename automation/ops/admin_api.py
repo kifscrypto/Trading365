@@ -222,9 +222,15 @@ def build_article_payload(
 ) -> dict[str, Any]:
     """Assemble the POST /api/admin/articles body per the admin contract."""
     category_slug = category_slug_for(article_type)
+    # Excerpt: first real PROSE block — generated bodies lead with a
+    # "## Verdict" heading, so naive first-block extraction yields "Verdict".
     paragraphs = [p.strip() for p in body_markdown.split("\n\n") if p.strip()]
-    first_paragraph = paragraphs[0] if paragraphs else ""
-    excerpt = re.sub(r"[#*_`\[\]]", "", first_paragraph)[:160].strip()
+    first_paragraph = next(
+        (p for p in paragraphs if not p.startswith(("#", "|", "-", ">"))),
+        "",
+    )
+    prose = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", first_paragraph)  # [text](url) → text
+    excerpt = re.sub(r"[#*_`]", "", prose)[:160].strip()
     word_count = len(body_markdown.split())
     return {
         "slug": slugify(keyword),
