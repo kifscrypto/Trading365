@@ -148,12 +148,19 @@ class AdminAPI:
             return first[len("TITLE:") :].strip(), rest.strip()
         return keyword.title(), text.strip()
 
-    def seo_meta_tags(self, content: str, keyword: str, title: str) -> dict[str, Any]:
+    def seo_meta_tags(
+        self, content: str, keyword: str, title: str, article_type: str | None = None
+    ) -> dict[str, Any]:
         if config.DRY_RUN:
             return _fixture_meta_tags(keyword, title)
+        # articleType lets the route pick review vs educational quick-facts
+        # prompts; omitting it keeps the route's default (review) behavior.
+        payload: dict[str, Any] = {"content": content, "keyword": keyword, "title": title}
+        if article_type:
+            payload["articleType"] = article_type
         res = self.session.post(
             f"{self.base_url}/api/admin/seo/meta-tags",
-            json={"content": content, "keyword": keyword, "title": title},
+            json=payload,
             timeout=120,
         )
         res.raise_for_status()

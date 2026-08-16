@@ -87,7 +87,7 @@ def run_pipeline(item: dict[str, Any], review: bool) -> dict[str, Any]:
     print(f"  title: {title}")
 
     print("  3/4 meta tags")
-    meta = api.seo_meta_tags(body, keyword, title)
+    meta = api.seo_meta_tags(body, keyword, title, article_type=article_type)
 
     published = not review
     payload = admin_api.build_article_payload(keyword, title, body, meta, article_type, published)

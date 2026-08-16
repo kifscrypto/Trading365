@@ -226,12 +226,12 @@ export function genericContentPrompt(
   const label = articleTypeLabel(type)
   const structure = STRUCTURES[type] ?? STRUCTURES.explainer
   const allowlist = opts.affiliateLinks?.length
-    ? `REFERRAL LINK ALLOWLIST — if you add a referral link, use ONLY these exact URLs. Never invent or guess one. If an exchange isn't listed, don't link it:\n${opts.affiliateLinks
+    ? `REFERRAL LINK ALLOWLIST — if you add a referral link, use ONLY these exact URLs, and ONLY for exchanges this article actually discusses (the name must appear in the body) — if none are discussed, add no referral links at all. Never invent or guess one. If an exchange isn't listed, don't link it:\n${opts.affiliateLinks
         .map((a) => `- ${a.name}: ${a.affiliate_url}`)
         .join('\n')}`
     : ''
   const cta = opts.affiliateLink
-    ? `A CTA link is available: ${opts.affiliateLink}. Include AT MOST ONE gentle, contextual call-to-action with it — only where it genuinely fits (e.g. a "how to buy" step or the conclusion). Phrase it as a helpful next step, not a sales pitch.`
+    ? `A CTA link is available: ${opts.affiliateLink}. Include AT MOST ONE gentle, contextual call-to-action with it — only where it genuinely fits (e.g. a "how to buy" step or the conclusion), and only if that exchange is actually relevant to this article. Phrase it as a helpful next step, not a sales pitch. Place it as a standalone paragraph — never inside a table, list, or heading.`
     : `No CTA link provided — keep this purely educational. Do not add any affiliate CTA.`
 
   return `${LINK_RULES}
@@ -251,7 +251,7 @@ CITATIONS (E-E-A-T):
 - When you state a factual or quantitative claim, cite the authoritative external source with a real markdown link — official documentation, regulators, reputable research. Target several citations per article.
 - These neutral, non-commercial citations are ENCOURAGED — the referral-link allowlist below restricts ONLY commercial/affiliate links, not citations to authoritative sources.
 - NEVER link to competing review or affiliate sites.
-- Never fabricate statistics, rankings, or source names — if a figure isn't certain, write qualitatively instead. Verifiable specificity over generic filler.
+- Never fabricate statistics, rankings, source names, test results, or measurements, and never claim hands-on testing that didn't happen (no "(tested)"-style claims) — if a figure isn't certain, write qualitatively instead. Verifiable specificity over generic filler.
 
 STRUCTURE (adapt to the topic — drop or add sections as needed; do NOT add an FAQ section, FAQs are generated separately):
 ${structure}

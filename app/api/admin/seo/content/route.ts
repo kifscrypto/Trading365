@@ -64,7 +64,7 @@ MANDATORY STRUCTURE (follow this exact flow):
 7. OUR EXPERIENCE (MANDATORY — 150–250 words)
    - Write from a real-user perspective
    - What it's actually like to use, what you use it for, what stood out
-   - Include ONE specific detail: trade type, withdrawal time, or real scenario
+   - Include ONE specific, qualitative detail (a trade type, a typical flow, a realistic scenario) — never invented measurements, timings, or "(tested)" claims
 
 8. COMPETITOR COMPARISON
    - Mention: WEEX, MEXC, BingX, Bitunix
@@ -88,7 +88,7 @@ EXTERNAL CITATIONS (E-E-A-T):
 - Target several such citations per article
 - These neutral, non-commercial citations are ENCOURAGED — the referral-link allowlist below restricts ONLY commercial/affiliate links, not citations to authoritative sources
 - NEVER link to competing review or affiliate sites
-- Never fabricate statistics, rankings, or source names — if a figure isn't certain, write qualitatively instead
+- Never fabricate statistics, rankings, source names, test results, or measurements, and never claim hands-on testing that didn't happen (no "(tested)"-style claims) — if a figure isn't certain, write qualitatively instead
 - Verifiable specificity over generic filler: name the source, give the real figure
 
 CONVERSION RULES:
@@ -105,6 +105,8 @@ STYLE:
 
 HARD RULES:
 - In ALL markdown tables, exchange names in the first column MUST be linked using [Name](url) — but ONLY if that exchange appears in the REFERRAL LINK ALLOWLIST below. If it is not in the list, leave the name as plain text. Never invent or guess a URL.
+- ONLY place CTA/referral links for exchanges actually discussed in THIS article (the exchange name must appear in the body). If none of the allowlisted exchanges are discussed, place NO affiliate CTAs at all
+- Referral/affiliate CTAs must be standalone blocks in their own paragraph or section (after the verdict or at the end) — NEVER inside markdown tables, lists, or headings
 - NO fluff sections (staking, earn, etc.) unless it's a core differentiator
 - NO repeating the same idea multiple times
 - NO padding for word count
@@ -152,7 +154,7 @@ Include at least 3 specific, realistic usage insights:
 - Execution quality
 - Friction (delays, verification, support)
 
-These must feel real, not generic.
+These must feel real, not generic — but keep them qualitative: no invented timings, measurements, or "(tested)" claims. Any specific number must come from a cited source or be omitted.
 
 ---
 
@@ -216,7 +218,7 @@ Output a complete, publish-ready article. No commentary. No explanation. Only th
 
 ---
 
-${affiliateLinks?.length ? `REFERRAL LINK ALLOWLIST — use ONLY these exact URLs for any referral or affiliate links in tables or CTAs. Never invent, guess, or substitute other URLs. If an exchange is not listed here, do not add a referral link for it:\n${affiliateLinks.map((a: { name: string; affiliate_url: string }) => `- ${a.name}: ${a.affiliate_url}`).join('\n')}` : ''}
+${affiliateLinks?.length ? `REFERRAL LINK ALLOWLIST — use ONLY these exact URLs for any referral or affiliate links in tables or CTAs. Never invent, guess, or substitute other URLs. If an exchange is not listed here, do not add a referral link for it. Only link exchanges this article actually discusses — if none of these exchanges are discussed, include no referral links at all:\n${affiliateLinks.map((a: { name: string; affiliate_url: string }) => `- ${a.name}: ${a.affiliate_url}`).join('\n')}` : ''}
 
 KEYWORD: ${keyword}
 SEARCH INTENT: ${intent || 'Not specified'}

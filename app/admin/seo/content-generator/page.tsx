@@ -747,7 +747,7 @@ export default function ArticleStudioPage() {
       const res = await fetch('/api/admin/seo/meta-tags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: article, keyword, title: pubTitle || extractTitle(article) }),
+        body: JSON.stringify({ content: article, keyword, title: pubTitle || extractTitle(article), articleType }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Meta tag generation failed')
