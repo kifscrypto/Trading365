@@ -81,10 +81,15 @@ def print_briefing(b: dict[str, Any]) -> None:
     print(f"\n=== Morning briefing — {b['date']} ===")
     traffic = b["traffic"]
     if traffic:
-        g = traffic.get("gsc", {}).get("yesterday", {})
-        o = traffic.get("onsite", {}).get("yesterday", {})
+        # traffic_digest writes "gsc": null (not a missing key) when GSC creds
+        # are absent — `.get("gsc", {})` would return None and crash here.
+        gsc = traffic.get("gsc") or {}
+        g = gsc.get("yesterday", {})
+        o = (traffic.get("onsite") or {}).get("yesterday", {})
         print(f"Traffic (yesterday): {g.get('clicks', 0)} GSC clicks / "
               f"{o.get('pageviews', 0)} pageviews / {o.get('sessions', 0)} sessions")
+        if not gsc and traffic.get("gscError"):
+            print(f"  [warn] GSC data unavailable: {traffic['gscError']}")
         for a in traffic.get("anomalies", []):
             print(f"  [{a['level']}] {a['message']}")
     else:

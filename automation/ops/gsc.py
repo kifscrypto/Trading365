@@ -15,7 +15,7 @@ import requests
 from . import config
 from .dates import shift_days, today_iso
 
-SITE_URL = "https://trading365.org/"
+SITE_URL = "sc-domain:trading365.org"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
 QUERY_URL = (

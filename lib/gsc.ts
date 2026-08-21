@@ -1,6 +1,6 @@
 import { createSign } from 'crypto'
 
-const SITE_URL = 'https://trading365.org/'
+const SITE_URL = 'sc-domain:trading365.org'
 
 function base64url(data: string | Buffer): string {
   const b64 = Buffer.isBuffer(data)
