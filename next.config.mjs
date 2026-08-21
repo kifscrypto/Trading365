@@ -73,6 +73,14 @@ const nextConfig = {
       // 301 permanent redirects to preserve SEO equity
       // ============================================
 
+      // Duplicate article removed 2026-08-21 (pipeline re-generated a topic
+      // already published manually) — fold its URL into the surviving one.
+      {
+        source: '/guides/best-crypto-exchange-canada',
+        destination: '/guides/best-crypto-exchange-for-canadians',
+        permanent: true,
+      },
+
       // --- Binance ---
       {
         source: '/binance-exchange-tutorial-how-to-register-and-use-the-binance-exchange/:path*',

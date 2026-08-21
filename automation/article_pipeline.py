@@ -152,15 +152,25 @@ def main() -> int:
     print(f"article pipeline: '{item.get('title')}' [{item.get('articleType') or 'explainer'}]")
     result = run_pipeline(item, args.review)
 
-    if not args.review:
-        crosspost.run_for_item(item, result["body"])
-
+    # Save the calendar BEFORE crossposting: once publish_article() returns, the
+    # article is live. A crosspost crash with an unsaved calendar leaves the item
+    # stuck at "idea" and the run invisible (this produced a duplicate article on
+    # 2026-08-20 when the topic had already been published manually).
     if config.DRY_RUN:
         print(f"[dry-run] would save content collection (item marked {item['status']})")
     else:
         store.save("content", items)
         if item.get("publishedUrl"):
             print(f"published → {item['publishedUrl']}")
+
+    if not args.review:
+        try:
+            crosspost.run_for_item(item, result["body"])
+            if not config.DRY_RUN:
+                store.save("content", items)  # persist postedX / quoraDraft flags
+        except Exception as exc:
+            print(f"crosspost failed — article is live, calendar is saved; "
+                  f"re-run crosspost.py later ({exc})")
     return 0
 
 
