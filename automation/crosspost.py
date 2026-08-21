@@ -15,6 +15,13 @@ from ops.dates import today_iso
 
 X_TWEET_URL = "https://api.twitter.com/2/tweets"
 
+X_CRED_KEYS = ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_SECRET")
+
+
+def x_configured() -> bool:
+    """All four OAuth1 creds present? If not, tweets are skipped (not an error)."""
+    return all(config.get(k) for k in X_CRED_KEYS)
+
 
 def post_to_x(text: str) -> str:
     """Post a tweet via OAuth1 user context. Returns the tweet id."""
@@ -91,9 +98,15 @@ def run_for_item(item: dict[str, Any], article_markdown: str) -> dict[str, Any]:
         return item
 
     if not item.get("postedX"):
-        tweet = build_tweet(item.get("title", ""), article_markdown, url)
-        post_to_x(tweet)
-        item["postedX"] = True
+        if not config.DRY_RUN and not x_configured():
+            # Not connected: skip the tweet instead of raising — a missing X
+            # app must never crash the pipeline after publish (it did on
+            # 2026-08-20, leaving the calendar item stuck at "idea").
+            print("  crosspost: X credentials not configured — skipping tweet")
+        else:
+            tweet = build_tweet(item.get("title", ""), article_markdown, url)
+            post_to_x(tweet)
+            item["postedX"] = True
     else:
         print(f"  crosspost: '{item.get('title')}' already posted to X")
 
