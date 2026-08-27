@@ -23,6 +23,7 @@ const navLinks = [
   { href: "/no-kyc", label: "No-KYC" },
   { href: "/bonuses", label: "Bonuses" },
   { href: "/guides", label: "Guides" },
+  { href: "/scam-alerts", label: "Scam Alerts" },
   { href: "/scanner", label: "Short Scanner" },
   { href: "/scanner/longs", label: "Long Scanner" },
 ]

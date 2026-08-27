@@ -3,7 +3,7 @@ export const revalidate = 300
 import type { Metadata } from "next"
 import { jsonLd } from "@/lib/utils/json-ld"
 import Link from "next/link"
-import { ArrowRight, Star, Zap, ShieldOff, Gift } from "lucide-react"
+import { ArrowRight, Star, Zap, ShieldOff, ShieldAlert, Gift } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { BonusCard } from "@/components/bonus-card"
@@ -75,6 +75,7 @@ export default async function HomePage() {
   const comparisonCount = allArticles.filter((a) => a.categorySlug === "comparisons").length
   const noKycCount = allArticles.filter((a) => a.categorySlug === "no-kyc").length
   const bonusCount = allArticles.filter((a) => a.categorySlug === "bonuses").length
+  const scamAlertCount = allArticles.filter((a) => a.categorySlug === "scam-alerts").length
 
   const categories = [
     {
@@ -104,6 +105,13 @@ export default async function HomePage() {
       href: "/bonuses",
       icon: Gift,
       count: bonusCount,
+    },
+    {
+      title: "Scam Alerts",
+      description: "Evidence-based warnings about fraudulent platforms",
+      href: "/scam-alerts",
+      icon: ShieldAlert,
+      count: scamAlertCount,
     },
   ]
 

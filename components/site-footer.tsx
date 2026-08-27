@@ -11,6 +11,7 @@ const footerLinks = {
     { href: "/no-kyc", label: "No-KYC Exchanges" },
     { href: "/bonuses", label: "Bonuses" },
     { href: "/guides", label: "Guides" },
+    { href: "/scam-alerts", label: "Scam Alerts" },
   ],
   company: [
     { href: "/about", label: "About Us" },
