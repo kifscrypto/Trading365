@@ -115,7 +115,12 @@ export async function getArticleMetadata(category: string, slug: string): Promis
   // category prefix — the page component will 301 the user to the canonical URL.
   const canonicalCategory = article.categorySlug || category
   const canonicalUrl = `${BASE_URL}/${canonicalCategory}/${slug}`
-  const pageTitle = TITLE_OVERRIDES[slug] ?? article.metaTitle ?? article.title
+  // Strip a trailing brand from stored meta_titles — the layout template
+  // appends "| Trading365" itself, so a stored brand double-renders.
+  const pageTitle = (TITLE_OVERRIDES[slug] ?? article.metaTitle ?? article.title).replace(
+    / \| Trading365$/,
+    ''
+  )
   const ogParams = new URLSearchParams({ title: pageTitle, category: article.category })
   if (article.rating > 0) ogParams.set('rating', String(article.rating))
   // Feed the article's featured image into the OG card as a full-bleed background.
