@@ -13,12 +13,17 @@ import requests
 from . import config
 from .dates import shift_days, today_iso
 
-ARTICLE_TYPES = ("exchange_review", "explainer", "coin_guide", "how_to", "comparison", "listicle")
+ARTICLE_TYPES = ("exchange_review", "explainer", "coin_guide", "how_to", "comparison", "listicle", "scam_alert")
 
 CATEGORY_SLUGS = {
     "exchange_review": "reviews",
     "explainer": "explainers",
     "comparison": "comparisons",
+    "scam_alert": "scam-alerts",
+}
+
+CATEGORY_LABELS = {
+    "scam_alert": "Scam Alerts",
 }
 
 CONTENT_TIMEOUT_S = 360  # streaming article generation can take minutes
@@ -34,7 +39,7 @@ def category_slug_for(article_type: str) -> str:
 
 
 def category_label_for(article_type: str) -> str:
-    return article_type.replace("_", " ").title()
+    return CATEGORY_LABELS.get(article_type, article_type.replace("_", " ").title())
 
 
 def detect_affiliate_link(keyword: str, links: list[dict[str, Any]]) -> str | None:

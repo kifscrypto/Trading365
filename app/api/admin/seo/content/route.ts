@@ -1,6 +1,6 @@
 import { verifyAdmin } from '@/lib/auth'
 import { kimiChatStream } from '@/lib/kimi'
-import { isGeneric, genericContentPrompt } from '@/lib/seo/templates'
+import { isGeneric, genericContentPrompt, scamAlertContentPrompt } from '@/lib/seo/templates'
 
 export const maxDuration = 300
 
@@ -12,11 +12,14 @@ export async function POST(request: Request) {
   try {
     const { keyword, outline, intent, affiliateLink, affiliateLinks, articleType } = await request.json()
 
-    // Generic (educational) article types use the template prompt; exchange
+    // Scam alerts get their own evidence-first prompt (no affiliate CTAs);
+    // other generic (educational) types use the template prompt; exchange
     // reviews keep the original money-page prompt below.
-    const promptContent = isGeneric(articleType)
-      ? genericContentPrompt(articleType, { keyword, intent, outline, affiliateLink, affiliateLinks })
-      : `CRITICAL: Never wrap links in bold. Write [text](url) — NEVER **[text](url)**. This applies to every single link in the article without exception.
+    const promptContent = articleType === 'scam_alert'
+      ? scamAlertContentPrompt({ keyword, intent, outline })
+      : isGeneric(articleType)
+        ? genericContentPrompt(articleType, { keyword, intent, outline, affiliateLink, affiliateLinks })
+        : `CRITICAL: Never wrap links in bold. Write [text](url) — NEVER **[text](url)**. This applies to every single link in the article without exception.
 
 You are an elite crypto SEO content writer for Trading365.
 

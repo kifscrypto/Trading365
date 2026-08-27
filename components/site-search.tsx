@@ -19,6 +19,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   bonuses: "Bonus",
   guides: "Guide",
   audits: "Audit",
+  "scam-alerts": "Scam Alert",
 }
 
 export function SiteSearch() {

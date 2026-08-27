@@ -21,6 +21,7 @@ const CATEGORIES = [
   { label: 'Bonuses', slug: 'bonuses' },
   { label: 'No-KYC', slug: 'no-kyc' },
   { label: 'Guides', slug: 'guides' },
+  { label: 'Scam Alerts', slug: 'scam-alerts' },
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

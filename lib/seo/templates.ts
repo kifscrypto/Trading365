@@ -12,6 +12,7 @@ export type ArticleType =
   | 'how_to'
   | 'comparison'
   | 'listicle'
+  | 'scam_alert'
 
 export const ARTICLE_TYPES: {
   value: ArticleType
@@ -26,9 +27,10 @@ export const ARTICLE_TYPES: {
   { value: 'how_to',          label: 'How-To / Tutorial',    intent: 'informational', categorySlug: 'guides',      keywordPlaceholder: 'e.g. how to bridge to Base' },
   { value: 'comparison',      label: 'Comparison',           intent: 'comparison',    categorySlug: 'comparisons', keywordPlaceholder: 'e.g. proof of work vs proof of stake' },
   { value: 'listicle',        label: 'Listicle / Roundup',   intent: 'informational', categorySlug: 'guides',      keywordPlaceholder: 'e.g. best layer 2 networks' },
+  { value: 'scam_alert',      label: 'Scam Alert',           intent: 'informational', categorySlug: 'scam-alerts', keywordPlaceholder: 'e.g. stakerx.ai scam' },
 ]
 
-const GENERIC: ArticleType[] = ['explainer', 'coin_guide', 'how_to', 'comparison', 'listicle']
+const GENERIC: ArticleType[] = ['explainer', 'coin_guide', 'how_to', 'comparison', 'listicle', 'scam_alert']
 
 export function isGeneric(type: string | null | undefined): boolean {
   return GENERIC.includes(type as ArticleType)
@@ -72,6 +74,13 @@ const STRUCTURES: Record<string, string> = {
 - Per item: what it is, who it's for, the standout point, any caveat
 - How to choose between them
 - Conclusion`,
+  scam_alert: `- Status block with date: the documented status as of [date] — evidence summary, not a verdict
+- What the platform claims: its own pitch, stated neutrally
+- The red flags: one numbered section per red flag, each with its evidence
+- The math / sanity check: do the promised returns or mechanics survive basic arithmetic?
+- If you already deposited: withdraw what you can, don't recruit others, report it (Chainabuse, Google Safe Browsing, FTC or your local authority)
+- How to spot the next one: the reusable warning checklist
+- Closing disclaimer: evidence as of the stated date, not legal advice`,
 }
 
 const LINK_RULES = `LINKING RULES:
@@ -263,6 +272,53 @@ SOFT MONETISATION:
 ${FORMATTING_RULES}
 
 ${allowlist}
+
+KEYWORD: ${opts.keyword}
+SEARCH INTENT: ${opts.intent || 'Informational'}
+
+OUTLINE TO FOLLOW:
+${opts.outline}
+
+Output a complete, publish-ready article. No commentary, no preamble — only the article.`
+}
+
+// Scam-alert articles: evidence-based warnings about potentially fraudulent
+// platforms. Same bones as genericContentPrompt, but with legal-safe framing,
+// strict evidence rules, and a hard NO on affiliate CTAs (trust decision).
+export function scamAlertContentPrompt(
+  opts: {
+    keyword: string
+    intent: string
+    outline: string
+  },
+): string {
+  return `${LINK_RULES}
+
+You are an investigative crypto writer for Trading365's Scam Alerts category.
+
+This is a SCAM ALERT article — an evidence-based warning about a potentially fraudulent crypto platform or scheme. It is NOT a review, NOT a sales page, and NOT a takedown. Reader safety is the only goal.
+
+LEGAL-SAFE FRAMING (MANDATORY):
+- NEVER declare a platform "a scam" — report verifiable evidence and red flags, and let the reader draw the conclusion.
+- Frame everything as "here is the documented evidence as of [date]" — state the date explicitly and phrase claims as dated observations ("as of this writing, the platform shows the following red flags"), not verdicts.
+
+EVIDENCE RULES (CRITICAL — OVERRIDE EVERYTHING ELSE):
+- Every claim must come from evidence provided in this request (the keyword, outline, or notes below) or from citable public sources — regulator warning lists (FCA, SEC, ASIC, CSA, MAS), scam scanners, documented user reports.
+- You have NO knowledge of fresh scam sites. If no platform-specific evidence is provided, write the GENERAL warning-checklist article for the topic (how to evaluate this platform or this type of scheme) and do NOT invent platform-specific facts, dates, figures, or incidents.
+- Never fabricate statistics, rankings, source names, test results, measurements, user reports, or regulator actions, and never claim hands-on testing that didn't happen (no "(tested)"-style claims) — if a fact isn't evidenced, write qualitatively or leave it out.
+
+CITATIONS (E-E-A-T):
+- Back every external claim with a real markdown link to an authoritative source — regulator warning lists, official documentation, reputable research. Target several citations per article.
+- NEVER link to competing review or affiliate sites.
+
+STRUCTURE (follow this flow; do NOT add an FAQ section, FAQs are generated separately):
+${STRUCTURES.scam_alert}
+
+MONETISATION (OVERRIDES the usual CTA rules for this type):
+- NO affiliate or referral CTAs in scam-alert articles — none, even if an allowlist is provided. This is a trust decision: a warning that monetises itself is not credible.
+- Internal references to related Trading365 guides and reviews ARE encouraged — leave them as plain text, a later step inserts the real URLs.
+
+${FORMATTING_RULES}
 
 KEYWORD: ${opts.keyword}
 SEARCH INTENT: ${opts.intent || 'Informational'}

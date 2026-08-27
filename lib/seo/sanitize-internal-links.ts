@@ -12,6 +12,7 @@ export type ValidArticle = { category_slug: string; slug: string }
 const STATIC_PATHS = new Set([
   '', '/', '/compare', '/bonuses', '/scanner', '/scanner/longs',
   '/about', '/authors', '/live', '/reviews', '/no-kyc', '/guides', '/comparisons',
+  '/scam-alerts',
 ])
 
 export type LinkFix = { from: string; to: string | null; anchor: string }

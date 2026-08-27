@@ -43,6 +43,13 @@ export const categories: CategoryMeta[] = [
     longDescription:
       "Our project audits go beyond the whitepaper. We analyse smart contract security, tokenomics, team credibility, and on-chain activity to give you an honest, independent assessment before you invest.",
   },
+  {
+    slug: "scam-alerts",
+    title: "Scam Alerts",
+    description: "Evidence-based warnings about fraudulent crypto platforms",
+    longDescription:
+      "We don't declare platforms scams — we document the evidence. Each alert lays out the publicly verifiable red flags (guaranteed-yield claims, referral-driven economics, anonymous operators, blacklist detections) as of a stated date, plus what to do if you already deposited and how to spot the next one.",
+  },
 ]
 
 export function getCategoryBySlug(slug: string): CategoryMeta | undefined {
