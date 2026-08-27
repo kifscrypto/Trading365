@@ -7,13 +7,20 @@ plain-text briefing to the console.
 """
 
 import argparse
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
+
+import requests
 
 from ops import config, store
 from ops.dates import today_iso
 
 FOLLOWUP_STAGES = ("contacted", "followup1", "followup2")
+
+# Live cycle state from the Meme Asylum indexer — the source of truth for the
+# cycle number, start time and step length (7-day steps since the v4 cutover,
+# boundaries at 22:00 UTC). The static cycles collection is only a fallback.
+CYCLES_API_URL = "https://app.memeasylum.com/ponder/api/cycles/current"
 
 
 def _parse_day(iso: str) -> date:
@@ -32,6 +39,46 @@ def cycle_phase(cycle: dict[str, Any], today: date) -> tuple[str, int]:
     if today <= closes:
         return "voting", (closes - today).days
     return "closed", 0
+
+
+def live_voting_phases() -> list[dict[str, Any]] | None:
+    """Current + next two cycles computed from the live Ponder API.
+
+    Returns None in dry-run or when the API is unreachable (caller falls back
+    to the static cycles collection). Step 1 = nominations & voting,
+    step 2 = minting; daysLeft counts down to the end of the current phase.
+    """
+    if config.DRY_RUN:
+        return None
+    try:
+        res = requests.get(CYCLES_API_URL, timeout=8)
+        res.raise_for_status()
+        data = res.json()
+        number = int(data["number"])
+        start_ts = int(data["startTime"])
+        step_s = int(data["stepDuration"])
+    except Exception as exc:
+        print(f"voting: live cycle fetch failed ({exc}) — using static cycles collection")
+        return None
+    start = datetime.fromtimestamp(start_ts, tz=timezone.utc)
+    step = timedelta(seconds=step_s)
+    now = datetime.now(tz=timezone.utc)
+    voting: list[dict[str, Any]] = []
+    for i in range(3):
+        cycle_start = start + i * 2 * step
+        step2_start = cycle_start + step
+        cycle_end = cycle_start + 2 * step
+        label = f"Cycle {number + i}"
+        if now < cycle_start:
+            voting.append({"label": f"{label} — Nominations & Voting", "phase": "upcoming",
+                           "daysLeft": (cycle_start - now).days})
+        elif now < step2_start:
+            voting.append({"label": f"{label} — Nominations & Voting (live)", "phase": "voting",
+                           "daysLeft": (step2_start - now).days})
+        elif now < cycle_end:
+            voting.append({"label": f"{label} — Minting (live)", "phase": "minting",
+                           "daysLeft": (cycle_end - now).days})
+    return voting
 
 
 def build_briefing() -> dict[str, Any]:
@@ -58,12 +105,14 @@ def build_briefing() -> dict[str, Any]:
         if c.get("stage") in FOLLOWUP_STAGES and c.get("nextTouch") and c["nextTouch"] <= today
     ]
 
-    cycles = store.load("cycles", store.seed_cycles)
-    voting = []
-    for cycle in cycles:
-        phase, days_left = cycle_phase(cycle, today_date)
-        if phase != "closed":
-            voting.append({"label": cycle["label"], "phase": phase, "daysLeft": days_left})
+    voting = live_voting_phases()
+    if voting is None:
+        cycles = store.load("cycles", store.seed_cycles)
+        voting = []
+        for cycle in cycles:
+            phase, days_left = cycle_phase(cycle, today_date)
+            if phase != "closed":
+                voting.append({"label": cycle["label"], "phase": phase, "daysLeft": days_left})
 
     return {
         "date": today,
