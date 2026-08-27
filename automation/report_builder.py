@@ -23,8 +23,14 @@ FOLLOWUP_STAGES = ("contacted", "followup1", "followup2")
 CYCLES_API_URL = "https://app.memeasylum.com/ponder/api/cycles/current"
 
 
+def _iso_z(dt: datetime) -> str:
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _parse_day(iso: str) -> date:
-    return date.fromisoformat(iso)
+    # Accepts date-only strings and full ISO datetimes (cycles collection now
+    # stores precise UTC datetimes from the live chain data).
+    return date.fromisoformat(iso[:10])
 
 
 def cycle_phase(cycle: dict[str, Any], today: date) -> tuple[str, int]:
@@ -63,6 +69,27 @@ def live_voting_phases() -> list[dict[str, Any]] | None:
     start = datetime.fromtimestamp(start_ts, tz=timezone.utc)
     step = timedelta(seconds=step_s)
     now = datetime.now(tz=timezone.utc)
+
+    # Keep the cycles collection (the dashboard's source) in sync with the
+    # chain: precise UTC datetimes + mint-step fields. Hand-added entries
+    # (non "cyc<N>" ids) are preserved.
+    refreshed: list[dict[str, Any]] = []
+    for i in range(4):
+        s = start + i * 2 * step
+        refreshed.append({
+            "id": f"cyc{number + i}",
+            "label": f"Cycle {number + i} — Nominations & Voting",
+            "submissionsOpen": _iso_z(s),
+            "votingOpens": _iso_z(s),
+            "votingCloses": _iso_z(s + step),
+            "mintOpens": _iso_z(s + step),
+            "mintCloses": _iso_z(s + 2 * step),
+            "note": "7-day steps since v4; boundaries 22:00 UTC. Source: Ponder /api/cycles/current",
+        })
+    existing = store.load("cycles", store.seed_cycles)
+    keep = [c for c in existing if not str(c.get("id", "")).startswith("cyc")]
+    store.save("cycles", refreshed + keep)
+
     voting: list[dict[str, Any]] = []
     for i in range(3):
         cycle_start = start + i * 2 * step
