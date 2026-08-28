@@ -39,7 +39,7 @@ python serve.py          # serves http://127.0.0.1:4173 — Ctrl+C to stop
 |---|---|---|
 | `health_check.py` | 06:15 daily | Site health + security-regression monitor for trading365.org and memeasylum.com: uptime + latency, and re-probes the 2026-08-13 breach holes (forged `admin_auth` cookie must get 401, open admin/translate endpoints must get 401, `/ops` must 307 when unauthenticated). Saves `data/health/health-YYYY-MM-DD.json`. **Exit code 1 if any critical check fails** (Task Scheduler shows the run as failed); a down site is a failed check, not a crash. |
 | `traffic_digest.py` | 06:30 daily | GSC (yesterday + last 8 days) + on-site analytics → merged snapshot with anomaly flags (>30% drop vs same weekday last week warns; spikes are informational). Saves `data/traffic/traffic-YYYY-MM-DD.json`. |
-| `article_pipeline.py` | 07:00 daily | Takes today's content-calendar `idea` (keyword required), runs outline → streaming content → meta tags via the admin API, publishes the article, marks the item published, cross-posts to X + queues a Quora draft. Guards: duplicate-keyword blocking, already-published refusal. `--review` saves the article unpublished for manual review in the admin (item marked `drafted`, no cross-post). |
+| `article_pipeline.py` | 07:00 daily | Takes today's content-calendar `idea` (keyword required), runs outline → streaming content → meta tags via the admin API, and saves the article as an **unpublished draft** for manual review in the admin (item marked `drafted`, no cross-post). Publish from the admin after review; cross-post then happens via the publish toggle / standalone `crosspost.py`. Guards: duplicate-keyword blocking, already-published refusal, live-corpus dedupe. Pass `--live` to publish immediately + cross-post (old default). |
 | `crosspost.py` | on demand | Standalone pass over published-but-unposted items (X post + Quora draft queue). Also called by the pipeline after publishing. |
 | `kifs_gmail.py` | every 30–60 min | Polls the KIFS Gmail inbox, classifies sponsorship emails (review/sponsor/collab/partnership/promotion/media kit), files them in `inbox` and creates Gmail **drafts** (never sends). Also creates follow-up drafts for due outreach contacts and bumps their stage (+4 days). |
 | `report_builder.py` | 07:30 daily / logon | Assembles `data/briefings/briefing-YYYY-MM-DD.json` (traffic, site health, today's article, tasks, inbox, follow-ups, voting-cycle phases) and prints a plain-text morning briefing. |
@@ -119,7 +119,6 @@ Notes:
 
 - Gmail scripts create **drafts only — they never send**.
 - X posts are real posts in live mode; use `--dry-run` to preview the text.
-- The article pipeline **publishes live by default** per design; pass
-  `--review` for a review-first flow (article saved unpublished, publish
-  manually in the admin).
+- The article pipeline **saves drafts by default** — a human reviews and
+  publishes from the admin. `--live` opts into immediate publish + cross-post.
 - `--dry-run` never touches the network and never writes to `data/`.

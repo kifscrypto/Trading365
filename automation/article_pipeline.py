@@ -1,12 +1,12 @@
 """Article pipeline — scheduled 07:00 daily.
 
 Finds today's content-calendar item with status ``idea``, runs it through the
-admin SEO pipeline (outline → streaming content → meta tags), publishes the
-article, marks the item published, then cross-posts (X + Quora draft).
+admin SEO pipeline (outline → streaming content → meta tags), and saves the
+article as an UNPUBLISHED DRAFT for manual review in the admin (calendar item
+marked ``drafted``, cross-posting skipped).
 
-Publishing is live by default; pass ``--review`` to save the article as an
-unpublished draft in the admin for manual review (calendar item marked
-``drafted``, cross-posting skipped).
+Drafts are the default — a human publishes from the admin after review. Pass
+``--live`` to publish immediately and cross-post (X + Quora draft).
 """
 
 import argparse
@@ -110,7 +110,7 @@ def run_pipeline(item: dict[str, Any], review: bool) -> dict[str, Any]:
     payload = admin_api.build_article_payload(keyword, title, body, meta, article_type, published)
     print(f"  4/4 publish   ({payload['category_slug']}/{payload['slug']}, published={published})")
     if review:
-        print("  --review: saved as unpublished draft — publish manually in the admin")
+        print("  review mode (default): saved as unpublished draft — publish manually in the admin")
     article = api.publish_article(payload)
 
     if review:
@@ -126,7 +126,10 @@ def run_pipeline(item: dict[str, Any], review: bool) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Daily article pipeline for Trading365")
     parser.add_argument("--dry-run", action="store_true", help="fixture data, no network, no writes")
-    parser.add_argument("--review", action="store_true", help="publish=False — manual publish in admin")
+    parser.add_argument("--live", action="store_true",
+                        help="publish immediately + cross-post (default: unpublished draft)")
+    parser.add_argument("--review", action="store_true",
+                        help="deprecated no-op — review mode is the default")
     parser.add_argument("--date", help="run a specific calendar day (YYYY-MM-DD) instead of today")
     args = parser.parse_args()
     config.set_dry_run(args.dry_run)
@@ -150,7 +153,7 @@ def main() -> int:
         return 0
 
     print(f"article pipeline: '{item.get('title')}' [{item.get('articleType') or 'explainer'}]")
-    result = run_pipeline(item, args.review)
+    result = run_pipeline(item, review=not args.live)
 
     # Save the calendar BEFORE crossposting: once publish_article() returns, the
     # article is live. A crosspost crash with an unsaved calendar leaves the item
@@ -163,7 +166,7 @@ def main() -> int:
         if item.get("publishedUrl"):
             print(f"published → {item['publishedUrl']}")
 
-    if not args.review:
+    if args.live:
         try:
             crosspost.run_for_item(item, result["body"])
             if not config.DRY_RUN:
