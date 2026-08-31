@@ -6,7 +6,6 @@ import Link from "next/link"
 import { ArrowRight, Star, Zap, ShieldOff, ShieldAlert, Gift } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { BonusCard } from "@/components/bonus-card"
 import { ArticleCard } from "@/components/article-card"
 import { CategoryCard } from "@/components/category-card"
 import { ComparisonSpotlight } from "@/components/comparison-spotlight"
@@ -20,7 +19,6 @@ import { ScannerSpotlight } from "@/components/scanner-spotlight"
 import { ScannerTickerLive } from "@/components/scanner-ticker-live"
 import { DiscordCta } from "@/components/discord-cta"
 import { getFeaturedSlot } from "@/lib/data/featured"
-import { getMergedExchanges } from "@/lib/data/exchange-content"
 import { TopPicks } from "@/components/top-picks"
 import { getTopPicks } from "@/lib/data/top-picks"
 import { generateWebsiteSchema } from "@/lib/schema"
@@ -41,23 +39,10 @@ export default async function HomePage() {
   const allArticles = await getAllArticlesFromDB()
 
   // Editable via /admin/featured (falls back to the previous hardcoded lists).
-  const [dealSlugs, featuredSlugs, mergedExchanges, topPicks] = await Promise.all([
-    getFeaturedSlot("homepage_deals"),
+  const [featuredSlugs, topPicks] = await Promise.all([
     getFeaturedSlot("featured_articles"),
-    getMergedExchanges(),
     getTopPicks(),
   ])
-  const topExchanges = dealSlugs
-    .map((slug) => mergedExchanges.find((e) => e.slug === slug))
-    .filter((e): e is NonNullable<typeof e> => Boolean(e))
-  const bonusDeals = topExchanges.map((ex, i) => ({
-    name: ex.name,
-    bonus: ex.bonus,
-    features: ex.pros.slice(0, 4),
-    tag: i === 0 ? "Best Deal" : undefined,
-    referralLink: ex.referralLink,
-    reviewLink: ex.fullReview,
-  }))
   // Scanner spotlight numbers only (safe to SSR). The "Live Wins" ticker fetches
   // its own data client-side (ScannerTickerLive) so win symbols stay out of the
   // initial HTML.
@@ -204,34 +189,6 @@ export default async function HomePage() {
 
       {/* Featured Advertisers */}
       <FeaturedAdvertisers />
-
-      {/* Top Bonus Deals */}
-      <section className="mx-auto max-w-7xl px-4 py-16 lg:px-6">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <Badge variant="outline" className="mb-3 text-primary border-primary/30">
-              Exclusive Deals
-            </Badge>
-            <h2 className="text-2xl font-bold text-foreground text-balance">
-              Top Sign-Up Bonuses
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Verified and updated weekly. Claim before they expire.
-            </p>
-          </div>
-          <Button variant="ghost" className="gap-2 text-primary hover:text-primary" asChild>
-            <Link href="/bonuses">
-              View all deals
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-        <div className="mt-8 grid gap-6 md:grid-cols-3">
-          {bonusDeals.map((deal) => (
-            <BonusCard key={deal.name} {...deal} />
-          ))}
-        </div>
-      </section>
 
       {/* Rotating Promo Banner */}
       <PromoBanner />
