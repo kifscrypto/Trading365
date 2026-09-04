@@ -39,6 +39,14 @@ def main() -> int:
     args = parser.parse_args()
     config.set_dry_run(args.dry_run)
 
+    # With OPS_API_URL set, ops/store.py reads/writes the site's Postgres
+    # directly — the dashboard and the automation share ONE store. This mirror
+    # push is redundant then, and worse: it would stomp same-day dashboard
+    # edits with stale local JSON (the "tasks disappear" bug). No-op.
+    if config.get("OPS_API_URL"):
+        print("push_to_site: OPS_API_URL mode active (shared store) — nothing to push")
+        return 0
+
     base = config.get("OPS_API_URL", "https://trading365.org/api/ops").rstrip("/")
     token = config.require("OPS_API_TOKEN")
 

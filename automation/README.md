@@ -71,6 +71,12 @@ Day boundaries use **local-time** `YYYY-MM-DD` strings throughout
 `--dry-run` never uses the HTTP backend — no network, no writes, local files
 only, regardless of these variables.
 
+**Current setup: OPS_API_URL mode is ON** (set in `automation/.env`) — the
+automation and the /ops dashboard share one Postgres store. `push_to_site.py`
+is redundant in this mode and no-ops with a log line (it previously stomped
+same-day dashboard edits with stale local JSON); its 07:45 scheduled task can
+be deleted.
+
 ## Windows Task Scheduler setup
 
 Concrete `schtasks` commands (run from an elevated or normal prompt; adjust the
