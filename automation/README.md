@@ -44,6 +44,7 @@ python serve.py          # serves http://127.0.0.1:4173 — Ctrl+C to stop
 | `kifs_gmail.py` | every 30–60 min | Polls the KIFS Gmail inbox, classifies sponsorship emails (review/sponsor/collab/partnership/promotion/media kit), files them in `inbox` and creates Gmail **drafts** (never sends). Also creates follow-up drafts for due outreach contacts and bumps their stage (+4 days). |
 | `report_builder.py` | 07:30 daily / logon | Assembles `data/briefings/briefing-YYYY-MM-DD.json` (traffic, site health, today's article, tasks, inbox, follow-ups, voting-cycle phases) and prints a plain-text morning briefing. |
 | `serve.py` | on demand | Tiny local API (stdlib only) on :4173 the dashboard reads: `GET /api/<collection>`, `PUT /api/<collection>`, `GET`/`PUT /api/<prefix>-YYYY-MM-DD` (dated snapshots), `GET /api/briefing/latest`, `GET /api/traffic/latest`, `GET /api/health/latest`. |
+| `video_dl.py` | on demand | Local video downloader (yt-dlp + imageio-ffmpeg, node enabled as JS runtime) for the Top-10 channel: `python video_dl.py --serve` → paste-link web UI on :4174 with live progress; `python video_dl.py "<url>" [--audio]` for one-off CLI downloads. Files land in `data/downloads/` (gitignored). Local-only by design — YouTube blocks datacenter IPs, so this can never run on Vercel. |
 
 `health_check.py` exit codes: `0` = all critical checks passed (non-critical
 failures still exit 0), `1` = at least one critical check failed. To test the

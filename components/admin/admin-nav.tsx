@@ -20,6 +20,7 @@ const LINKS: { label: string; href: string; color: string }[] = [
   { label: 'Promotions', href: '/admin/promotions', color: 'text-pink-400 hover:text-pink-300' },
   { label: 'Featured', href: '/admin/featured', color: 'text-pink-400 hover:text-pink-300' },
   { label: 'Exchanges', href: '/admin/exchanges', color: 'text-emerald-400 hover:text-emerald-300' },
+  { label: 'Top 10 Studio', href: '/admin/top10', color: 'text-cyan-400 hover:text-cyan-300' },
 ]
 
 export default function AdminNav() {
