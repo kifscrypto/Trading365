@@ -29,6 +29,15 @@ type Snapshot = {
   raw_json: any
 }
 
+type CredInfo = {
+  configured: boolean
+  sync_enabled: boolean
+  last_sync_at: string | null
+  last_sync_status: string | null
+  last_sync_error: string | null
+  has_passphrase: boolean
+}
+
 const ic =
   'w-full px-3 py-1.5 bg-zinc-800 border border-zinc-700 text-zinc-100 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-zinc-500 text-sm'
 
@@ -58,6 +67,12 @@ export default function AffiliateEarningsPage() {
   const [addForm, setAddForm] = useState({ slug: '', name: '', dashboard_url: '', notes: '' })
   const [editSlug, setEditSlug] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<Account>>({})
+  const [credForm, setCredForm] = useState({ api_key: '', api_secret: '', passphrase: '' })
+
+  // auto-sync
+  const [creds, setCreds] = useState<Record<string, CredInfo>>({})
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState('')
 
   // history
   const [historySlug, setHistorySlug] = useState<string | null>(null)
@@ -67,11 +82,15 @@ export default function AffiliateEarningsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/affiliate-earnings')
+      const [res, credRes] = await Promise.all([
+        fetch('/api/admin/affiliate-earnings'),
+        fetch('/api/admin/affiliate-earnings/credentials'),
+      ])
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load')
       setAccounts(data.accounts)
       setTotal(data.total_usd)
+      if (credRes.ok) setCreds((await credRes.json()).credentials ?? {})
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -147,10 +166,41 @@ export default function AffiliateEarningsPage() {
         body: JSON.stringify(editForm),
       })
       if (!res.ok) throw new Error((await res.json()).error)
+      if (credForm.api_key || credForm.api_secret || credForm.passphrase) {
+        const credRes = await fetch('/api/admin/affiliate-earnings/credentials', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug, ...credForm }),
+        })
+        if (!credRes.ok) throw new Error((await credRes.json()).error)
+      }
       setEditSlug(null)
+      setCredForm({ api_key: '', api_secret: '', passphrase: '' })
       await load()
     } catch (err: any) {
       setError(err.message)
+    }
+  }
+
+  async function syncNow() {
+    setError('')
+    setSyncResult('')
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/admin/affiliate-earnings/sync', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Sync failed')
+      const parts = [
+        data.synced?.length ? `synced ${data.synced.map((s: any) => s.slug).join(', ')}` : '',
+        data.skipped?.length ? `skipped ${data.skipped.join(', ')}` : '',
+        data.failed?.length ? `failed: ${data.failed.map((f: any) => `${f.slug} (${f.error})`).join('; ')}` : '',
+      ].filter(Boolean)
+      setSyncResult(parts.length ? parts.join(' · ') : 'Nothing to sync — no API keys configured yet.')
+      await load()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -195,6 +245,14 @@ export default function AffiliateEarningsPage() {
 
   const visible = accounts.filter((a) => showInactive || a.enabled)
   const loggedCount = accounts.filter((a) => a.current_usd != null).length
+  const credList = Object.values(creds)
+  const configuredCount = credList.length
+  const errorCount = credList.filter((c) => c.last_sync_status === 'error').length
+  const lastSync = credList
+    .map((c) => c.last_sync_at)
+    .filter(Boolean)
+    .sort()
+    .pop()
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -205,11 +263,18 @@ export default function AffiliateEarningsPage() {
         <span className="text-zinc-600">|</span>
         <span className="font-semibold text-zinc-100">Affiliate Earnings</span>
         <button
+          onClick={syncNow}
+          disabled={syncing}
+          className="ml-auto px-4 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-zinc-700 text-sm font-medium"
+        >
+          {syncing ? 'Syncing…' : 'Sync now'}
+        </button>
+        <button
           onClick={() => {
             setShowAdd(true)
             setError('')
           }}
-          className="ml-auto px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+          className="px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
         >
           + Add Exchange
         </button>
@@ -219,6 +284,11 @@ export default function AffiliateEarningsPage() {
         {error && (
           <div className="mb-4 px-4 py-3 bg-red-900/30 border border-red-700 text-red-400 rounded-lg text-sm">
             {error}
+          </div>
+        )}
+        {syncResult && (
+          <div className="mb-4 px-4 py-3 bg-emerald-900/20 border border-emerald-800/50 text-emerald-300 rounded-lg text-sm">
+            {syncResult}
           </div>
         )}
 
@@ -238,10 +308,15 @@ export default function AffiliateEarningsPage() {
             <p className="text-xs text-zinc-500 mt-1">have at least one earnings entry</p>
           </div>
           <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider">Manual v1</p>
-            <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
-              Read each dashboard's commission balance and log it below. Auto-sync scrapers come later for
-              the top earners.
+            <p className="text-xs text-zinc-500 uppercase tracking-wider">Auto-sync</p>
+            <p className="text-3xl font-bold text-zinc-100 mt-1">
+              {configuredCount}
+              <span className="text-lg text-zinc-600"> / {accounts.length}</span>
+            </p>
+            <p className="text-xs text-zinc-500 mt-1">
+              exchanges have API keys
+              {errorCount > 0 && <span className="text-red-400"> · {errorCount} in error</span>}
+              {lastSync && <> · last sync {new Date(lastSync).toLocaleString()}</>}
             </p>
           </div>
         </div>
@@ -429,7 +504,36 @@ export default function AffiliateEarningsPage() {
                               className={`${ic} col-span-2`}
                               placeholder="Notes"
                             />
+                            <input
+                              type="password"
+                              value={credForm.api_key}
+                              onChange={(e) => setCredForm((f) => ({ ...f, api_key: e.target.value }))}
+                              className={ic}
+                              placeholder={creds[a.slug]?.configured ? 'API key (leave blank to keep)' : 'API key'}
+                              autoComplete="off"
+                            />
+                            <input
+                              type="password"
+                              value={credForm.api_secret}
+                              onChange={(e) => setCredForm((f) => ({ ...f, api_secret: e.target.value }))}
+                              className={ic}
+                              placeholder="API secret (blank = keep existing)"
+                              autoComplete="off"
+                            />
+                            <input
+                              type="password"
+                              value={credForm.passphrase}
+                              onChange={(e) => setCredForm((f) => ({ ...f, passphrase: e.target.value }))}
+                              className={`${ic} col-span-2`}
+                              placeholder="Passphrase (only if the exchange requires one)"
+                              autoComplete="off"
+                            />
                           </div>
+                          <p className="text-xs text-zinc-600 mt-1">
+                            Keys are stored encrypted and never shown back. Auto-sync runs daily for Bybit,
+                            OKX, KuCoin, Gate.io, MEXC, BingX, BYDFi, BloFin, WEEX, Toobit, XT and Ourbit —
+                            other exchanges stay on manual logging.
+                          </p>
                           <div className="mt-2 flex gap-2">
                             <button
                               onClick={() => saveEdit(a.slug)}
@@ -438,7 +542,10 @@ export default function AffiliateEarningsPage() {
                               Save
                             </button>
                             <button
-                              onClick={() => setEditSlug(null)}
+                              onClick={() => {
+                                setEditSlug(null)
+                                setCredForm({ api_key: '', api_secret: '', passphrase: '' })
+                              }}
                               className="px-3 py-1 bg-zinc-700 text-zinc-300 rounded text-xs hover:bg-zinc-600"
                             >
                               Cancel
@@ -464,6 +571,19 @@ export default function AffiliateEarningsPage() {
                                   ↗
                                 </a>
                               )}
+                              {creds[a.slug]?.configured &&
+                                (creds[a.slug].last_sync_status === 'error' ? (
+                                  <span
+                                    className="text-xs text-red-400"
+                                    title={creds[a.slug].last_sync_error ?? 'Sync error'}
+                                  >
+                                    ⚠ sync error
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-emerald-500" title="API key stored; daily auto-sync on">
+                                    ✓ key configured
+                                  </span>
+                                ))}
                             </div>
                             {a.notes && <p className="text-xs text-zinc-600 mt-0.5">{a.notes}</p>}
                           </td>
@@ -510,6 +630,7 @@ export default function AffiliateEarningsPage() {
                                 onClick={() => {
                                   setEditSlug(a.slug)
                                   setEditForm({ name: a.name, dashboard_url: a.dashboard_url, notes: a.notes })
+                                  setCredForm({ api_key: '', api_secret: '', passphrase: '' })
                                 }}
                                 className="px-2 py-1 bg-zinc-700 text-zinc-300 rounded hover:bg-zinc-600"
                               >
@@ -559,6 +680,15 @@ export default function AffiliateEarningsPage() {
                                     {s.raw_json?.approximated ? ' (≈)' : ''}
                                   </span>
                                   <span className="w-20">{s.referrals != null ? `${s.referrals} refs` : ''}</span>
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide ${
+                                      s.source === 'api'
+                                        ? 'bg-blue-900/40 text-blue-400 border border-blue-800/50'
+                                        : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
+                                    }`}
+                                  >
+                                    {s.source ?? 'manual'}
+                                  </span>
                                   <span className="grow text-zinc-600">{s.period_label ?? ''}</span>
                                   <button
                                     onClick={() => deleteSnapshot(s.id, a.slug)}

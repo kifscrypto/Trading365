@@ -4,10 +4,10 @@ import { sql } from '@/lib/db'
 import { exchanges } from '@/lib/data/exchanges'
 
 // Affiliate EARNINGS tracker (distinct from /admin/affiliate-links, which manages
-// outbound referral URLs). v1 is manual entry: you read the commission balance off
-// each exchange's affiliate dashboard and log it here, building a per-exchange
-// time series. No credentials are stored — that only arrives if/when we add
-// automated scrapers for the highest-value exchanges.
+// outbound referral URLs). v2: earnings arrive two ways — manual logging of
+// dashboard readings (still needed for exchanges without a usable API) and a
+// daily auto-sync (/sync route + cron) that calls each exchange's affiliate API
+// with keys stored AES-256-GCM encrypted in affiliate_credentials.
 
 function checkAuth(request: Request) {
   return verifyAdmin(request)
@@ -41,6 +41,19 @@ export async function ensureTables() {
   await sql`
     CREATE INDEX IF NOT EXISTS idx_affsnap_account_time
       ON affiliate_snapshots (account_slug, captured_at DESC)
+  `
+  await sql`
+    CREATE TABLE IF NOT EXISTS affiliate_credentials (
+      slug             TEXT PRIMARY KEY REFERENCES affiliate_accounts(slug) ON DELETE CASCADE,
+      api_key_enc      TEXT NOT NULL,
+      api_secret_enc   TEXT,
+      passphrase_enc   TEXT,
+      sync_enabled     BOOLEAN DEFAULT TRUE,
+      last_sync_at     TIMESTAMP,
+      last_sync_status TEXT,
+      last_sync_error  TEXT,
+      updated_at       TIMESTAMP DEFAULT NOW()
+    )
   `
 }
 
