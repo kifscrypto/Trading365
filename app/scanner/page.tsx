@@ -393,7 +393,7 @@ export default async function ScannerPage() {
               </ul>
               {automated && (
                 <Button asChild className="mt-auto w-full font-semibold">
-                  <a href="/api/pay/create?plan=monthly">Subscribe — ${monthlyUsd} / month</a>
+                  <Link href="/signup?next=/account">Subscribe — ${monthlyUsd} / month</Link>
                 </Button>
               )}
             </div>
@@ -417,7 +417,7 @@ export default async function ScannerPage() {
               </ul>
               {automated && (
                 <Button asChild className="mt-auto w-full font-semibold">
-                  <a href="/api/pay/create?plan=quarterly">Subscribe — ${quarterlyUsd} / {quarterlyMonths} months</a>
+                  <Link href="/signup?next=/account">Subscribe — ${quarterlyUsd} / {quarterlyMonths} months</Link>
                 </Button>
               )}
             </div>
@@ -430,15 +430,15 @@ export default async function ScannerPage() {
               <ol className="mt-5 space-y-4 text-sm">
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">1</span>
-                  <p className="text-muted-foreground">Hit a <span className="text-foreground font-medium">Subscribe</span> button above and pay in USDT, ETH or any supported coin at checkout.</p>
+                  <p className="text-muted-foreground">Create a free account, or sign in — your membership is attached to it, not to a chat handle.</p>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">2</span>
-                  <p className="text-muted-foreground">Once the payment confirms, you get a private one-time link to the premium signals channel.</p>
+                  <p className="text-muted-foreground">Hit <span className="text-foreground font-medium">Subscribe</span> and pay in USDT, ETH or any supported coin at checkout.</p>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">3</span>
-                  <p className="text-muted-foreground">Tap the link, you&apos;re approved automatically, and access runs for your full term.</p>
+                  <p className="text-muted-foreground">Access unlocks on your account the moment the payment confirms, for your full term. Telegram is optional — join the channel from your account page.</p>
                 </li>
               </ol>
               <p className="mt-6 text-xs text-muted-foreground/80">
