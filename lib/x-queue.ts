@@ -95,24 +95,32 @@ export interface DrainResult {
 }
 
 /**
- * Hand a composed post to Telegram so a human can publish it.
+ * Hand a composed post to Telegram so the owner can publish it.
  *
  * X bills API usage with prepaid credits, so a paid plan is not always worth it
  * for a handful of posts a day. Manual mode keeps everything the queue already
  * does — the same selection policy, the same 24h freshness window, the same
- * ≤N/day cap, the same idempotency — and stops one step short of publishing: the
- * exact text arrives in Telegram inside a code block (which Telegram gives a
- * one-tap copy button), and because the text contains the receipt URL, X unfurls
- * the branded receipt card when it is pasted.
+ * ≤N/day cap, the same idempotency — and stops one step short of publishing.
+ *
+ * Destination: X_MANUAL_TELEGRAM_CHAT_ID when set, otherwise the scanner's own
+ * TELEGRAM_CHAT_ID. Falling back to the existing channel is deliberate — the
+ * channel is already configured and the owner chose it — and it means manual mode
+ * needs no new configuration at all. The text is sent inside a code block, which
+ * Telegram gives a one-tap copy button, and because it contains the receipt URL,
+ * X unfurls the branded receipt card when the owner pastes it.
+ *
+ * No prefix line: this lands in a channel members read, so an internal-looking
+ * "copy and publish" header would read as a staging area. The composed text is
+ * self-describing and stands on its own.
  *
  * Returns false when no destination is configured, so the caller leaves the
  * receipt queued rather than recording a handoff nobody received.
  */
 async function handOffToTelegram(text: string): Promise<boolean> {
-  const chatId = process.env.X_MANUAL_TELEGRAM_CHAT_ID
+  const chatId = process.env.X_MANUAL_TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID
   const token = process.env.TELEGRAM_BOT_TOKEN
   if (!chatId || !token) {
-    console.error('[x-queue] manual mode needs X_MANUAL_TELEGRAM_CHAT_ID and TELEGRAM_BOT_TOKEN')
+    console.error('[x-queue] manual mode needs a destination (X_MANUAL_TELEGRAM_CHAT_ID or TELEGRAM_CHAT_ID) and TELEGRAM_BOT_TOKEN')
     return false
   }
   try {
@@ -121,7 +129,7 @@ async function handOffToTelegram(text: string): Promise<boolean> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: '<b>X post ready</b> — copy and publish\n' + `<code>${telegramEscape(text)}</code>`,
+        text: `<code>${telegramEscape(text)}</code>`,
         parse_mode: 'HTML',
       }),
     })
