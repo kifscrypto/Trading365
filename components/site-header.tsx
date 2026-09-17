@@ -22,6 +22,10 @@ const navLinks = [
   // pillars, so nothing in the chrome said the site runs scanners at all.
   { href: "/scanner", label: "Scanner" },
   { href: "/signals", label: "Verified Results" },
+  // The account is the conversion path for everything above, and until now the
+  // only way to find it was the pricing buttons on /scanner — nothing in the
+  // chrome admitted the site has free accounts at all.
+  { href: "/signup", label: "Join free" },
   { href: "/reviews", label: "Reviews" },
   { href: "/comparisons", label: "Comparisons" },
   { href: "/no-kyc", label: "No-KYC" },
@@ -160,8 +164,13 @@ export function SiteHeader() {
                   {link.label}
                 </Link>
               ))}
-              <div className="pt-4">
+              {/* Two CTAs in the mobile sheet: the account is the conversion
+                  path, bonuses is the affiliate one. Filled = account. */}
+              <div className="flex flex-col gap-2 pt-4">
                 <Button className="w-full font-semibold" size="sm" asChild>
+                  <Link href="/signup">Create free account</Link>
+                </Button>
+                <Button className="w-full font-semibold" size="sm" variant="outline" asChild>
                   <Link href="/bonuses">Get Bonuses</Link>
                 </Button>
               </div>

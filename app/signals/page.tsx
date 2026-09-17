@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import {
   SITE, getArchiveStats, getArchivePage, parseArchiveFilters, filtersActive,
+  getOpenSignals, FREE_TIER_DELAY_HOURS,
   displayPair, sideLabel, STATUS_LABEL, fmtPrice, fmtPct, fmtUtc,
   type ArchiveFilters, type Receipt, type SearchParams,
 } from '@/lib/signals/public'
@@ -76,7 +77,13 @@ const selectCls =
 
 export default async function SignalsArchivePage({ searchParams }: PageProps) {
   const filters = parseArchiveFilters(await searchParams)
-  const [page, stats] = await Promise.all([getArchivePage(filters), getArchiveStats(30)])
+  const [page, stats, open] = await Promise.all([
+    getArchivePage(filters),
+    getArchiveStats(30),
+    // Anonymous view of the live book: rows plus how many are running that a
+    // free reader cannot see yet. Used only for the membership prompt below.
+    getOpenSignals({ includeAll: false }),
+  ])
   const filtered = filtersActive(filters)
 
   return (
@@ -279,6 +286,28 @@ export default async function SignalsArchivePage({ searchParams }: PageProps) {
           </nav>
         )}
       </section>
+
+      {/* The record above is free forever — that is what makes the numbers
+          believable, so it is never gated. What members buy is TIMING, and this
+          prompt says so with the number that proves it: how many trades are
+          running right now that a free reader cannot see yet. It is the only ask
+          on the page. */}
+      <div className="mt-10 flex flex-col gap-4 rounded-xl border border-primary/30 bg-primary/5 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-semibold text-foreground">
+            {open.hidden > 0
+              ? `${open.hidden} signal${open.hidden === 1 ? ' is' : 's are'} live right now.`
+              : 'Members see every signal the moment it fires.'}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A free account sees each signal {FREE_TIER_DELAY_HOURS} hours after it fires. Members get it at fire time
+            with the entry, stop and all targets, on a dashboard that refreshes itself every minute.
+          </p>
+        </div>
+        <Button asChild className="shrink-0">
+          <Link href="/signup?next=/account">Create a free account</Link>
+        </Button>
+      </div>
 
       <div className="mt-10 flex flex-wrap gap-3">
         <Button asChild>

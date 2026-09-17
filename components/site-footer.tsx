@@ -20,6 +20,7 @@ const footerLinks = {
     { href: "/about#methodology", label: "Methodology" },
     { href: "/about#editorial", label: "Editorial Policy" },
     { href: "/about#contact", label: "Contact" },
+    { href: "/signup", label: "Create Account" },
     { href: "/login", label: "Sign In" },
   ],
   legal: [

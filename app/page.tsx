@@ -3,7 +3,7 @@ export const revalidate = 300
 import type { Metadata } from "next"
 import { jsonLd } from "@/lib/utils/json-ld"
 import Link from "next/link"
-import { ArrowRight, Star, Zap, ShieldOff, ShieldAlert, Gift } from "lucide-react"
+import { ArrowRight, Star, Zap, ShieldOff, ShieldAlert, Gift, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArticleCard } from "@/components/article-card"
@@ -161,6 +161,16 @@ export default async function HomePage() {
               </Link>
             </Button>
             <div className="flex flex-wrap items-center justify-center gap-2">
+              {/* The account path sits first in the secondary row and is the only
+                  filled button here: everything else on this page is content, and
+                  a visitor who wants the live signals had no entry point at all
+                  before — the only signup link on the site was on /scanner. */}
+              <Button size="sm" className="gap-1.5 font-semibold" asChild>
+                <Link href="/signup">
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Create free account
+                </Link>
+              </Button>
               <Button size="sm" variant="outline" className="font-medium border-primary/30 text-foreground hover:bg-primary/10" asChild>
                 <Link href="/compare">Compare Exchanges</Link>
               </Button>
