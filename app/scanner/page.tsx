@@ -13,28 +13,47 @@ import { ScannerPnlCard } from "@/components/scanner-pnl-card"
 
 const BASE_URL = "https://trading365.org"
 
-const META_DESCRIPTION =
-  "65% TP1 hit rate on fired signals across 7,900+ tracked setups. Automated altcoin short scanner with real-time Telegram alerts. Only fires during favourable market conditions."
+// The advertised hit rate and tracked-setup count are DERIVED in
+// generateMetadata below — never typed in. A hardcoded claim silently becomes a
+// false one as soon as the record moves (this read "65%" while the
+// fired-signal record was 60.4%), and /scanner now sits one click away from the
+// public archive that publishes the real number.
 
 const WALLET_ADDRESS = "0x2338748664bfdb1fce28a9ad63ce79d65b54eb2d"
 const TELEGRAM_SUB_HANDLE = "@Trading365Sub"
 
-export const metadata: Metadata = {
-  title: "Altcoin Short Scanner — Real-Time Crypto Short Signals | Trading365",
-  description: META_DESCRIPTION,
-  alternates: { canonical: `${BASE_URL}/scanner` },
-  openGraph: {
-    type: "website",
-    title: "Altcoin Short Scanner — Real-Time Crypto Short Signals | Trading365",
-    description: META_DESCRIPTION,
-    url: `${BASE_URL}/scanner`,
-    siteName: "Trading365",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Altcoin Short Scanner — Real-Time Crypto Short Signals | Trading365",
-    description: META_DESCRIPTION,
-  },
+export async function generateMetadata(): Promise<Metadata> {
+  const TITLE = "Altcoin Short Scanner — Real-Time Crypto Short Signals | Trading365"
+  // Flooring to the nearest 5% keeps the claim strictly TRUE (never an
+  // overstatement) while staying stable enough that the SERP snippet does not
+  // churn on every revalidation. The exact figure lives in the page body.
+  let rateClaim = "Verified"
+  let setups = ""
+  try {
+    const stats = await getScannerStats("short")
+    if (stats.tp1WinRate != null) rateClaim = `${Math.floor(stats.tp1WinRate / 5) * 5}%+`
+    if (stats.totalSignals > 0) {
+      setups = `${(Math.floor(stats.totalSignals / 1000) * 1000).toLocaleString("en-US")}+`
+    }
+  } catch {
+    /* fall back to the neutral wording above */
+  }
+  const description =
+    `${rateClaim} TP1 hit rate on fired signals${setups ? ` across ${setups} tracked setups` : ""}. ` +
+    `Automated altcoin short scanner with real-time alerts and a full published track record.`
+  return {
+    title: TITLE,
+    description,
+    alternates: { canonical: `${BASE_URL}/scanner` },
+    openGraph: {
+      type: "website",
+      title: TITLE,
+      description,
+      url: `${BASE_URL}/scanner`,
+      siteName: "Trading365",
+    },
+    twitter: { card: "summary_large_image", title: TITLE, description },
+  }
 }
 
 const schemaData = {
