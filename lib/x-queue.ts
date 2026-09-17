@@ -88,8 +88,76 @@ export interface DrainResult {
   posted: string[]
   /** Dry mode only: the receipts that WOULD be posted. Nothing is written for these. */
   wouldPost: string[]
+  /** Manual mode only: the receipts handed to Telegram for publishing by hand. */
+  manual: string[]
   failed: string[]
   allowance: number
+}
+
+/**
+ * Hand a composed post to Telegram so a human can publish it.
+ *
+ * X bills API usage with prepaid credits, so a paid plan is not always worth it
+ * for a handful of posts a day. Manual mode keeps everything the queue already
+ * does — the same selection policy, the same 24h freshness window, the same
+ * ≤N/day cap, the same idempotency — and stops one step short of publishing: the
+ * exact text arrives in Telegram inside a code block (which Telegram gives a
+ * one-tap copy button), and because the text contains the receipt URL, X unfurls
+ * the branded receipt card when it is pasted.
+ *
+ * Returns false when no destination is configured, so the caller leaves the
+ * receipt queued rather than recording a handoff nobody received.
+ */
+async function handOffToTelegram(text: string): Promise<boolean> {
+  const chatId = process.env.X_MANUAL_TELEGRAM_CHAT_ID
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  if (!chatId || !token) {
+    console.error('[x-queue] manual mode needs X_MANUAL_TELEGRAM_CHAT_ID and TELEGRAM_BOT_TOKEN')
+    return false
+  }
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: '<b>X post ready</b> — copy and publish\n' + `<code>${telegramEscape(text)}</code>`,
+        parse_mode: 'HTML',
+      }),
+    })
+    if (!res.ok) {
+      console.error('[x-queue] manual handoff failed:', res.status, (await res.text()).slice(0, 200))
+      return false
+    }
+    return true
+  } catch (err) {
+    console.error('[x-queue] manual handoff failed:', err)
+    return false
+  }
+}
+
+/** Telegram's HTML parse mode needs exactly these three, and tweet text has them. */
+function telegramEscape(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
+ * Record a MANUAL handoff. Status 'manual' (never 'posted') so the table never
+ * claims X accepted something it never saw, while posted_to_x still clears the
+ * receipt from candidatePool() — a handoff that repeats every 30 minutes would
+ * be worse than no handoff at all.
+ */
+async function recordManualHandoff(publicId: string, text: string): Promise<void> {
+  try {
+    await db`
+      INSERT INTO x_posts (kind, ref, text, tweet_id, status)
+      VALUES ('receipt', ${publicId}, ${text}, NULL, 'manual')
+      ON CONFLICT ON CONSTRAINT x_posts_kind_ref_uniq DO NOTHING
+    `
+    await db`UPDATE signal_receipts SET posted_to_x = TRUE WHERE public_id = ${publicId}`
+  } catch (err) {
+    console.error('[x-queue] could not record manual handoff:', err)
+  }
 }
 
 /**
@@ -109,7 +177,7 @@ export interface DrainResult {
  * dry mode must not touch it.
  */
 export async function drainReceiptQueue(): Promise<DrainResult> {
-  const out: DrainResult = { mode: postingMode(), posted: [], wouldPost: [], failed: [], allowance: 0 }
+  const out: DrainResult = { mode: postingMode(), posted: [], wouldPost: [], manual: [], failed: [], allowance: 0 }
   try {
     await setupXPostsTable()
     const used = await postsToday()
@@ -120,6 +188,18 @@ export async function drainReceiptQueue(): Promise<DrainResult> {
     const chosen = choosePosts(await candidatePool(), allowance)
     for (const r of chosen) {
       const text = buildReceiptTweet(toTweetSignal(r))
+      // Manual mode: hand it over and stop. Everything above this line — the
+      // selection policy, the window, the cap — already ran, so a handoff is as
+      // selective as a real post would have been.
+      if (out.mode === 'manual') {
+        if (!(await handOffToTelegram(text))) {
+          out.failed.push(r.public_id)
+          continue
+        }
+        await recordManualHandoff(r.public_id, text)
+        out.manual.push(r.public_id)
+        continue
+      }
       const res = await postTweet(text)
       if (!res.ok) {
         out.failed.push(r.public_id)
@@ -193,6 +273,18 @@ export async function postDailyDigest(): Promise<DigestResult> {
       published: s.published,
       url: `${SITE}/signals`,
     })
+
+    // Manual mode: hand the digest over instead of posting it, and record it with
+    // status 'manual' so the once-a-day idempotency still holds.
+    if (postingMode() === 'manual') {
+      if (!(await handOffToTelegram(text))) return { posted: false, reason: 'manual-handoff-failed', text }
+      await db`
+        INSERT INTO x_posts (kind, ref, text, tweet_id, status)
+        VALUES ('digest', ${day}, ${text}, NULL, 'manual')
+        ON CONFLICT ON CONSTRAINT x_posts_kind_ref_uniq DO NOTHING
+      `
+      return { posted: false, reason: 'manual', text }
+    }
 
     const res = await postTweet(text)
     if (!res.ok) return { posted: false, reason: res.error }

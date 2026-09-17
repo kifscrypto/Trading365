@@ -8,8 +8,15 @@
  * Env:
  *   X_API_KEY / X_API_SECRET            consumer key + secret
  *   X_ACCESS_TOKEN / X_ACCESS_SECRET    user-context token for the posting account
- *   X_POSTING_MODE                      'dry' (default) or 'live'
+ *   X_POSTING_MODE                      'dry' (default) | 'live' | 'manual'
  *   X_MAX_POSTS_PER_DAY                 default 6
+ *   X_MANUAL_TELEGRAM_CHAT_ID           'manual' mode destination (see lib/x-queue.ts)
+ *
+ * 'manual' exists because X now bills API usage with prepaid credits: the account
+ * can hold perfectly valid keys and still be refused with 402 credits-depleted.
+ * Manual mode does everything the queue did and stops one step short of posting —
+ * the composed text is handed to Telegram for a human to publish. It needs no X
+ * credentials at all.
  *
  * Same contract as lib/discord.ts: a notifier must never throw into a scanner
  * cron, so every exported function swallows and reports its own errors.
@@ -19,10 +26,13 @@ import { createHmac, randomBytes } from 'node:crypto'
 const TWEETS_URL = 'https://api.twitter.com/2/tweets'
 const X_CRED_KEYS = ['X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET'] as const
 
-export type PostingMode = 'dry' | 'live'
+export type PostingMode = 'dry' | 'live' | 'manual'
 
 export function postingMode(): PostingMode {
-  return process.env.X_POSTING_MODE === 'live' ? 'live' : 'dry'
+  const raw = (process.env.X_POSTING_MODE ?? '').trim().toLowerCase()
+  if (raw === 'live') return 'live'
+  if (raw === 'manual') return 'manual'
+  return 'dry'
 }
 
 export function maxPostsPerDay(): number {
