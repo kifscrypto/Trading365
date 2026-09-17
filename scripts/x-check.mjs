@@ -29,8 +29,25 @@ const creds = {
   ACCESS_SECRET: process.env.X_ACCESS_SECRET ?? '',
 }
 
-// Published shapes, used only to spot truncation at a glance.
-const EXPECTED = { API_KEY: 25, API_SECRET: 50, ACCESS_TOKEN: 50, ACCESS_SECRET: 45 }
+// Published shapes, used to spot truncation AND wrong-credential-type pastes.
+// X OAuth 2.0 client IDs are base64 and typically end in "MTpjaQ", which is the
+// single most likely mistake here: they sit in the same portal page and look
+// nothing like the API Key they must not be pasted into.
+const SHAPES = {
+  API_KEY: /^[A-Za-z0-9]{25}$/,
+  API_SECRET: /^[A-Za-z0-9]{50}$/,
+  ACCESS_TOKEN: /^\d{5,20}-[A-Za-z0-9]{30,45}$/,
+  ACCESS_SECRET: /^[A-Za-z0-9]{40,50}$/,
+}
+
+function shapeWarning(name, value) {
+  if (SHAPES[name]?.test(value)) return null
+  if (value.endsWith('MTpjaQ')) return 'this is an OAuth 2.0 Client ID, not an OAuth 1.0a API Key'
+  if (name === 'API_SECRET' && value.length === 49) return 'expected 50 characters — likely truncated on copy'
+  if (name === 'API_SECRET' && value.endsWith('MTpjaQ')) return 'this is an OAuth 2.0 Client Secret, not an API Key Secret'
+  if (name === 'ACCESS_TOKEN' && !value.includes('-')) return 'expected <user id>-<secret> — this does not look like an access token'
+  return `unexpected shape (length ${value.length})`
+}
 
 console.log('== credentials present ==')
 let failed = false
@@ -41,8 +58,8 @@ if (!xConfigured()) {
   process.exitCode = 1
 } else {
   for (const [k, v] of Object.entries(creds)) {
-    const flag = EXPECTED[k] && v.length !== EXPECTED[k] ? `  <- expected ${EXPECTED[k]} (possible truncation)` : ''
-    console.log(`  ${k.padEnd(14)} length ${String(v.length).padStart(3)}${flag}`)
+    const warn = shapeWarning(k, v)
+    console.log(`  ${k.padEnd(14)} length ${String(v.length).padStart(3)}${warn ? `  <- ${warn}` : ''}`)
   }
 
   // ── 1. Consumer pair ──────────────────────────────────────────────────────
