@@ -84,7 +84,10 @@ function toTweetSignal(r: Receipt): TweetSignal {
 
 export interface DrainResult {
   mode: string
+  /** Receipts X accepted on this run. Always empty in dry mode. */
   posted: string[]
+  /** Dry mode only: the receipts that WOULD be posted. Nothing is written for these. */
+  wouldPost: string[]
   failed: string[]
   allowance: number
 }
@@ -95,9 +98,18 @@ export interface DrainResult {
  *
  * A post is only recorded (x_posts row + posted_to_x flag) AFTER the API call
  * succeeds, so a failure is retried on the next run rather than silently lost.
+ *
+ * A DRY RUN RECORDS NOTHING. It used to fall through the same branch, because
+ * postTweet() reports ok in dry mode without ever calling X — so each dry cron
+ * run wrote an x_posts row (tweet_id 'dry-run'), set posted_to_x = TRUE on the
+ * receipt and spent that day's allowance. posted_to_x = FALSE is precisely how
+ * candidatePool() finds work, so those receipts could never be announced, and
+ * the day the credentials arrived the queue would have looked empty — i.e. a
+ * credential problem, not a bug. Nothing can un-set that flag by accident, so
+ * dry mode must not touch it.
  */
 export async function drainReceiptQueue(): Promise<DrainResult> {
-  const out: DrainResult = { mode: postingMode(), posted: [], failed: [], allowance: 0 }
+  const out: DrainResult = { mode: postingMode(), posted: [], wouldPost: [], failed: [], allowance: 0 }
   try {
     await setupXPostsTable()
     const used = await postsToday()
@@ -111,6 +123,10 @@ export async function drainReceiptQueue(): Promise<DrainResult> {
       const res = await postTweet(text)
       if (!res.ok) {
         out.failed.push(r.public_id)
+        continue
+      }
+      if (res.dry) {
+        out.wouldPost.push(r.public_id)
         continue
       }
       try {
@@ -180,6 +196,9 @@ export async function postDailyDigest(): Promise<DigestResult> {
 
     const res = await postTweet(text)
     if (!res.ok) return { posted: false, reason: res.error }
+    // Dry run: write nothing. The x_posts row is what makes the digest idempotent,
+    // so recording a dry one would suppress the real digest for the whole day.
+    if (res.dry) return { posted: false, reason: 'dry-run', text }
 
     await db`
       INSERT INTO x_posts (kind, ref, text, tweet_id, status)
