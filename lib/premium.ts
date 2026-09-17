@@ -101,7 +101,10 @@ export async function createInvoice(orderId: string, plan: PlanKey): Promise<str
       order_description: `Trading365 Scanner Premium — ${p.label} (${p.days} days)`,
       ipn_callback_url:  `${SITE}/api/pay/webhook`,
       success_url:       `${SITE}/premium/success?order=${orderId}`,
-      cancel_url:        `${SITE}/scanner?checkout=cancelled`,
+      // Back to the account page, which is where a membership lives and where the
+      // plan buttons are. It used to point at /scanner?checkout=cancelled — a
+      // parameter no page reads, so an abandoned checkout looked like a normal visit.
+      cancel_url:        `${SITE}/account?checkout=cancelled`,
     }),
   })
   const json = await res.json()

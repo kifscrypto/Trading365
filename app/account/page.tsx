@@ -27,10 +27,16 @@ function formatDate(iso: string | null): string {
   return new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(d)
 }
 
-export default async function AccountPage() {
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ checkout?: string }> }) {
   const token = (await cookies()).get(SESSION_COOKIE)?.value
   const account = await getAccountFromToken(token)
   if (!account) redirect('/login?next=/account')
+
+  // Where NOWPayments sends an abandoned checkout. This used to be
+  // /scanner?checkout=cancelled — a parameter no page has ever read — so cancelling
+  // looked exactly like an ordinary visit: no acknowledgement, and the plan buttons
+  // a page away. The membership lives here, so the return trip does too.
+  const { checkout } = await searchParams
 
   const isPaid = account.tier === 'paid'
   const referralUrl = `${siteConfig.url}/signup?ref=${account.referral_code}`
@@ -58,6 +64,16 @@ export default async function AccountPage() {
         </Badge>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">{account.email}</p>
+
+      {checkout === 'cancelled' && (
+        <div
+          role="status"
+          className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4 text-sm text-amber-200/90"
+        >
+          Checkout cancelled — nothing was charged and your card or crypto was not touched. The plans are just below
+          whenever you want to pick one up.
+        </div>
+      )}
 
       {/* ── Membership ─────────────────────────────────────────────────────── */}
       <section className="mt-8 rounded-xl border border-border bg-card p-5">
