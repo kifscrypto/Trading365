@@ -253,19 +253,28 @@ export default async function LongScannerPage() {
             <span className="text-emerald-400">Ride the Momentum.</span>
           </h1>
           <p className="mt-6 max-w-2xl mx-auto text-lg leading-relaxed text-muted-foreground text-balance">
-            Automated crypto long scanner covering 100+ perpetual futures across OKX, Hyperliquid, Bybit, MEXC, BingX, Bitunix, BloFin, CoinEx, XT.com and WEEX. Long signals with entry price, three take-profit levels and stop loss, straight to Telegram.
+            Automated crypto long scanner covering 100+ perpetual futures across OKX, Hyperliquid, Bybit, MEXC, BingX, Bitunix, BloFin, CoinEx, XT.com and WEEX. Long signals with entry price, three take-profit levels and stop loss — and every result published on the site.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Button size="lg" className="font-semibold gap-2 text-base" asChild>
-              <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer">
+              <Link href="/signup?next=/account">
                 Get Access
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
             <Button size="lg" variant="outline" className="font-semibold border-border text-foreground hover:bg-zinc-800" asChild>
               <Link href="#performance">See Performance</Link>
             </Button>
           </div>
+
+          {/* Telegram is a SECONDARY link now — see the note on /scanner. */}
+          <p className="mt-4 text-sm text-muted-foreground">
+            Free account, no card needed. Prefer Telegram?{' '}
+            <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+              Follow the free channel
+            </a>
+            .
+          </p>
         </div>
       </section>
 

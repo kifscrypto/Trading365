@@ -209,19 +209,31 @@ export default async function ScannerPage() {
             <span className="text-primary">Signals in Real Time.</span>
           </h1>
           <p className="mt-6 max-w-2xl mx-auto text-lg leading-relaxed text-muted-foreground text-balance">
-            Automated crypto altcoin scanner covering 100+ perpetual futures across OKX, Hyperliquid and Bybit. Short signals with entry price and stop level, straight to Telegram.
+            Automated crypto altcoin scanner covering 100+ perpetual futures across OKX, Hyperliquid and Bybit. Short signals with entry price and stop level — and every result published on the site, wins and losses alike.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Button size="lg" className="font-semibold gap-2 text-base" asChild>
-              <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer">
+              <Link href="/signup?next=/account">
                 Get Access
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
             <Button size="lg" variant="outline" className="font-semibold border-border text-foreground hover:bg-zinc-800" asChild>
               <Link href="#performance">See Performance</Link>
             </Button>
           </div>
+
+          {/* Telegram is a SECONDARY link now. As the primary button it sent the most
+              engaged visitor on the whole site off-site before they had seen a single
+              result — nothing to attribute, no account to follow up with, and no way
+              to show them the record they were about to subscribe to. */}
+          <p className="mt-4 text-sm text-muted-foreground">
+            Free account, no card needed. Prefer Telegram?{' '}
+            <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+              Follow the free channel
+            </a>
+            .
+          </p>
         </div>
       </section>
 

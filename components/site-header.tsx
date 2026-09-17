@@ -17,17 +17,17 @@ import { LOCALES } from "@/lib/i18n/config"
 import { SiteSearch } from "@/components/site-search"
 
 const navLinks = [
+  // The scanner cluster leads. It is the product — the rest of the menu is
+  // content that supports it — and it used to sit last, behind six content
+  // pillars, so nothing in the chrome said the site runs scanners at all.
+  { href: "/scanner", label: "Scanner" },
+  { href: "/signals", label: "Verified Results" },
   { href: "/reviews", label: "Reviews" },
   { href: "/comparisons", label: "Comparisons" },
   { href: "/no-kyc", label: "No-KYC" },
   { href: "/bonuses", label: "Bonuses" },
   { href: "/guides", label: "Guides" },
   { href: "/scam-alerts", label: "Scam Alerts" },
-  // The scanner cluster is ONE nav item. The long book is a click away from
-  // /scanner (and linked from the homepage), and the menu had grown to ten
-  // entries against content pillars that carry the traffic.
-  { href: "/scanner", label: "Scanner" },
-  { href: "/signals", label: "Verified Results" },
   // /compare is reached from the homepage CTA and the sitemap — it does not need
   // a permanent slot next to "Comparisons", which it read as a duplicate of.
 ]

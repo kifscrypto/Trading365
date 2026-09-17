@@ -135,8 +135,18 @@ export default async function HomePage() {
             <span className="text-primary">Crypto Exchange</span>
           </h1>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
-            50+ exchanges reviewed, tested and ranked — plus the best bonuses available right now.
+            50+ exchanges reviewed, tested and ranked — plus two live scanners whose every signal is published with
+            its result.
           </p>
+
+          {/* The scanner goes FIRST: it is the product, and these numbers are read
+              live from the database rather than written here. The spotlight used to
+              sit below the stats, so a visitor could scroll the whole homepage
+              without ever learning the site runs scanners at all — the H1 and the
+              primary button are both about exchange reviews. */}
+          <div className="mt-8 w-full">
+            <ScannerSpotlight short={shortStats} long={longStats} />
+          </div>
 
           {/* The answer, above the fold. Slots are editable in lib/data/top-picks.ts. */}
           <TopPicks picks={topPicks} />
@@ -201,8 +211,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Scanner spotlight — live performance */}
-      <ScannerSpotlight short={shortStats} long={longStats} />
+      {/* Scanner spotlight moved into the hero (see "The scanner goes FIRST"). */}
 
       {/* Featured Advertisers */}
       <FeaturedAdvertisers />
