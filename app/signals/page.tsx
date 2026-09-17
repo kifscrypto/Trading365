@@ -13,9 +13,9 @@ import {
 // Matches /scanner — the numbers this page shows must not lag the scanner's.
 export const revalidate = 300
 
-const TITLE = 'Signal Track Record — Every Trading365 Signal and Result'
+const TITLE = 'Verified Results — Every Signal Trading365 Has Fired'
 const DESCRIPTION =
-  'Every crypto signal Trading365 has fired: pair, direction, entry, targets, stop and the verified result, newest first. Filter by pair, direction, outcome or date.'
+  'Every crypto signal Trading365 has fired, with entry, targets, stop and the verified result. A full track record you can filter by pair, direction or date.'
 
 interface PageProps {
   searchParams: Promise<SearchParams>
@@ -81,9 +81,9 @@ export default async function SignalsArchivePage({ searchParams }: PageProps) {
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-10">
-      <Breadcrumbs items={[{ label: 'Signals' }]} />
+      <Breadcrumbs items={[{ label: 'Verified results' }]} />
 
-      <h1 className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl">Signal track record</h1>
+      <h1 className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl">Verified results</h1>
       <p className="mt-3 max-w-3xl text-muted-foreground">
         Every signal the Trading365 scanner has fired, newest first — with the entry, targets and stop it published at
         fire time, and the result it recorded afterwards. Nothing is hidden and nothing is deleted: stopped-out and
@@ -96,7 +96,7 @@ export default async function SignalsArchivePage({ searchParams }: PageProps) {
       {/* ── 30-day record ──────────────────────────────────────────────────── */}
       <section className="mt-8">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-semibold">Record — last {stats.days} days</h2>
+          <h2 className="text-lg font-semibold">Results — last {stats.days} days</h2>
           <p className="text-xs text-muted-foreground">
             {page.total.toLocaleString('en-US')} signals published in total
           </p>

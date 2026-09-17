@@ -93,13 +93,13 @@ export default async function SignalReceiptPage({ params }: Params) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: jsonLd(generateBreadcrumbSchema([
-            { name: 'Signal archive', url: '/signals' },
+            { name: 'Verified results', url: '/signals' },
             { name: `${pair} ${sideLabel(r.side)} — ${fmtUtc(r.fired_at, false)}` },
           ])),
         }}
       />
 
-      <Breadcrumbs items={[{ label: 'Signals', href: '/signals' }, { label: `${pair} ${sideLabel(r.side)}` }]} />
+      <Breadcrumbs items={[{ label: 'Verified results', href: '/signals' }, { label: `${pair} ${sideLabel(r.side)}` }]} />
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Badge
@@ -257,7 +257,7 @@ export default async function SignalReceiptPage({ params }: Params) {
           </Link>
         </Button>
         <Button asChild variant="outline">
-          <Link href="/signals">Full track record</Link>
+          <Link href="/signals">Verified results</Link>
         </Button>
       </div>
 

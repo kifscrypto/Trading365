@@ -139,7 +139,7 @@ export default async function DashboardPage() {
                   <Link href="/login?next=/dashboard">Sign in</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link href="/signals">Browse the full record</Link>
+                  <Link href="/signals">Browse verified results</Link>
                 </Button>
               </div>
             </div>
@@ -175,7 +175,7 @@ export default async function DashboardPage() {
                 No open signals right now — the scanner only fires when conditions favour the trade.
               </p>
               <Button asChild variant="outline" className="mt-3">
-                <Link href="/signals">See the resolved record</Link>
+                <Link href="/signals">See verified results</Link>
               </Button>
             </div>
           ) : (
@@ -187,8 +187,8 @@ export default async function DashboardPage() {
           <p className="mt-8 text-xs text-muted-foreground">
             Not financial advice — automated technical analysis for research and education; no return is promised or
             implied. See our <Link href="/disclaimer" className="underline hover:text-foreground">full disclaimer</Link>.
-            Resolved signals are published in the{' '}
-            <Link href="/signals" className="underline hover:text-foreground">signal archive</Link>.
+            Every resolved signal is published in full under{' '}
+            <Link href="/signals" className="underline hover:text-foreground">verified results</Link>.
           </p>
         </>
       )}

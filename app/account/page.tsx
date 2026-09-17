@@ -107,7 +107,7 @@ export default async function AccountPage() {
             </Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/signals">Signal track record</Link>
+            <Link href="/signals">Verified results</Link>
           </Button>
         </div>
       </section>

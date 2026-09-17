@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Create your free account',
-  description: 'Create a Trading365 account to follow the signal track record and manage your access.',
+  description: 'Create a free Trading365 account to follow every signal and its verified result, and manage your access.',
   // A private utility page: noindex, and NOT disallowed in robots.txt — a
   // disallowed URL can never be crawled to see this noindex, which is the
   // standard way sites accidentally leave sign-in pages indexed.
@@ -20,9 +20,9 @@ export const metadata: Metadata = {
 }
 
 const BENEFITS = [
-  'Follow the full signal archive — every entry, target and result',
+  'Follow every signal and its verified result — entry, targets and outcome',
   'Your own referral link, with a free month for each member you bring',
-  'Upgrade to live signals the moment membership opens',
+  'Upgrade any time: members see every signal the moment it fires',
 ]
 
 export default async function SignupPage() {
@@ -34,7 +34,7 @@ export default async function SignupPage() {
       <Breadcrumbs items={[{ label: 'Create account' }]} />
       <h1 className="mt-6 text-3xl font-bold tracking-tight">Create your free account</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        One account for the scanner, the signal archive and your referrals. No card needed.
+        One account for the scanner, the verified results and your referrals. No card needed.
       </p>
 
       <ul className="mt-6 space-y-2">

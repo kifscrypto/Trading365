@@ -12,7 +12,8 @@ const footerLinks = {
     { href: "/bonuses", label: "Bonuses" },
     { href: "/guides", label: "Guides" },
     { href: "/scam-alerts", label: "Scam Alerts" },
-    { href: "/signals", label: "Signal Track Record" },
+    { href: "/scanner", label: "Scanner" },
+    { href: "/signals", label: "Verified Results" },
   ],
   company: [
     { href: "/about", label: "About Us" },

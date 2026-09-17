@@ -19,14 +19,17 @@ import { SiteSearch } from "@/components/site-search"
 const navLinks = [
   { href: "/reviews", label: "Reviews" },
   { href: "/comparisons", label: "Comparisons" },
-  { href: "/compare", label: "Compare Tool" },
   { href: "/no-kyc", label: "No-KYC" },
   { href: "/bonuses", label: "Bonuses" },
   { href: "/guides", label: "Guides" },
   { href: "/scam-alerts", label: "Scam Alerts" },
-  { href: "/scanner", label: "Short Scanner" },
-  { href: "/scanner/longs", label: "Long Scanner" },
-  { href: "/signals", label: "Track Record" },
+  // The scanner cluster is ONE nav item. The long book is a click away from
+  // /scanner (and linked from the homepage), and the menu had grown to ten
+  // entries against content pillars that carry the traffic.
+  { href: "/scanner", label: "Scanner" },
+  { href: "/signals", label: "Verified Results" },
+  // /compare is reached from the homepage CTA and the sitemap — it does not need
+  // a permanent slot next to "Comparisons", which it read as a duplicate of.
 ]
 
 export function SiteHeader() {
