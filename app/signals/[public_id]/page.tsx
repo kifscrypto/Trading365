@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { jsonLd } from '@/lib/utils/json-ld'
 import { generateBreadcrumbSchema } from '@/lib/schema'
+import { ShareButton } from '@/components/share-button'
 import {
   getReceipt, isIndexable, displayPair, sideLabel, tiersFor, signalLabels,
   STATUS_LABEL, fmtPrice, fmtPct, fmtUtc, hoursHeld, resultPhrase,
@@ -250,7 +251,7 @@ export default async function SignalReceiptPage({ params }: Params) {
       </div>
 
       {/* ── CTAs ───────────────────────────────────────────────────────────── */}
-      <div className="mt-8 flex flex-wrap gap-3">
+      <div className="mt-8 flex flex-wrap items-center gap-3">
         <Button asChild>
           <Link href="/scanner">
             See live signals <ArrowRight className="ml-1.5 h-4 w-4" />
@@ -259,6 +260,8 @@ export default async function SignalReceiptPage({ params }: Params) {
         <Button asChild variant="outline">
           <Link href="/signals">Verified results</Link>
         </Button>
+        {/* Pasting this URL anywhere renders the per-signal OG card. */}
+        <ShareButton url={receiptUrl(r.public_id)} title={receiptTitle(r)} />
       </div>
 
       {/* ── Methodology ────────────────────────────────────────────────────── */}
