@@ -44,6 +44,10 @@
     {
       "path": "/api/admin/signals/backfill?cron=true&apply=true&limit=5000",
       "schedule": "17 4 * * *"
+    },
+    {
+      "path": "/api/social/x?cron=true",
+      "schedule": "*/30 * * * *"
     }
   ]
 }
