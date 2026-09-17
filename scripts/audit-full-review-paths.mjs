@@ -1,7 +1,13 @@
 /**
- * Compare every exchanges[].fullReview path against the actual category_slug
- * of the matching article in the DB. Report mismatches so we can update the
- * static exchanges.ts to point at canonical URLs (avoids extra 301 hop).
+ * Compare every exchanges[].fullReview path against the actual article in the DB:
+ * its category_slug, AND whether it is published. Report mismatches so we can
+ * update the static exchanges.ts to point at canonical URLs (avoids extra 301 hop).
+ *
+ * The published check matters as much as the category one: getArticleBySlug
+ * filters `published = true`, so a path whose article is still a DRAFT returns
+ * 404 — and it used to pass this audit silently, because the slug existed and the
+ * category matched. Three exchanges (BloFin, KCEX, Novava) were linked to drafts
+ * that way. Bare category hubs (e.g. "/no-kyc") are accepted as intentional.
  *
  * Run with: node --env-file=.env.local scripts/audit-full-review-paths.mjs
  */
@@ -9,6 +15,8 @@ import { neon } from '@neondatabase/serverless'
 import { readFileSync } from 'node:fs'
 
 const sql = neon(process.env.DATABASE_URL)
+
+const CATEGORY_HUBS = new Set(['/reviews', '/comparisons', '/bonuses', '/no-kyc', '/guides', '/scam-alerts', '/audits'])
 
 const src = readFileSync(new URL('../lib/data/exchanges.ts', import.meta.url), 'utf8')
 
@@ -32,8 +40,9 @@ for (const b of blocks) {
   })
 }
 
-const articleRows = await sql`SELECT slug, category_slug FROM articles`
+const articleRows = await sql`SELECT slug, category_slug, published FROM articles`
 const dbCategoryBySlug = Object.fromEntries(articleRows.map(r => [r.slug, r.category_slug]))
+const dbPublishedBySlug = Object.fromEntries(articleRows.map(r => [r.slug, r.published]))
 
 console.log(`DB articles: ${articleRows.length}`)
 console.log(`Exchanges parsed: ${records.length}`)
@@ -45,6 +54,10 @@ const ok = []
 
 for (const r of records) {
   if (!r.fullReview) continue
+  if (CATEGORY_HUBS.has(r.fullReview)) {
+    ok.push(`${r.name} (category hub ${r.fullReview})`)
+    continue
+  }
   const match = r.fullReview.match(/^\/([^/]+)\/([^/?#]+)/)
   if (!match) {
     missing.push({ ...r, reason: 'unparseable' })
@@ -54,6 +67,10 @@ for (const r of records) {
   const dbCat = dbCategoryBySlug[urlSlug]
   if (!dbCat) {
     missing.push({ ...r, articleSlug: urlSlug, reason: 'article slug not in DB' })
+    continue
+  }
+  if (dbPublishedBySlug[urlSlug] === false) {
+    missing.push({ ...r, articleSlug: urlSlug, reason: 'article is UNPUBLISHED — this path 404s' })
     continue
   }
   if (urlCat !== dbCat) {

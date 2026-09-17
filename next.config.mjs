@@ -213,7 +213,12 @@ const nextConfig = {
       },
       {
         source: '/top-3-crypto-exchange-bonuses-right-now-august/:path*',
-        destination: '/bonuses/top-exchange-bonuses',
+        // Destinations must be live pages. This one used to point at
+        // /bonuses/top-exchange-bonuses, which is an UNPUBLISHED draft — and
+        // getArticleBySlug filters `published = true`, so the article route 404s
+        // for it by design. An old inbound URL therefore 301'd straight into a
+        // 404. The category hub is the honest landing place until it is published.
+        destination: '/bonuses',
         permanent: true,
       },
 

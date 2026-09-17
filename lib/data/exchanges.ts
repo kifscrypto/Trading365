@@ -215,7 +215,9 @@ export const exchanges: Exchange[] = [
       "No fiat deposits without KYC",
     ],
     summary: "A next-gen platform for crypto derivatives with strong no-KYC privacy, copy trading, and competitive fees.",
-    fullReview: "/no-kyc/blofin-review",
+    // Repointed 2026-09-17: this pointed at /no-kyc/blofin-review, which is an
+    // unpublished draft, so the link 404'd. Verified against the published article.
+    fullReview: "/reviews/blofin-review-zero-spot-fees",
     category: "no-kyc",
     copyTrading: true,
     vipProgram: false,
@@ -380,7 +382,7 @@ export const exchanges: Exchange[] = [
       "Some rewards may require ID verification",
     ],
     summary: "A fast-growing no-KYC exchange with 400x leverage, competitive fees, and rare availability in Canada and some US regions.",
-    fullReview: "/no-kyc/weex-review",
+    fullReview: "/reviews/weex-review",
     category: "reviews",
     copyTrading: true,
     vipProgram: false,
@@ -419,7 +421,9 @@ export const exchanges: Exchange[] = [
       "Limited track record",
     ],
     summary: "A no-KYC exchange offering high leverage but with some trade-offs in transparency and pair selection.",
-    fullReview: "/no-kyc/kcex-review",
+    // Repointed 2026-09-17: /no-kyc/weex-review only ever resolved via a 301 to the
+    // reviews category, and /no-kyc/kcex-review was an unpublished draft (404).
+    fullReview: "/reviews/kcex-exchange-review-2026-no-kyc-high-leverage-but-what-s-the-catch",
     category: "no-kyc",
     copyTrading: false,
     vipProgram: false,
@@ -594,7 +598,9 @@ export const exchanges: Exchange[] = [
       "Customer support can be inconsistent",
     ],
     summary: "KuCoin offers one of the widest coin selections of any exchange — 900+ pairs — with built-in trading bots, no mandatory KYC, and a strong track record since 2017.",
-    fullReview: "/reviews/kucoin-review",
+    // Slug must match the PUBLISHED article: the link audit found /reviews/kucoin-review
+    // 404ing from /compare and /bonuses because the real slug is the longer one below.
+    fullReview: "/reviews/kucoin-review-fees-us-availability",
     category: "reviews",
     copyTrading: false,
     vipProgram: true,
@@ -822,7 +828,12 @@ export const exchanges: Exchange[] = [
       "Not suitable as a primary exchange until trust gaps are addressed",
     ],
     summary: "Novava is an early-stage no-KYC exchange with AI-powered copy trading, perpetual futures, and a built-in signal service. Worth watching but not yet suited as a primary platform given limited regulatory transparency.",
-    fullReview: "/no-kyc/novava-crypto-exchange-review-the-ai-powered-gamechanger",
+    // Novava's review exists only as an UNPUBLISHED draft, so its URL 404s by
+    // design (getArticleBySlug filters published = true). Pointing at the draft
+    // path advertised a page nobody can open, so this lands on the no-KYC category
+    // until the review is published — at which point link it back to
+    // /no-kyc/novava-crypto-exchange-review-the-ai-powered-gamechanger.
+    fullReview: "/no-kyc",
     category: "no-kyc",
     copyTrading: true,
     vipProgram: false,
