@@ -43,7 +43,44 @@ export async function setupSubscribersTable(): Promise<void> {
       created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
+  // Site account that bought this order (added for site-first membership). NULL
+  // for legacy Telegram-only purchases made before accounts existed, which is why
+  // the webhook treats it as optional rather than required.
+  await sql`ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS user_id BIGINT`
+  await sql`CREATE INDEX IF NOT EXISTS subscribers_user_idx ON subscribers (user_id)`
   tableReady = true
+}
+
+// ── Access lookups ──────────────────────────────────────────────────────────
+export interface SubscriberAccess {
+  order_id: string
+  plan: string
+  status: string
+  invite_link: string | null
+  expires_at: string | null
+  paid_at: string | null
+}
+
+/**
+ * The buyer's most recent paid order, used by /account to offer the Telegram
+ * channel as an OPT-IN: the invite is created at payment time regardless, but a
+ * member who never opens it is unaffected — site access does not depend on it.
+ */
+export async function getSubscriberAccess(userId: number): Promise<SubscriberAccess | null> {
+  try {
+    await setupSubscribersTable()
+    const rows = (await sql`
+      SELECT order_id, plan, status, invite_link, expires_at, paid_at
+      FROM subscribers
+      WHERE user_id = ${userId} AND status IN ('paid', 'active')
+      ORDER BY paid_at DESC NULLS LAST
+      LIMIT 1
+    `) as unknown as SubscriberAccess[]
+    return rows[0] ?? null
+  } catch (err) {
+    console.error('[premium] getSubscriberAccess failed:', err)
+    return null
+  }
 }
 
 export function newOrderId(plan: PlanKey): string {

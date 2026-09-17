@@ -3,6 +3,7 @@ import {
   PLANS, isPlanKey, PAID_STATUSES, verifyIpnSignature,
   createPremiumInvite, setupSubscribersTable, sql,
 } from '@/lib/premium'
+import { grantEntitlement } from '@/lib/users'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,12 +28,30 @@ export async function POST(request: Request) {
 
   try {
     await setupSubscribersTable()
-    const rows = (await sql`SELECT plan, status FROM subscribers WHERE order_id = ${orderId} LIMIT 1`) as Array<{ plan: string; status: string }>
+    const rows = (await sql`
+      SELECT plan, status, user_id FROM subscribers WHERE order_id = ${orderId} LIMIT 1
+    `) as Array<{ plan: string; status: string; user_id: number | null }>
     if (!rows.length) return NextResponse.json({ ok: true }) // unknown order — ignore
     if (rows[0].status !== 'pending') return NextResponse.json({ ok: true, already: rows[0].status }) // idempotent
 
     const plan = rows[0].plan
     const days = isPlanKey(plan) ? PLANS[plan].days : 30
+
+    // Grant SITE access FIRST. The grant is idempotent on (source, external_id),
+    // so if anything below throws, this order stays 'pending' and NOWPayments'
+    // retry re-runs the whole block — a retry can never silently skip the
+    // entitlement, and can never double-grant either.
+    if (rows[0].user_id) {
+      await grantEntitlement(Number(rows[0].user_id), {
+        source: 'nowpayments',
+        externalId: orderId,
+        days,
+      })
+    }
+
+    // Telegram stays a secondary surface: the invite is still minted here, but
+    // site access does not depend on it and the member only uses it if they
+    // choose to from /account.
     const invite = await createPremiumInvite(orderId)
 
     await sql`
@@ -44,7 +63,7 @@ export async function POST(request: Request) {
           invite_link = ${invite}
       WHERE order_id = ${orderId}
     `
-    return NextResponse.json({ ok: true, activated: true })
+    return NextResponse.json({ ok: true, activated: true, siteAccess: !!rows[0].user_id })
   } catch (err) {
     console.error('[pay/webhook]', err)
     return NextResponse.json({ error: 'processing failed' }, { status: 500 })

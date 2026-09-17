@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 
 type Status = { status: string; invite_link: string | null; expires_at: string | null }
@@ -37,18 +38,27 @@ export default function SuccessClient() {
         <>
           <h1 className="text-2xl font-bold text-foreground">Payment received ✅</h1>
           <p className="mt-3 text-sm text-muted-foreground">
-            Tap below to join the private premium signals channel. You&apos;ll be approved automatically.
+            Your membership is active. If you checked out with a Trading365 account, live signals are already on your
+            dashboard — Telegram is optional.
           </p>
-          <a
-            href={data!.invite_link!}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-8 inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90"
-          >
-            Join the premium channel →
-          </a>
+          <div className="mt-8 flex flex-col items-center gap-4">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            >
+              Go to your dashboard →
+            </Link>
+            <a
+              href={data!.invite_link!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-muted-foreground underline hover:text-foreground"
+            >
+              Or join the Telegram channel (optional)
+            </a>
+          </div>
           <p className="mt-6 text-xs text-muted-foreground/70">
-            Keep this link private — it&apos;s tied to your subscription. Access runs until{' '}
+            Keep the Telegram link private — it&apos;s tied to your subscription. Access runs until{' '}
             {data!.expires_at ? new Date(data!.expires_at).toLocaleDateString() : 'your term ends'}.
           </p>
         </>
