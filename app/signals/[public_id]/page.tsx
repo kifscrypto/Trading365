@@ -134,9 +134,18 @@ export default async function SignalReceiptPage({ params }: Params) {
             {resultPhrase(r)}
           </p>
         </div>
-        <div className="text-right">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Signal ID</p>
-          <p className="font-mono text-sm text-muted-foreground">{r.public_id}</p>
+        <div className="flex flex-col items-end gap-3">
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Signal ID</p>
+            <p className="font-mono text-sm text-muted-foreground">{r.public_id}</p>
+          </div>
+          {/* Above the fold, next to the result: the moment someone wants to share. */}
+          <ShareButton
+            url={receiptUrl(r.public_id)}
+            title={receiptTitle(r)}
+            variant="button"
+            label="Share this signal"
+          />
         </div>
       </div>
 

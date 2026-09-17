@@ -2,8 +2,24 @@
 
 import { useState } from 'react'
 import { Share2, Check, Link } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
-export function ShareButton({ url, title }: { url: string; title: string }) {
+type ShareVariant = 'link' | 'button'
+
+export function ShareButton({
+  url,
+  title,
+  variant = 'link',
+  label = 'Share',
+  className,
+}: {
+  url: string
+  title: string
+  /** 'link' is the subtle article style; 'button' is the prominent signal style. */
+  variant?: ShareVariant
+  label?: string
+  className?: string
+}) {
   const [copied, setCopied] = useState(false)
   const [open, setOpen] = useState(false)
 
@@ -35,17 +51,33 @@ export function ShareButton({ url, title }: { url: string; title: string }) {
     <div className="relative">
       <button
         onClick={handleShare}
-        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        aria-label="Share this article"
+        aria-label={label}
+        className={
+          variant === 'button'
+            ? cn(
+                'inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary',
+                className,
+              )
+            : cn(
+                'flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors',
+                className,
+              )
+        }
       >
-        <Share2 className="h-3.5 w-3.5" />
-        Share
+        <Share2 className={variant === 'button' ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
+        {label}
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-7 z-20 flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1.5 shadow-lg min-w-[160px]">
+          <div
+            className={cn(
+              'absolute left-0 z-20 flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1.5 shadow-lg min-w-[160px]',
+              // The dropdown has to clear whichever trigger size is in use.
+              variant === 'button' ? 'top-11' : 'top-7',
+            )}
+          >
             <a
               href={tweetUrl}
               target="_blank"
