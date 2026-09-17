@@ -8,6 +8,8 @@ import {
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl } from '@/app/api/scanner/_config'
 import { discordOutcome } from '@/lib/discord'
+import { publishReceiptSafe } from '@/lib/signals/public'
+import { pingIndexNow } from '@/lib/indexnow'
 
 // Real-time TP-touch monitor for already-alerted short signals.
 //
@@ -261,6 +263,15 @@ export async function GET(request: Request) {
             `
           }
           stoppedCount++
+        }
+
+        // Publish/refresh the public receipt. Never throws, so a receipts
+        // failure can never abort the monitor or delay the Telegram send. The
+        // return value is the URL of a page that just became public — ping
+        // IndexNow for that only (a no-op for the backfilled archive).
+        if (doWrite && (newlyHit.length > 0 || stoppedOut)) {
+          const justPublic = await publishReceiptSafe('short', a.id as number)
+          if (justPublic) pingIndexNow([justPublic])
         }
       }
     }

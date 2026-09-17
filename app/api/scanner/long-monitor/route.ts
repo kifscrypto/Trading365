@@ -8,6 +8,8 @@ import {
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl } from '@/app/api/scanner/_config'
 import { discordOutcome } from '@/lib/discord'
+import { publishReceiptSafe } from '@/lib/signals/public'
+import { pingIndexNow } from '@/lib/indexnow'
 
 // Real-time TP-touch monitor for already-alerted LONG signals — mirror of the
 // short monitor (/api/scanner/monitor).
@@ -223,6 +225,14 @@ export async function GET(request: Request) {
             `
           }
           stoppedCount++
+        }
+
+        // Publish/refresh the public receipt (mirror of the short monitor).
+        // Never throws — see lib/signals/public.ts. The return value is the URL
+        // of a page that just became public, so ping IndexNow for that only.
+        if (doWrite && (newlyHit.length > 0 || stoppedOut)) {
+          const justPublic = await publishReceiptSafe('long', a.id as number)
+          if (justPublic) pingIndexNow([justPublic])
         }
       }
     }

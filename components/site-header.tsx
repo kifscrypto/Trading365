@@ -26,6 +26,7 @@ const navLinks = [
   { href: "/scam-alerts", label: "Scam Alerts" },
   { href: "/scanner", label: "Short Scanner" },
   { href: "/scanner/longs", label: "Long Scanner" },
+  { href: "/signals", label: "Track Record" },
 ]
 
 export function SiteHeader() {

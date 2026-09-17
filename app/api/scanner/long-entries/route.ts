@@ -8,6 +8,7 @@ import {
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl, isExcludedSymbol } from '@/app/api/scanner/_config'
 import { discordSignal } from '@/lib/discord'
+import { publishReceiptSafe } from '@/lib/signals/public'
 
 // Long entry trigger — parallel to /api/scanner/entries, inverted for longs.
 // Reads the long watchlist, fires only in a BULLISH-BTC ('uptrend') regime, and
@@ -249,7 +250,7 @@ export async function GET(request: Request) {
           `
           if (recent.length > 0) continue
 
-          await sql`
+          const inserted = await sql`
             INSERT INTO telegram_alerts_long
               (symbol, exchange, entry_price, stop_price, score, adjusted_score, signals, entry_signals, market_condition, direction)
             VALUES (
@@ -261,7 +262,11 @@ export async function GET(request: Request) {
               ${item.market_condition as string},
               'long'
             )
+            RETURNING id
           `
+          // Publish the public receipt at FIRE time (immutable half only).
+          // Never throws — see lib/signals/public.ts.
+          await publishReceiptSafe('long', (inserted as { id: number }[])[0]?.id)
 
           const exchange      = item.exchange as string
           const exchangeLabel = EXCHANGE_LABEL[exchange] ?? 'OKX'

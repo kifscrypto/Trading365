@@ -8,6 +8,7 @@ import {
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl, isExcludedSymbol } from '@/app/api/scanner/_config'
 import { discordSignal } from '@/lib/discord'
+import { publishReceiptSafe } from '@/lib/signals/public'
 
 // Human-readable labels for Telegram alert
 const SIGNAL_DISPLAY: Record<string, string> = {
@@ -281,7 +282,7 @@ export async function GET(request: Request) {
             continue
           }
 
-          await sql`
+          const inserted = await sql`
             INSERT INTO telegram_alerts
               (symbol, exchange, entry_price, stop_price, score, adjusted_score, signals, entry_signals, market_condition)
             VALUES (
@@ -292,7 +293,13 @@ export async function GET(request: Request) {
               ${JSON.stringify(entrySignals)}::jsonb,
               ${item.market_condition as string}
             )
+            RETURNING id
           `
+          // Publish the public receipt at FIRE time: this writes the immutable
+          // half of the record (entry, targets, fired_at). The outcome is filled
+          // in later by the monitor. Never throws — a receipts failure must not
+          // delay or drop the Telegram alert above.
+          await publishReceiptSafe('short', (inserted as { id: number }[])[0]?.id)
 
           const exchange      = item.exchange as string
           const exchangeLabel = EXCHANGE_LABEL[exchange] ?? 'OKX'

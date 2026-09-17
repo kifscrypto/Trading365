@@ -12,12 +12,14 @@ const footerLinks = {
     { href: "/bonuses", label: "Bonuses" },
     { href: "/guides", label: "Guides" },
     { href: "/scam-alerts", label: "Scam Alerts" },
+    { href: "/signals", label: "Signal Track Record" },
   ],
   company: [
     { href: "/about", label: "About Us" },
     { href: "/about#methodology", label: "Methodology" },
     { href: "/about#editorial", label: "Editorial Policy" },
     { href: "/about#contact", label: "Contact" },
+    { href: "/login", label: "Sign In" },
   ],
   legal: [
     { href: "/privacy", label: "Privacy Policy" },

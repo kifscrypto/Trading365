@@ -13,6 +13,12 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/", "/admin/"],
       },
     ],
-    sitemap: "https://trading365.org/sitemap.xml",
+    sitemap: [
+      "https://trading365.org/sitemap.xml",
+      // Signal receipts are a separate sitemap so the article sitemap stays
+      // untouched and archive history can be switched on independently via
+      // SIGNALS_BACKFILL_INDEXABLE — this endpoint only ever lists indexable URLs.
+      "https://trading365.org/signals-sitemap.xml",
+    ],
   }
 }
