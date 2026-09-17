@@ -1,0 +1,203 @@
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { cookies } from 'next/headers'
+import { ArrowRight, Lock, Radio, Zap } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Breadcrumbs } from '@/components/breadcrumbs'
+import { LiveRefresh } from '@/components/live-refresh'
+import { SESSION_COOKIE, getAccountFromToken } from '@/lib/users'
+import {
+  FREE_TIER_DELAY_HOURS, getOpenSignals, displayPair, sideLabel, tiersFor, fmtPrice, fmtUtc,
+  type OpenReceipt,
+} from '@/lib/signals/public'
+
+// Session-scoped and always current: never prerendered, never cached.
+export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Signal dashboard',
+  robots: { index: false, follow: false },
+}
+
+function ageLabel(hours: number): string {
+  return hours < 1 ? `${Math.round(hours * 60)}m` : `${hours.toFixed(1)}h`
+}
+
+function SignalCard({ r, live }: { r: OpenReceipt; live: boolean }) {
+  const isShort = r.side === 'short'
+  const tiers = tiersFor(r)
+  const justFired = r.age_hours < 0.25
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge
+          className={
+            isShort
+              ? 'gap-1 border-rose-500/30 bg-rose-500/10 text-rose-400'
+              : 'gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+          }
+        >
+          {sideLabel(r.side).toUpperCase()}
+        </Badge>
+        <span className="text-lg font-bold tracking-tight">{displayPair(r.symbol)}</span>
+        <Badge variant="outline" className="text-muted-foreground">{r.exchange.toUpperCase()}</Badge>
+        <Badge variant="outline" className="text-muted-foreground">{r.timeframe}</Badge>
+        {live && justFired && (
+          <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> just fired
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+        <span>
+          <span className="text-muted-foreground">Entry </span>
+          <span className="font-semibold tabular-nums">${fmtPrice(r.entry_price)}</span>
+        </span>
+        <span>
+          <span className="text-muted-foreground">Stop </span>
+          <span className="font-semibold tabular-nums text-rose-400">
+            {r.stop_price ? `$${fmtPrice(r.stop_price)}` : '—'}
+          </span>
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {tiers.map((t) => (
+          <span key={t.label} className="rounded-lg border border-border bg-muted/30 px-2.5 py-1 text-xs">
+            <span className="text-muted-foreground">{t.label} </span>
+            <span className="tabular-nums">${fmtPrice(t.price)}</span>
+            <span className="text-muted-foreground"> ({t.pct > 0 ? '+' : ''}{t.pct}%)</span>
+          </span>
+        ))}
+      </div>
+
+      <p className="mt-3 text-xs text-muted-foreground">
+        Fired {fmtUtc(r.fired_at)} · {ageLabel(r.age_hours)} ago
+      </p>
+    </div>
+  )
+}
+
+export default async function DashboardPage() {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value
+  const account = await getAccountFromToken(token)
+  const isPaid = account?.tier === 'paid'
+  const isFree = account?.tier === 'free'
+
+  // One query serves all three tiers: members see everything, everyone else sees
+  // only what has already passed the delay. Anonymous visitors are shown the
+  // COUNT of live signals (rows + hidden) and never their details.
+  const open = await getOpenSignals({ includeAll: isPaid })
+  const liveNow = open.rows.length + open.hidden
+
+  return (
+    <div className="container mx-auto max-w-5xl px-4 py-12">
+      <Breadcrumbs items={[{ label: 'Dashboard' }]} />
+
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <h1 className="text-3xl font-bold tracking-tight">Signal dashboard</h1>
+        {isPaid ? (
+          <Badge className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+            <Radio className="h-3 w-3" /> Live
+          </Badge>
+        ) : isFree ? (
+          <Badge className="border-border bg-muted/40 text-muted-foreground">
+            Free · {FREE_TIER_DELAY_HOURS}h delayed
+          </Badge>
+        ) : (
+          <Badge className="border-border bg-muted/40 text-muted-foreground">Not signed in</Badge>
+        )}
+      </div>
+
+      {!account ? (
+        /* ── Anonymous: proof of the gate, none of the content ───────────── */
+        <>
+          <p className="mt-3 max-w-2xl text-muted-foreground">
+            Signals that are running right now are reserved for members. Each one is published publicly only once it has
+            resolved — that is what keeps the live alerts from being given away.
+          </p>
+          <div className="mt-6 flex gap-3 rounded-xl border border-border bg-card p-6">
+            <Lock className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div>
+              <p className="font-semibold">
+                {liveNow > 0
+                  ? `${liveNow} signal${liveNow === 1 ? '' : 's'} live right now.`
+                  : 'No signals are open at this moment.'}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                A free account shows open signals after a {FREE_TIER_DELAY_HOURS}-hour delay. Members see each one the
+                moment it fires, on this site rather than in Telegram.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Button asChild>
+                  <Link href="/signup?next=/dashboard">Create a free account</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/login?next=/dashboard">Sign in</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/signals">Browse the full record</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* ─ Free or member ─────────────────────────────────────────────── */
+        <>
+          {isPaid && <LiveRefresh seconds={60} />}
+          <p className="mt-3 max-w-2xl text-muted-foreground">
+            {isPaid
+              ? 'Every signal the scanner has fired that has not resolved yet, shown as it fires. This page refreshes itself once a minute.'
+              : `Signals that have been running for more than ${FREE_TIER_DELAY_HOURS} hours. Members see each one the moment it fires instead.`}
+          </p>
+
+          {isFree && open.hidden > 0 && (
+            <div className="mt-6 flex gap-3 rounded-xl border border-primary/30 bg-primary/5 p-5">
+              <Zap className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <div>
+                <p className="font-semibold">
+                  {open.hidden} signal{open.hidden === 1 ? ' is' : 's are'} live but not visible to you yet.
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Members see these the moment they fire, with entry, targets and stop.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {open.rows.length === 0 ? (
+            <div className="mt-6 rounded-xl border border-border bg-card p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                No open signals right now — the scanner only fires when conditions favour the trade.
+              </p>
+              <Button asChild variant="outline" className="mt-3">
+                <Link href="/signals">See the resolved record</Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              {open.rows.map((r) => <SignalCard key={r.public_id} r={r} live={isPaid} />)}
+            </div>
+          )}
+
+          <p className="mt-8 text-xs text-muted-foreground">
+            Not financial advice — automated technical analysis for research and education; no return is promised or
+            implied. See our <Link href="/disclaimer" className="underline hover:text-foreground">full disclaimer</Link>.
+            Resolved signals are published in the{' '}
+            <Link href="/signals" className="underline hover:text-foreground">signal archive</Link>.
+          </p>
+        </>
+      )}
+
+      <div className="mt-8 flex flex-wrap gap-3">
+        <Button asChild variant="outline">
+          <Link href="/account">Your account <ArrowRight className="ml-1.5 h-4 w-4" /></Link>
+        </Button>
+      </div>
+    </div>
+  )
+}
