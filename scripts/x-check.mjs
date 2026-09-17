@@ -134,6 +134,17 @@ if (!xConfigured()) {
       if (res.status === 400) {
         console.log('  OK — authorised, rejected only because the text was empty: write access is ENABLED')
         console.log('\nAll checks passed. Set X_POSTING_MODE=live to start posting.')
+      } else if (res.status === 402) {
+        // X bills API usage with prepaid credits. The keys can be perfectly valid
+        // and every write still refused until the account has credits — report that
+        // as a BILLING state, not a credential failure, because misreading it sends
+        // you back to the portal to re-copy keys that were never wrong.
+        failed = true
+        console.log(`  ${body.slice(0, 300)}`)
+        console.log('  BILLING — these credentials are accepted and write access is enabled; X')
+        console.log('  refuses the request because the account has no API credits. Add credits or')
+        console.log('  a plan under Subscriptions in the developer portal. Then this check returns')
+        console.log('  400 and posting starts on the next cron tick.')
       } else if (res.status === 403) {
         failed = true
         console.log('  FAILED — the app is read-only. Set App permissions to Read and Write, then')
