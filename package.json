@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "review": "node --env-file=.env.local scripts/kimi-review.mjs",
-    "review:dry": "node scripts/kimi-review.mjs --dry-run"
+    "review:dry": "node scripts/kimi-review.mjs --dry-run",
+    "x:check": "node --env-file=.env.local scripts/x-check.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
