@@ -25,3 +25,7 @@ scripts/_*-backup-*.json
 /trading365-ops/
 /trading365-ops.zip
 *-log-export-*.csv
+
+# OG card preview output (scripts/og-preview.mjs scratch space)
+/.og-preview/
+

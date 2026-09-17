@@ -35,6 +35,17 @@ const nextConfig = {
       { protocol: 'https', hostname: '89p58lkunvtbseuz.public.blob.vercel-storage.com' },
     ],
   },
+  // Files the two OG card routes read with fs at render time. Nothing imports
+  // them and they are not under public/, so they have to be copied into the
+  // function explicitly — without this the social cards lose their bold face
+  // and their brand mark. Matched by filename rather than by route path on
+  // purpose: Next matches these keys with picomatch, where `[public_id]` reads
+  // as a character class (see collect-build-traces.js), so a route key for a
+  // dynamic segment is a parsing trap. They are the only opengraph-image routes
+  // in the app.
+  outputFileTracingIncludes: {
+    '**/opengraph-image': ['./assets/**/*'],
+  },
   async rewrites() {
     return [
       // Ops dashboard — static build baked into public/ops (see scripts/sync-ops.mjs).
