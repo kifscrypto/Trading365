@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "review": "node --env-file=.env.local scripts/kimi-review.mjs",
+    "review:dry": "node scripts/kimi-review.mjs --dry-run"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
