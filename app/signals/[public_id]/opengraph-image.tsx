@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og'
 import {
-  getReceipt, displayPair, fmtPrice, fmtPct, fmtUtc, WATCH_WINDOW_HOURS,
+  getReceipt, isRunning, displayPair, fmtPrice, fmtPct, fmtUtc, WATCH_WINDOW_HOURS,
   type Receipt,
 } from '@/lib/signals/public'
 import { brandMark, ogFonts } from '@/lib/og/assets'
@@ -18,8 +18,8 @@ import { FallbackCard, SignalCard, type CardTone, type SignalCardModel } from '@
 // show, so the move is the largest element on the image.
 //
 // NEVER THROWS: a failure here would break the social preview for every page
-// that embeds it, so a missing/unresolved receipt — or an asset that failed to
-// trace into the deployment — falls back to a branded neutral card.
+// that embeds it, so a missing receipt — or an asset that failed to trace into
+// the deployment — falls back to a branded neutral card.
 export const runtime = 'nodejs'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
@@ -32,6 +32,8 @@ const ARCHIVE_URL = 'trading365.org/signals'
 function toneOf(r: Receipt): CardTone {
   if (r.status.startsWith('tp')) return 'win'
   if (r.status === 'sl') return 'loss'
+  // A running signal has no outcome to colour-code, so it takes the brand band.
+  if (isRunning(r)) return 'gold'
   return 'flat'
 }
 
@@ -41,6 +43,7 @@ function totalTargets(r: Receipt): number {
 }
 
 function outcomeLabel(r: Receipt): string {
+  if (isRunning(r)) return 'AWAITING OUTCOME'
   if (r.status.startsWith('tp')) return `TP${Number(r.status.slice(2))} HIT`
   if (r.status === 'sl') return 'STOPPED OUT'
   return 'NO TARGET IN 48H'
@@ -48,6 +51,7 @@ function outcomeLabel(r: Receipt): string {
 
 function outcomeDetail(r: Receipt): string {
   const total = totalTargets(r)
+  if (isRunning(r)) return 'Levels fixed at fire · the result publishes here'
   if (r.status.startsWith('tp')) {
     const n = Number(r.status.slice(2))
     return n >= total
@@ -63,7 +67,13 @@ function outcomeDetail(r: Receipt): string {
  *  than closing it — so it reports the window it was watched for instead. */
 function heldText(r: Receipt): string {
   if (r.status === 'expired') return `${WATCH_WINDOW_HOURS}h`
-  if (!r.closed_at) return '—'
+  if (!r.closed_at) {
+    // Still open: report how long it has been running so far, not a dash.
+    const ms = Date.now() - new Date(r.fired_at).getTime()
+    if (!isFinite(ms) || ms < 0) return '—'
+    const h = Math.round(ms / 3_600_000)
+    return h <= 0 ? '<1h' : `${h}h`
+  }
   const ms = new Date(r.closed_at).getTime() - new Date(r.fired_at).getTime()
   if (!isFinite(ms) || ms < 0) return '—'
   const mins = Math.round(ms / 60_000)
@@ -90,11 +100,13 @@ function modelFor(r: Receipt): SignalCardModel {
     heldText: heldText(r),
     reached: r.status.startsWith('tp') ? Number(r.status.slice(2)) : 0,
     total: totalTargets(r),
+    awaiting: isRunning(r),
     tone: toneOf(r),
     outcomeLabel: outcomeLabel(r),
     outcomeDetail: outcomeDetail(r),
     // An expired signal banked nothing, so it says so instead of printing 0.0%.
-    moveText: r.move_pct != null ? fmtPct(r.move_pct) : '—',
+    // A running one has no move at all, so the band says OPEN rather than a dash.
+    moveText: isRunning(r) ? 'OPEN' : r.move_pct != null ? fmtPct(r.move_pct) : '—',
     url: `trading365.org/signals/${r.public_id}`,
   }
 }
@@ -104,9 +116,10 @@ export default async function Image({ params }: { params: Promise<{ public_id: s
   // getReceipt swallows its own failures and returns null, which is exactly the
   // "render the neutral card" signal we want here.
   const row = await getReceipt(public_id)
-  // Unresolved ('fired') receipts have no public page, so their card sells the
-  // archive instead of advertising a live trade nobody can open.
-  const receipt = row && row.status !== 'fired' ? row : null
+  // Running receipts get a real card too: the page is public from fire time, so
+  // its share preview must show the trade and its levels, not a generic card that
+  // says nothing about the signal that was fired.
+  const receipt = row
 
   try {
     return new ImageResponse(

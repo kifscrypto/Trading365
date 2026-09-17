@@ -488,15 +488,34 @@ export async function getReceipt(publicId: string): Promise<Receipt | null> {
 
 /**
  * Historical rows were reconstructed from fire-time logs; only signals fired
- * after go-live were genuinely published at fire time. Both are readable, but
- * the archive stays out of the index until this is flipped to 'true' — so 2,249
- * new pages can never surprise the site's existing crawl profile in one go.
+ * after go-live were genuinely published at fire time. Both are readable, and the
+ * reconstructed ones carry a disclosure note on the page so a reader (and a
+ * crawler) can tell the difference — the record only stays trustworthy if the
+ * distinction is visible rather than implied. Flipping this to 'true' adds the
+ * whole 2,249-page archive to the index in one move.
  */
 export function backfillIndexable(): boolean {
   return process.env.SIGNALS_BACKFILL_INDEXABLE === 'true'
 }
 
-export function isIndexable(r: Pick<Receipt, 'origin'>): boolean {
+/** A signal with no outcome yet — still running, or waiting to resolve. */
+export function isRunning(r: Pick<Receipt, 'status'>): boolean {
+  return r.status === 'fired'
+}
+
+/**
+ * Indexability, two independent rules:
+ *
+ *  - a RUNNING signal is never indexable. Its URL is public from fire time (that
+ *    is the pre-commitment proof, and it is what /signals/[public_id] now
+ *    serves), but the index should only hold completed records: the page's whole
+ *    content changes the moment the trade closes, so a mid-flight crawl would be
+ *    cached with no result and no reason for anyone to click it.
+ *  - reconstructed history joins the index only when SIGNALS_BACKFILL_INDEXABLE
+ *    is on.
+ */
+export function isIndexable(r: Pick<Receipt, 'origin' | 'status'>): boolean {
+  if (isRunning(r)) return false
   return r.origin === 'live' || backfillIndexable()
 }
 

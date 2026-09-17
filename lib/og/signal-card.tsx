@@ -37,6 +37,12 @@ export interface SignalCardModel {
   outcomeDetail: string
   moveText: string
   url: string
+  /**
+   * The trade is still open. Only the ladder changes: "0 of 5 targets reached"
+   * is technically true of a running signal but reads as a failure, so an
+   * awaiting card says "awaiting first target" instead.
+   */
+  awaiting?: boolean
 }
 
 export interface CardProps {
@@ -146,8 +152,8 @@ function Rule() {
 }
 
 /** How far up the target ladder this signal got, as a glanceable strip. */
-function Ladder({ reached, total }: { reached: number; total: number }) {
-  const label = `${reached} of ${total} targets reached`
+function Ladder({ reached, total, awaiting }: { reached: number; total: number; awaiting?: boolean }) {
+  const label = awaiting ? 'awaiting first target' : `${reached} of ${total} targets reached`
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <div style={{ display: 'flex', gap: 6 }}>
@@ -259,7 +265,7 @@ export function SignalCard({ model, logo }: CardProps) {
         {/* Pinned to the seam rather than centred: centring pushed the ladder
             under the band on the tallest content. */}
         <div style={{ display: 'flex', paddingBottom: 22 }}>
-          <Ladder reached={model.reached} total={model.total} />
+          <Ladder reached={model.reached} total={model.total} awaiting={model.awaiting} />
         </div>
       </div>
 

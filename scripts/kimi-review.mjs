@@ -68,11 +68,16 @@ Judge the change set against these project rules, which are non-negotiable:
    public_id and origin must never be updated after creation; only the outcome
    (status, closed_at, move_pct, mfe_pct) may change, and only by adding information.
    Historical results are never deleted or rewritten.
-5. SEO INVARIANTS: closed receipts are always publicly readable and indexable;
-   unresolved signals have no public URL; filter/pagination variants are
-   noindex,follow; no hreflang on signal pages; app/sitemap.ts, middleware.ts and the
-   editorial internal-link graph must not be modified; no Review/AggregateRating
-   schema; robots.txt must never be widened to allow /api/.
+5. SEO INVARIANTS: receipts are publicly readable from the moment they FIRE,
+   unresolved ones included — pre-commitment is the record's whole value (see
+   invariant 8), so the URL must exist before the outcome is known; a RUNNING
+   receipt is noindex until it resolves, so the index only ever holds completed
+   records; closed receipts are indexable, and reconstructed history joins them
+   only when SIGNALS_BACKFILL_INDEXABLE is on (its pages disclose that they were
+   reconstructed); filter/pagination variants are noindex,follow; no hreflang on
+   signal pages; app/sitemap.ts, middleware.ts and the editorial internal-link
+   graph must not be modified; no Review/AggregateRating schema; robots.txt must
+   never be widened to allow /api/.
 6. CLAIMS MUST BE PROVABLE: no hardcoded performance numbers (hit rates, counts),
    no promised returns, "not financial advice" wording present on public signal pages.
 7. SECURITY: no secrets in code, parameterised SQL only (never string-built SQL with

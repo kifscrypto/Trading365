@@ -9,9 +9,9 @@ import { jsonLd } from '@/lib/utils/json-ld'
 import { generateBreadcrumbSchema } from '@/lib/schema'
 import { ShareButton } from '@/components/share-button'
 import {
-  getReceipt, isIndexable, displayPair, sideLabel, tiersFor, signalLabels,
+  getReceipt, isIndexable, isRunning, displayPair, sideLabel, tiersFor, signalLabels,
   STATUS_LABEL, fmtPrice, fmtPct, fmtUtc, hoursHeld, resultPhrase,
-  receiptTitle, receiptDescription, receiptUrl,
+  receiptTitle, receiptDescription, receiptUrl, WATCH_WINDOW_HOURS,
   type Receipt,
 } from '@/lib/signals/public'
 
@@ -23,26 +23,18 @@ interface Params {
   params: Promise<{ public_id: string }>
 }
 
-/** A receipt is public only once it has resolved — see the page component. */
-async function loadReceipt(publicId: string): Promise<Receipt | null> {
-  const r = await getReceipt(publicId)
-  if (!r || r.status === 'fired') return null
-  return r
-}
-
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { public_id } = await params
-  const r = await loadReceipt(public_id)
+  const r = await getReceipt(public_id)
   if (!r) {
-    // An unresolved signal has no public page at all, so this is a genuine 404
-    // rather than an indexable placeholder.
     return { title: 'Signal not found', robots: { index: false, follow: false } }
   }
   const title = receiptTitle(r)
   const description = receiptDescription(r)
   const url = receiptUrl(r.public_id)
-  // Historical (reconstructed) receipts stay crawlable but out of the index
-  // until SIGNALS_BACKFILL_INDEXABLE is flipped — see lib/signals/public.ts.
+  // A RUNNING signal is public and shareable from fire time, but stays out of the
+  // index until it resolves — indexability is decided in isIndexable, which also
+  // covers reconstructed history.
   const indexable = isIndexable(r)
   return {
     title,
@@ -70,18 +62,24 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'up
 
 export default async function SignalReceiptPage({ params }: Params) {
   const { public_id } = await params
-  const r = await loadReceipt(public_id)
-  // Unresolved ('fired') signals are deliberately not public: the paid tier sees
-  // them live, the world sees the finished record. Nothing links to them and
-  // they are never listed, so a 404 here costs no crawl budget.
+  const r = await getReceipt(public_id)
+  // A MISSING row is a genuine 404. A RUNNING ('fired') row is not: the page is
+  // public from the moment the signal fires, because the whole point of the
+  // record is pre-commitment — the URL exists before the outcome is known, and
+  // the result is filled in on this same URL when it resolves.
   if (!r) notFound()
 
   const pair = displayPair(r.symbol)
   const isShort = r.side === 'short'
+  const running = isRunning(r)
   const tiers = tiersFor(r)
   const won = r.status.startsWith('tp')
   const reachedLevel = won ? Number(r.status.slice(2)) : 0
   const held = hoursHeld(r)
+  // How long the trade has been open — the only clock a running signal has.
+  const ageHours = running
+    ? Math.max(0, Math.round((Date.now() - new Date(r.fired_at).getTime()) / 3_600_000))
+    : null
   const peak = r.mfe_pct != null ? Number(r.mfe_pct) : null
   const reasons = signalLabels(r.signals)
   const stopPct = r.stop_price
@@ -123,16 +121,26 @@ export default async function SignalReceiptPage({ params }: Params) {
       {/* ── Outcome ────────────────────────────────────────────────────────── */}
       <div
         className={`mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 ${
-          won ? 'border-emerald-500/30 bg-emerald-500/5'
-            : r.status === 'sl' ? 'border-rose-500/30 bg-rose-500/5'
-              : 'border-border bg-muted/30'
+          running ? 'border-amber-500/30 bg-amber-500/[0.06]'
+            : won ? 'border-emerald-500/30 bg-emerald-500/5'
+              : r.status === 'sl' ? 'border-rose-500/30 bg-rose-500/5'
+                : 'border-border bg-muted/30'
         }`}
       >
         <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Outcome</p>
-          <p className={`text-lg font-semibold ${won ? 'text-emerald-400' : r.status === 'sl' ? 'text-rose-400' : 'text-foreground'}`}>
-            {resultPhrase(r)}
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">{running ? 'Status' : 'Outcome'}</p>
+          <p className={`text-lg font-semibold ${
+            running ? 'text-amber-300' : won ? 'text-emerald-400' : r.status === 'sl' ? 'text-rose-400' : 'text-foreground'
+          }`}>
+            {running ? 'Open — awaiting an outcome' : resultPhrase(r)}
           </p>
+          {running && (
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+              Fired {ageHours}h ago, before the outcome was known. Targets and stop are fixed from the fire-time price;
+              the result is filled in on this same URL when a level is hit — or after {WATCH_WINDOW_HOURS}h with neither
+              touched.
+            </p>
+          )}
         </div>
         <div className="flex flex-col items-end gap-3">
           <div className="text-right">
@@ -154,13 +162,17 @@ export default async function SignalReceiptPage({ params }: Params) {
         <Stat label="Entry" value={`$${fmtPrice(r.entry_price)}`} />
         <Stat label="Stop" value={r.stop_price ? `$${fmtPrice(r.stop_price)}` : '—'} tone="down" />
         <Stat
-          label={r.status === 'expired' ? 'Move' : 'Result'}
+          label={running || r.status === 'expired' ? 'Move' : 'Result'}
           value={r.move_pct != null ? fmtPct(r.move_pct) : '—'}
           tone={won ? 'up' : r.status === 'sl' ? 'down' : 'muted'}
         />
         <Stat label="Fired (UTC)" value={fmtUtc(r.fired_at)} />
         <Stat label="Closed (UTC)" value={fmtUtc(r.closed_at)} tone="muted" />
-        <Stat label="Time tracked" value={held != null ? `${held}h` : '—'} tone="muted" />
+        <Stat
+          label={running ? 'Open for' : 'Time tracked'}
+          value={running && ageHours != null ? `${ageHours}h and counting` : held != null ? `${held}h` : '—'}
+          tone="muted"
+        />
       </div>
 
       {peak != null && (
@@ -238,6 +250,12 @@ export default async function SignalReceiptPage({ params }: Params) {
       <div className="mt-9 flex gap-3 rounded-xl border border-border bg-card p-5">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
         <div className="text-sm">
+          {running && (
+            <p className="mb-2 text-foreground">
+              <span className="font-semibold">Still open.</span> This signal has not resolved yet — no target has been
+              reached and the stop has not been touched. The result appears on this same URL the moment it closes.
+            </p>
+          )}
           {r.origin === 'live' ? (
             <p className="text-foreground">
               <span className="font-semibold">Verified by Trading365.</span> This signal was published at the moment it
