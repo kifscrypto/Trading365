@@ -5,7 +5,7 @@ import { neon } from "@neondatabase/serverless"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingUp } from "lucide-react"
-import { premiumEnabled } from "@/lib/premium"
+import { PLANS, premiumEnabled } from "@/lib/premium"
 import { ScannerNewsletter } from "@/components/scanner-newsletter"
 import { computePnl } from "@/lib/scanner-pnl"
 import { getScannerStats } from "@/lib/scanner-stats"
@@ -178,6 +178,14 @@ export default async function ScannerPage() {
   const [stats, recentWins, pnl] = await Promise.all([getScannerStats("short"), getRecentWins(), computePnl()])
   const { tp1WinRate, directionalAccuracy, totalSignals, signalsConfirmed, avgMove } = stats
   const automated = premiumEnabled()
+  // Prices and the savings badge are derived from PLANS — the same object
+  // /api/pay/create charges from. Typed into the markup they would silently
+  // become a lie the moment a price changed, advertising a number the checkout
+  // no longer honours.
+  const monthlyUsd = PLANS.monthly.amount
+  const quarterlyUsd = PLANS.quarterly.amount
+  const quarterlyMonths = Math.round(PLANS.quarterly.days / PLANS.monthly.days)
+  const savingsPct = Math.round((1 - quarterlyUsd / (monthlyUsd * quarterlyMonths)) * 100)
 
   return (
     <>
@@ -373,7 +381,7 @@ export default async function ScannerPage() {
             <div className="flex flex-col rounded-xl border border-border bg-zinc-900 p-6">
               <p className="text-xs uppercase tracking-widest text-muted-foreground">Monthly</p>
               <p className="mt-3 text-4xl font-bold text-foreground tabular-nums">
-                $29 <span className="text-base font-medium text-muted-foreground">USDT / month</span>
+                ${monthlyUsd} <span className="text-base font-medium text-muted-foreground">USDT / month</span>
               </p>
               <ul className="mt-6 space-y-3 text-sm">
                 {monthlyFeatures.map((f) => (
@@ -385,7 +393,7 @@ export default async function ScannerPage() {
               </ul>
               {automated && (
                 <Button asChild className="mt-auto w-full font-semibold">
-                  <a href="/api/pay/create?plan=monthly">Subscribe — $29 / month</a>
+                  <a href="/api/pay/create?plan=monthly">Subscribe — ${monthlyUsd} / month</a>
                 </Button>
               )}
             </div>
@@ -393,11 +401,11 @@ export default async function ScannerPage() {
             {/* Quarterly */}
             <div className="relative flex flex-col rounded-xl border border-primary/40 bg-zinc-900 p-6">
               <Badge className="absolute -top-2.5 right-4 bg-primary text-primary-foreground hover:bg-primary">
-                Save 21%
+                Save {savingsPct}%
               </Badge>
               <p className="text-xs uppercase tracking-widest text-primary">Quarterly</p>
               <p className="mt-3 text-4xl font-bold text-foreground tabular-nums">
-                $69 <span className="text-base font-medium text-muted-foreground">USDT / 3 months</span>
+                ${quarterlyUsd} <span className="text-base font-medium text-muted-foreground">USDT / {quarterlyMonths} months</span>
               </p>
               <ul className="mt-6 space-y-3 text-sm">
                 {quarterlyFeatures.map((f) => (
@@ -409,7 +417,7 @@ export default async function ScannerPage() {
               </ul>
               {automated && (
                 <Button asChild className="mt-auto w-full font-semibold">
-                  <a href="/api/pay/create?plan=quarterly">Subscribe — $69 / 3 months</a>
+                  <a href="/api/pay/create?plan=quarterly">Subscribe — ${quarterlyUsd} / {quarterlyMonths} months</a>
                 </Button>
               )}
             </div>

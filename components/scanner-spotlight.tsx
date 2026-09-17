@@ -13,10 +13,9 @@ function fmtCount(n: number): string {
 
 interface SideProps {
   stats: ScannerStats
-  totalAllSignals: number
 }
 
-function ShortSide({ stats, totalAllSignals }: SideProps) {
+function ShortSide({ stats }: SideProps) {
   return (
     <div className="flex flex-col gap-4 p-6 lg:p-8">
       <div className="flex items-center gap-2">
@@ -35,8 +34,8 @@ function ShortSide({ stats, totalAllSignals }: SideProps) {
           <p className="text-xs text-muted-foreground">Directional accuracy</p>
         </div>
         <div>
-          <p className="font-semibold tabular-nums text-foreground">{fmtCount(totalAllSignals)}+</p>
-          <p className="text-xs text-muted-foreground">Signals tracked</p>
+          <p className="font-semibold tabular-nums text-foreground">{fmtCount(stats.totalSignals)}+</p>
+          <p className="text-xs text-muted-foreground">Short signals tracked</p>
         </div>
       </div>
       <Link
@@ -50,7 +49,7 @@ function ShortSide({ stats, totalAllSignals }: SideProps) {
   )
 }
 
-function LongSide({ stats, totalAllSignals }: SideProps) {
+function LongSide({ stats }: SideProps) {
   return (
     <div className="flex flex-col gap-4 p-6 lg:p-8">
       <div className="flex items-center gap-2">
@@ -69,7 +68,7 @@ function LongSide({ stats, totalAllSignals }: SideProps) {
           <p className="text-xs text-muted-foreground">Directional accuracy</p>
         </div>
         <div>
-          <p className="font-semibold tabular-nums text-foreground">{fmtCount(totalAllSignals)}+</p>
+          <p className="font-semibold tabular-nums text-foreground">{fmtCount(stats.totalSignals)}+</p>
           <p className="text-xs text-muted-foreground">Long signals tracked</p>
         </div>
       </div>
@@ -103,8 +102,8 @@ export function ScannerSpotlight({ short, long }: { short: ScannerStats; long: S
         </p>
       </div>
       <div className="grid overflow-hidden rounded-2xl border border-border bg-card/60 backdrop-blur md:grid-cols-2 md:divide-x md:divide-border">
-        <ShortSide stats={short} totalAllSignals={short.totalSignals} />
-        <LongSide stats={long} totalAllSignals={long.totalSignals} />
+        <ShortSide stats={short} />
+        <LongSide stats={long} />
       </div>
     </section>
   )

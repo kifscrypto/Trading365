@@ -14,7 +14,7 @@ import { TrustBar } from "@/components/trust-bar"
 import { FeaturedAdvertisers } from "@/components/featured-advertisers"
 import { PromoBanner } from "@/components/promo-banner"
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
-import { getScannerStats } from "@/lib/scanner-stats"
+import { getScannerStats, getTrackedSignalCount } from "@/lib/scanner-stats"
 import { ScannerSpotlight } from "@/components/scanner-spotlight"
 import { ScannerTickerLive } from "@/components/scanner-ticker-live"
 import { DiscordCta } from "@/components/discord-cta"
@@ -46,9 +46,10 @@ export default async function HomePage() {
   // Scanner spotlight numbers only (safe to SSR). The "Live Wins" ticker fetches
   // its own data client-side (ScannerTickerLive) so win symbols stay out of the
   // initial HTML.
-  const [shortStats, longStats] = await Promise.all([
+  const [shortStats, longStats, trackedSignals] = await Promise.all([
     getScannerStats("short"),
     getScannerStats("long"),
+    getTrackedSignalCount(),
   ])
   const featuredArticles = featuredSlugs.length > 0
     ? featuredSlugs
@@ -99,6 +100,15 @@ export default async function HomePage() {
       count: scamAlertCount,
     },
   ]
+
+  // Hero scanner stat, read from the database rather than typed in. Floored to
+  // the nearest 1,000 so the "+" stays strictly true for the whole 5-minute
+  // revalidation window (the same convention /scanner uses in its metadata).
+  // The written fallback is only for an unreachable database: it is the old
+  // conservative claim, so a failed query can never inflate the figure.
+  const trackedClaim = trackedSignals !== null
+    ? `${(Math.floor(trackedSignals / 1000) * 1000).toLocaleString("en-US")}+`
+    : "23,000+"
 
   return (
     <>
@@ -161,6 +171,13 @@ export default async function HomePage() {
 
           {/* Stats. The scanner and bonus figures are checkable against the
               database (scanner_signals row count; summed bonusAmount).
+              The scanner figure is now READ, not written: it was "23,000+"
+              while the table already held 61,279 rows — understating the
+              record by 38k, and contradicting this page's own ScannerSpotlight
+              (61.3k) which took its count from the same table. Flooring it to
+              the nearest 1,000 keeps the "+" strictly true between
+              revalidations, so it can only ever be raised by the next deploy of
+              data, never by editing this file.
               "50+ Exchanges Tested" is the site owner's figure and counts
               exchanges tested over time — the current data holds 34 distinct
               across lib/data/exchanges.ts, affiliate_links and custom_exchanges,
@@ -172,7 +189,7 @@ export default async function HomePage() {
           <div className="mt-12 grid w-full max-w-xl grid-cols-3 gap-8">
             {[
               { value: "50+", label: "Exchanges Tested" },
-              { value: "23,000+", label: "Scanner Signals Tracked" },
+              { value: trackedClaim, label: "Scanner Signals Tracked" },
               { value: "$145K+", label: "In Bonuses Listed" },
             ].map((stat) => (
               <div key={stat.label} className="flex flex-col items-center gap-1">

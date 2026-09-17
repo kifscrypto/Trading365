@@ -5,10 +5,10 @@ import { neon } from "@neondatabase/serverless"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingDown } from "lucide-react"
-import { premiumEnabled } from "@/lib/premium"
+import { PLANS, premiumEnabled } from "@/lib/premium"
 import { ScannerNewsletter } from "@/components/scanner-newsletter"
 import { computePnl } from "@/lib/scanner-pnl"
-import { getFiredHitRate } from "@/lib/scanner-stats"
+import { getFiredHitRate, getScannerStats } from "@/lib/scanner-stats"
 import { ScannerPnlCard } from "@/components/scanner-pnl-card"
 
 const BASE_URL = "https://trading365.org"
@@ -208,9 +208,28 @@ const monthlyFeatures = [
 const quarterlyFeatures = ["Same features as monthly", "Priority support"]
 
 export default async function LongScannerPage() {
-  const [stats, recentWins, pnl] = await Promise.all([getStats(), getRecentWins(), computePnl()])
+  const [stats, recentWins, pnl, shortStats] = await Promise.all([getStats(), getRecentWins(), computePnl(), getScannerStats("short")])
   const { tp1WinRate, directionalAccuracy, totalSignals, signalsConfirmed, avgMove } = stats
   const automated = premiumEnabled()
+  // Prices and the savings badge are derived from PLANS — the same object
+  // /api/pay/create charges from. Typed into the markup they would silently
+  // become a lie the moment a price changed, advertising a number the checkout
+  // no longer honours.
+  const monthlyUsd = PLANS.monthly.amount
+  const quarterlyUsd = PLANS.quarterly.amount
+  const quarterlyMonths = Math.round(PLANS.quarterly.days / PLANS.monthly.days)
+  const savingsPct = Math.round((1 - quarterlyUsd / (monthlyUsd * quarterlyMonths)) * 100)
+
+  // The short-scanner cross-link claim is READ from the short scanner's
+  // published record, never typed in. It used to read "54% ... across 3,000+
+  // tracked signals" — the same stale-constant bug /scanner's metadata was
+  // fixed for: the real numbers move as signals resolve, and this page sits one
+  // click from the archive that publishes them. Floored to 5% and 1,000 so the
+  // claim stays strictly true, and it degrades to a number-free line rather
+  // than inventing one when the stats are unavailable.
+  const shortClaim = shortStats.tp1WinRate !== null
+    ? `Our Short Scanner has a ${Math.floor(shortStats.tp1WinRate / 5) * 5}%+ TP1 hit rate across ${(Math.floor(shortStats.totalSignals / 1000) * 1000).toLocaleString("en-US")}+ tracked signals.`
+    : "Our Short Scanner publishes every signal it has ever fired, wins and losses alike."
 
   return (
     <>
@@ -392,7 +411,7 @@ export default async function LongScannerPage() {
               <TrendingDown className="h-5 w-5 text-red-400" />
             </div>
             <p className="text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">Bear market?</span> Our Short Scanner has a 54% TP1 hit rate across 3,000+ tracked signals.
+              <span className="font-semibold text-foreground">Bear market?</span> {shortClaim}
             </p>
           </div>
           <span className="text-sm font-semibold text-foreground whitespace-nowrap">Short Scanner →</span>
@@ -420,7 +439,7 @@ export default async function LongScannerPage() {
             <div className="flex flex-col rounded-xl border border-border bg-zinc-900 p-6">
               <p className="text-xs uppercase tracking-widest text-muted-foreground">Monthly</p>
               <p className="mt-3 text-4xl font-bold text-foreground tabular-nums">
-                $29 <span className="text-base font-medium text-muted-foreground">USDT / month</span>
+                ${monthlyUsd} <span className="text-base font-medium text-muted-foreground">USDT / month</span>
               </p>
               <ul className="mt-6 space-y-3 text-sm">
                 {monthlyFeatures.map((f) => (
@@ -432,7 +451,7 @@ export default async function LongScannerPage() {
               </ul>
               {automated && (
                 <Button asChild className="mt-auto w-full font-semibold">
-                  <a href="/api/pay/create?plan=monthly">Subscribe — $29 / month</a>
+                  <a href="/api/pay/create?plan=monthly">Subscribe — ${monthlyUsd} / month</a>
                 </Button>
               )}
             </div>
@@ -440,11 +459,11 @@ export default async function LongScannerPage() {
             {/* Quarterly */}
             <div className="relative flex flex-col rounded-xl border border-emerald-500/40 bg-zinc-900 p-6">
               <Badge className="absolute -top-2.5 right-4 bg-emerald-500 text-zinc-950 hover:bg-emerald-500">
-                Save 21%
+                Save {savingsPct}%
               </Badge>
               <p className="text-xs uppercase tracking-widest text-emerald-400">Quarterly</p>
               <p className="mt-3 text-4xl font-bold text-foreground tabular-nums">
-                $69 <span className="text-base font-medium text-muted-foreground">USDT / 3 months</span>
+                ${quarterlyUsd} <span className="text-base font-medium text-muted-foreground">USDT / {quarterlyMonths} months</span>
               </p>
               <ul className="mt-6 space-y-3 text-sm">
                 {quarterlyFeatures.map((f) => (
@@ -456,7 +475,7 @@ export default async function LongScannerPage() {
               </ul>
               {automated && (
                 <Button asChild className="mt-auto w-full font-semibold">
-                  <a href="/api/pay/create?plan=quarterly">Subscribe — $69 / 3 months</a>
+                  <a href="/api/pay/create?plan=quarterly">Subscribe — ${quarterlyUsd} / {quarterlyMonths} months</a>
                 </Button>
               )}
             </div>

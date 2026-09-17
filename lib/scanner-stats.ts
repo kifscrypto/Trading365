@@ -6,6 +6,13 @@ import { neon } from "@neondatabase/serverless"
 // (long). CANONICAL filters: short = direction='short' AND downtrend AND
 // score>=7, TP1 = 24h pct_change<=-1.5; long = direction='long' AND uptrend AND
 // score>=8 (floored at the Jun-18 rewrite), TP1 = >= +1.5.
+//
+// SCOPING RULE for `totalSignals`: it counts only the side being asked about.
+// It used to count the whole scanner_signals table on the short branch, which
+// made the homepage advertise the long scanner's 27k rows as the short
+// scanner's track record (and read 61.3k next to a hero stat claiming 23k).
+// The site-wide figure has its own helper below so the two can never be
+// confused again.
 
 export type ScannerSide = "short" | "long"
 
@@ -81,7 +88,7 @@ export async function getScannerStats(side: ScannerSide): Promise<ScannerStats> 
           AVG(o24.pct_change) FILTER (
             WHERE s.direction = 'short' AND s.market_condition = 'downtrend' AND s.score >= 7 AND o24.pct_change IS NOT NULL
           )::float AS avg_move,
-          (SELECT COUNT(*)::int FROM scanner_signals) AS total_all
+          (SELECT COUNT(*)::int FROM scanner_signals WHERE direction = 'short') AS total_side
         FROM scanner_signals s
         LEFT JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
       `
@@ -99,7 +106,7 @@ export async function getScannerStats(side: ScannerSide): Promise<ScannerStats> 
           AVG(o24.pct_change) FILTER (
             WHERE s.market_condition = 'uptrend' AND s.score >= 8 AND o24.pct_change IS NOT NULL
           )::float AS avg_move,
-          (SELECT COUNT(*)::int FROM scanner_signals WHERE direction = 'long' AND scanned_at > '2026-06-18') AS total_all
+          (SELECT COUNT(*)::int FROM scanner_signals WHERE direction = 'long' AND scanned_at > '2026-06-18') AS total_side
         FROM scanner_signals s
         LEFT JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
         WHERE s.direction = 'long' AND s.scanned_at > '2026-06-18'
@@ -113,12 +120,33 @@ export async function getScannerStats(side: ScannerSide): Promise<ScannerStats> 
     return {
       tp1WinRate:          fired.tp1WinRate,
       directionalAccuracy: denom > 0 ? ((agg.dir_hits as number) / denom) * 100 : null,
-      totalSignals:        (agg.total_all ?? 0) as number,
+      totalSignals:        (agg.total_side ?? 0) as number,
       signalsConfirmed:    fired.signalsConfirmed,
       avgMove:             denom > 0 ? (agg.avg_move as number) : null,
     }
   } catch {
     return EMPTY_STATS
+  }
+}
+
+/**
+ * Every scanner row ever recorded, both directions — the site-wide figure the
+ * homepage quotes. Deliberately not read off getScannerStats(): `totalSignals`
+ * there answers "how many of THIS side did we track", and presenting one side's
+ * number as the site total is how the homepage ended up claiming 23k while its
+ * own spotlight showed 61.3k.
+ *
+ * Returns null when the table is empty or unreachable, so the caller falls back
+ * to a conservative written claim instead of rendering "0".
+ */
+export async function getTrackedSignalCount(): Promise<number | null> {
+  const sql = neon(process.env.DATABASE_URL!)
+  try {
+    const rows = await sql`SELECT COUNT(*)::int AS count FROM scanner_signals`
+    const n = (rows[0]?.count ?? 0) as number
+    return n > 0 ? n : null
+  } catch {
+    return null
   }
 }
 
