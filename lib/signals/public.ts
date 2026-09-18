@@ -65,7 +65,7 @@ export const WATCH_WINDOW_HOURS = 48
  * TP levels are DERIVED from entry at fire time (the scanner never stored them).
  * These constants MUST match the monitor routes exactly:
  *   shorts — app/api/scanner/monitor      TP_FRACTIONS = .985/.975/.96/.94/.92
- *   longs  — app/api/scanner/long-monitor TP_FRACTIONS = 1.015/1.025/1.04
+ *   longs  — app/api/scanner/long-monitor TP_FRACTIONS = 1.015/1.025/1.04/1.06/1.08
  * `pct` is the move banked by closing at that tier — deterministic, so it is
  * what the receipt reports as the result.
  */
@@ -87,7 +87,21 @@ export const LONG_TIERS: Tier[] = [
   { level: 1, mult: 1.015, pct: 1.5 },
   { level: 2, mult: 1.025, pct: 2.5 },
   { level: 3, mult: 1.04, pct: 4.0 },
+  { level: 4, mult: 1.06, pct: 6.0 },
+  { level: 5, mult: 1.08, pct: 8.0 },
 ]
+
+/**
+ * Net-of-fees result stamped on resolved receipts. Mirrors scanner_fee_config
+ * version 'taker10bps-v1' (0.10% taker + 0.05% slippage per side):
+ *   net_move_pct = move_pct - round_trip_cost_pct
+ *   round_trip_cost_pct = (taker_fee_bps + slippage_bps) * 2 / 100 = 0.30
+ * move_pct is signed favourable (wins positive, SL negative), so subtracting
+ * the round trip is correct for both signs. Bump both together when the fee
+ * model changes — old rows keep their version.
+ */
+export const FEE_MODEL_VERSION = 'taker10bps-v1'
+export const NET_ROUND_TRIP_PCT = 0.30
 
 interface BookConfig {
   side: SignalSide
@@ -125,16 +139,19 @@ const SHORT_BOOK: BookConfig = {
 const LONG_BOOK: BookConfig = {
   side: 'long',
   table: 'telegram_alerts_long',
-  // The long table has no tp4/tp5 flags — its ladder stops at TP3.
-  flagCases: `WHEN a.tp3_alerted THEN 'tp3'
+  // TP4/TP5 flags added in migration 003 (Sep 2026 ladder extension); historical
+  // longs correctly have them FALSE — no long was ever monitored past TP3 then.
+  flagCases: `WHEN a.tp5_alerted THEN 'tp5'
+      WHEN a.tp4_alerted THEN 'tp4'
+      WHEN a.tp3_alerted THEN 'tp3'
       WHEN a.tp2_alerted THEN 'tp2'
       WHEN a.tp1_alerted THEN 'tp1'`,
   tierPrices: [
     's.entry_price * 1.015',
     's.entry_price * 1.025',
     's.entry_price * 1.04',
-    'NULL',
-    'NULL',
+    's.entry_price * 1.06',
+    's.entry_price * 1.08',
   ],
   stopExpr: '(b.stop_price - b.entry_price) / NULLIF(b.entry_price, 0) * 100',
 }
@@ -195,6 +212,10 @@ export async function setupReceiptsTable(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS signal_receipts_fired_idx ON signal_receipts (fired_at DESC)`
   await sql`CREATE INDEX IF NOT EXISTS signal_receipts_side_fired_idx ON signal_receipts (side, fired_at DESC)`
   await sql`CREATE INDEX IF NOT EXISTS signal_receipts_status_fired_idx ON signal_receipts (status, fired_at DESC)`
+  // Net-of-fees columns (migration 001; ALTER form keeps fresh-env parity since
+  // CREATE TABLE IF NOT EXISTS never alters an existing table).
+  await sql`ALTER TABLE signal_receipts ADD COLUMN IF NOT EXISTS net_move_pct NUMERIC(10,4)`
+  await sql`ALTER TABLE signal_receipts ADD COLUMN IF NOT EXISTS fee_model_version TEXT`
   tableReady = true
 }
 
@@ -203,7 +224,8 @@ export async function setupReceiptsTable(): Promise<void> {
 const RECEIPT_COLUMNS = [
   'public_id', 'source_table', 'source_id', 'origin', 'side', 'symbol', 'exchange', 'timeframe',
   'entry_price', 'stop_price', 'tp1', 'tp2', 'tp3', 'tp4', 'tp5',
-  'score', 'raw_score', 'signals', 'status', 'fired_at', 'closed_at', 'move_pct', 'mfe_pct', 'updated_at',
+  'score', 'raw_score', 'signals', 'status', 'fired_at', 'closed_at',
+  'move_pct', 'net_move_pct', 'fee_model_version', 'mfe_pct', 'updated_at',
 ] as const
 
 /**
@@ -283,6 +305,10 @@ function projection(cfg: BookConfig): string[] {
     's.triggered_at',
     's.closed_at',
     's.derived_move',
+    // Net of fees — NULL while fired/expired (no realized move), stamped with
+    // the fee model version so historical net figures stay interpretable.
+    `CASE WHEN s.derived_move IS NOT NULL THEN ROUND((s.derived_move - ${NET_ROUND_TRIP_PCT})::numeric, 4) END`,
+    `CASE WHEN s.derived_move IS NOT NULL THEN '${FEE_MODEL_VERSION}' END`,
     's.mfe_pct',
     'NOW()',
   ]
@@ -306,6 +332,8 @@ ON CONFLICT ON CONSTRAINT signal_receipts_source_uniq DO UPDATE SET
   status     = EXCLUDED.status,
   closed_at  = EXCLUDED.closed_at,
   move_pct   = EXCLUDED.move_pct,
+  net_move_pct = EXCLUDED.net_move_pct,
+  fee_model_version = EXCLUDED.fee_model_version,
   mfe_pct    = EXCLUDED.mfe_pct,
   updated_at = NOW()
 RETURNING public_id, status, move_pct, closed_at, origin`
@@ -466,6 +494,8 @@ export interface Receipt {
   fired_at: string
   closed_at: string | null
   move_pct: string | null
+  net_move_pct: string | null
+  fee_model_version: string | null
   mfe_pct: string | null
   created_at: string
   updated_at: string

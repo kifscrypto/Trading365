@@ -426,6 +426,57 @@ export async function okxDailyKlines(instId: string): Promise<Kline[]> {
   return ((d.data ?? []) as Kline[]).reverse()
 }
 
+// --- BTC fire-time snapshot (migration 001 instrumentation) ---
+
+export interface BtcFireContext {
+  price: number | null     // latest 4H close, BTC-USDT-SWAP
+  change24h: number | null // % vs 6 4H candles back
+  vs20dSma: number | null  // ratio price / 20d SMA of daily closes (>1 = above)
+}
+
+/**
+ * BTC context stamped on every fired alert (btc_price_at_fire,
+ * btc_24h_change_at_fire, btc_vs_20d_sma). Returns all-null on any failure —
+ * a market-data outage must never block signal firing; NULL means "unknown",
+ * never fabricated.
+ */
+export async function getBtcFireContext(): Promise<BtcFireContext> {
+  const none: BtcFireContext = { price: null, change24h: null, vs20dSma: null }
+  try {
+    const [kl, dkl] = await Promise.all([
+      okxKlines('BTC-USDT-SWAP'),
+      okxDailyKlines('BTC-USDT-SWAP'),
+    ])
+    if (kl.length < 7) return none
+    const closes = kl.map(k => parseFloat(k[4]))
+    const price = closes[closes.length - 1]
+    const prev = closes[closes.length - 7] // 6 x 4H = 24h
+    const change24h = prev > 0 ? (price / prev - 1) * 100 : null
+    let vs20dSma: number | null = null
+    if (dkl.length >= 20) {
+      const dCloses = dkl.map(k => parseFloat(k[4])).slice(-20)
+      const sma = dCloses.reduce((s, c) => s + c, 0) / 20
+      if (sma > 0) vs20dSma = price / sma
+    }
+    return { price, change24h, vs20dSma }
+  } catch {
+    return none
+  }
+}
+
+/**
+ * Regime-conflict flag (log, don't gate — migration 001b). TRUE when the fired
+ * row's aligned regime label and the BTC state disagree:
+ *   short book (bearish label) with BTC strong: 24h > +2% or above the 20d SMA
+ *   long book  (bullish label) with BTC weak:   24h < -2% or below the 20d SMA
+ * NULL when the BTC snapshot is unavailable — never guessed.
+ */
+export function regimeConflict(side: 'short' | 'long', ctx: BtcFireContext): boolean | null {
+  if (ctx.change24h == null && ctx.vs20dSma == null) return null
+  if (side === 'short') return (ctx.change24h ?? 0) > 2 || (ctx.vs20dSma ?? 1) > 1
+  return (ctx.change24h ?? 0) < -2 || (ctx.vs20dSma ?? 1) < 1
+}
+
 export async function okxFunding(instId: string): Promise<number> {
   const r = await fetch(
     `https://www.okx.com/api/v5/public/funding-rate?instId=${instId}`,

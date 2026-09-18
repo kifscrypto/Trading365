@@ -112,6 +112,8 @@ export async function GET(request: Request) {
     // because the loop already reads every candle's high/low — for a short the
     // favourable extreme is the lowest low. Accumulated as GREATEST each cycle.
     await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS mfe_pct FLOAT`
+    // Max ADVERSE excursion — the mirror metric (highest high above entry).
+    await sql`ALTER TABLE telegram_alerts ADD COLUMN IF NOT EXISTS mae_pct FLOAT`
     // Mirror columns on the long table so the live Closed feed can union both.
     // (Long TP monitoring isn't implemented yet, so these stay NULL for now.)
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ`
@@ -183,12 +185,14 @@ export async function GET(request: Request) {
         }
         const newlyHit: (typeof TP_FRACTIONS)[number][] = []
         let stoppedOut = false
-        let minLow = Infinity // favourable extreme for a short (price falling)
+        let minLow = Infinity  // favourable extreme for a short (price falling)
+        let maxHigh = -Infinity // adverse extreme for a short (price rising)
 
         for (const k of candles) {
           const high = parseFloat(k[2])
           const low  = parseFloat(k[3])
           if (low < minLow) minLow = low
+          if (high > maxHigh) maxHigh = high
           if (stop && high >= stop) { stoppedOut = true; break }
           for (const tp of TP_FRACTIONS) {
             const tpPrice = entry * tp.mult
@@ -198,10 +202,15 @@ export async function GET(request: Request) {
           }
         }
 
-        // Persist the running peak favourable move (short → entry above the low).
+        // Persist the running peak favourable move (short → entry above the low),
+        // and its mirror: the deepest adverse move (high above entry).
         const mfePct = minLow < Infinity ? Math.max(0, ((entry - minLow) / entry) * 100) : null
+        const maePct = maxHigh > -Infinity ? Math.max(0, ((maxHigh - entry) / entry) * 100) : null
         if (doWrite && mfePct !== null) {
           await sql`UPDATE telegram_alerts SET mfe_pct = GREATEST(COALESCE(mfe_pct, 0), ${mfePct}) WHERE id = ${a.id as number}`
+        }
+        if (doWrite && maePct !== null) {
+          await sql`UPDATE telegram_alerts SET mae_pct = GREATEST(COALESCE(mae_pct, 0), ${maePct}) WHERE id = ${a.id as number}`
         }
 
         const displaySymbol = (a.symbol as string).replace('USDT', '')

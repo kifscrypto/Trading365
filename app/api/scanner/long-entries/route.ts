@@ -4,11 +4,12 @@ import { NextResponse } from 'next/server'
 import {
   okx1hKlines, hyperliquid1hKlines, mexcKlines, weex1hKlines, bitunix1hKlines,
   calcRSI, setupSignalTables, EXCHANGE_LABEL, clampStop,
+  getBtcFireContext, regimeConflict,
   type Kline, type SqlClient,
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl, isExcludedSymbol } from '@/app/api/scanner/_config'
 import { discordSignal } from '@/lib/discord'
-import { publishReceiptSafe } from '@/lib/signals/public'
+import { publishReceiptSafe, FEE_MODEL_VERSION } from '@/lib/signals/public'
 
 // Long entry trigger — parallel to /api/scanner/entries, inverted for longs.
 // Reads the long watchlist, fires only in a BULLISH-BTC ('uptrend') regime, and
@@ -192,6 +193,10 @@ export async function GET(request: Request) {
       })
     }
 
+    // BTC fire-time snapshot — fetched once per run, stamped on every fired
+    // alert (migration 001). All-null on failure; never blocks firing.
+    const btcCtx = await getBtcFireContext()
+
     const triggered: string[] = []
 
     for (let i = 0; i < alignedWatchlist.length; i += 10) {
@@ -263,7 +268,8 @@ export async function GET(request: Request) {
 
           const inserted = await sql`
             INSERT INTO telegram_alerts_long
-              (symbol, exchange, entry_price, stop_price, score, adjusted_score, signals, entry_signals, market_condition, direction)
+              (symbol, exchange, entry_price, stop_price, score, adjusted_score, signals, entry_signals, market_condition, direction,
+               btc_price_at_fire, btc_24h_change_at_fire, btc_vs_20d_sma, gate_version, fee_model_version, regime_conflict)
             VALUES (
               ${sym}, ${item.exchange as string},
               ${entryPrice}, ${stopPrice},
@@ -271,7 +277,9 @@ export async function GET(request: Request) {
               ${JSON.stringify(item.signals)}::jsonb,
               ${JSON.stringify(entrySignals)}::jsonb,
               ${item.market_condition as string},
-              'long'
+              'long',
+              ${btcCtx.price}, ${btcCtx.change24h}, ${btcCtx.vs20dSma},
+              'per-row-v1', ${FEE_MODEL_VERSION}, ${regimeConflict('long', btcCtx)}
             )
             RETURNING id
           `
@@ -292,6 +300,8 @@ export async function GET(request: Request) {
           const tp1 = entryPrice * 1.015
           const tp2 = entryPrice * 1.025
           const tp3 = entryPrice * 1.04
+          const tp4 = entryPrice * 1.06
+          const tp5 = entryPrice * 1.08
           const rawScore = item.score as number
           const div = '━━━━━━━━━━━━━━━━━━'
 
@@ -311,6 +321,8 @@ export async function GET(request: Request) {
             `   TP1: $${fmtPrice(tp1)} (+1.5%)`,
             `   TP2: $${fmtPrice(tp2)} (+2.5%)`,
             `   TP3: $${fmtPrice(tp3)} (+4.0%)`,
+            `   TP4: $${fmtPrice(tp4)} (+6.0%)`,
+            `   TP5: $${fmtPrice(tp5)} (+8.0%)`,
             '',
             `🛑 Stop: $${fmtPrice(stopPrice)} (-${(((entryPrice - stopPrice) / entryPrice) * 100).toFixed(1)}%)`,
             '',
@@ -332,6 +344,8 @@ export async function GET(request: Request) {
               { label: 'TP1', price: fmtPrice(tp1), pct: '+1.5%' },
               { label: 'TP2', price: fmtPrice(tp2), pct: '+2.5%' },
               { label: 'TP3', price: fmtPrice(tp3), pct: '+4.0%' },
+              { label: 'TP4', price: fmtPrice(tp4), pct: '+6.0%' },
+              { label: 'TP5', price: fmtPrice(tp5), pct: '+8.0%' },
             ],
             signals: signalStr,
             tradeText: `Trade ${displaySymbol} on ${exchangeLabel}`,

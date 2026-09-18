@@ -4,11 +4,12 @@ import { NextResponse } from 'next/server'
 import {
   okx1hKlines, hyperliquid1hKlines, mexcKlines, weex1hKlines, bitunix1hKlines,
   calcRSI, calcMACD, setupSignalTables, EXCHANGE_LABEL, clampStop,
+  getBtcFireContext, regimeConflict,
   type Kline, type SqlClient,
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl, isExcludedSymbol } from '@/app/api/scanner/_config'
 import { discordSignal } from '@/lib/discord'
-import { publishReceiptSafe } from '@/lib/signals/public'
+import { publishReceiptSafe, FEE_MODEL_VERSION } from '@/lib/signals/public'
 
 // Human-readable labels for Telegram alert
 const SIGNAL_DISPLAY: Record<string, string> = {
@@ -172,6 +173,10 @@ export async function GET(request: Request) {
       })
     }
 
+    // BTC fire-time snapshot — fetched once per run, stamped on every fired
+    // alert (migration 001). All-null on failure; never blocks firing.
+    const btcCtx = await getBtcFireContext()
+
     // Circuit breaker — suppress short signals when the trailing 7-day avg 24h
     // move has been positive for >48h. This catches altcoin decoupling events
     // where BTC is bearish but altcoins pump regardless (the scoring model
@@ -297,14 +302,17 @@ export async function GET(request: Request) {
 
           const inserted = await sql`
             INSERT INTO telegram_alerts
-              (symbol, exchange, entry_price, stop_price, score, adjusted_score, signals, entry_signals, market_condition)
+              (symbol, exchange, entry_price, stop_price, score, adjusted_score, signals, entry_signals, market_condition,
+               btc_price_at_fire, btc_24h_change_at_fire, btc_vs_20d_sma, gate_version, fee_model_version, regime_conflict)
             VALUES (
               ${sym}, ${item.exchange as string},
               ${entryPrice}, ${stopPrice},
               ${item.score as number}, ${adjustedScore},
               ${JSON.stringify(item.signals)}::jsonb,
               ${JSON.stringify(entrySignals)}::jsonb,
-              ${item.market_condition as string}
+              ${item.market_condition as string},
+              ${btcCtx.price}, ${btcCtx.change24h}, ${btcCtx.vs20dSma},
+              'per-row-v1', ${FEE_MODEL_VERSION}, ${regimeConflict('short', btcCtx)}
             )
             RETURNING id
           `

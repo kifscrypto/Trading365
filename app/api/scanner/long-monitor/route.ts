@@ -14,8 +14,9 @@ import { pingIndexNow } from '@/lib/indexnow'
 // Real-time TP-touch monitor for already-alerted LONG signals — mirror of the
 // short monitor (/api/scanner/monitor).
 //
-// The long-entries cron alerts a LONG with TP1/TP2/TP3 at entry × 1.015 / 1.025
-// / 1.04 and a stop below entry. This cron watches the live klines of each open
+// The long-entries cron alerts a LONG with TP1..TP5 at entry × 1.015 / 1.025
+// / 1.04 / 1.06 / 1.08 and a stop below entry. This cron watches the live
+// klines of each open
 // long alert and, the moment a TP price is actually touched (candle high ≥ TP),
 // broadcasts a confirmation to Telegram — once per TP level. If the stop is
 // breached first (candle low ≤ stop) it marks the signal stopped and stops
@@ -56,11 +57,15 @@ function fetchKlines(symbol: string, exchange: string): Promise<Kline[]> {
   return okx1hKlines(symbol.replace('USDT', '-USDT-SWAP'))
 }
 
-// TP levels (long): entry ABOVE by these fractions.
+// TP levels (long): entry ABOVE by these fractions. TP4/TP5 added Sep 2026 —
+// Task 2 backtest (analysis/task2_ladder_backtest.md): 15% of TP3 winners ran
+// past +6%, +0.15pp expectancy/signal, monotone improvement by construction.
 const TP_FRACTIONS = [
   { level: 1, mult: 1.015, label: '+1.5%' },
   { level: 2, mult: 1.025, label: '+2.5%' },
   { level: 3, mult: 1.04,  label: '+4.0%' },
+  { level: 4, mult: 1.06,  label: '+6.0%' },
+  { level: 5, mult: 1.08,  label: '+8.0%' },
 ] as const
 
 export async function GET(request: Request) {
@@ -85,32 +90,37 @@ export async function GET(request: Request) {
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS tp1_alerted BOOLEAN DEFAULT FALSE`
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS tp2_alerted BOOLEAN DEFAULT FALSE`
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS tp3_alerted BOOLEAN DEFAULT FALSE`
+    await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS tp4_alerted BOOLEAN DEFAULT FALSE`
+    await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS tp5_alerted BOOLEAN DEFAULT FALSE`
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS stopped BOOLEAN DEFAULT FALSE`
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ`
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS tp_result TEXT`
     // Max favourable excursion — for a long the favourable extreme is the highest
     // high. Accumulated as GREATEST each cycle (mirror of the short monitor).
     await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS mfe_pct FLOAT`
+    // Max ADVERSE excursion — the mirror metric (deepest low below entry).
+    await sql`ALTER TABLE telegram_alerts_long ADD COLUMN IF NOT EXISTS mae_pct FLOAT`
 
     // One-time back-fill for longs already flagged before these columns existed.
     if (doWrite) {
       await sql`
         UPDATE telegram_alerts_long
         SET closed_at = triggered_at,
-            tp_result = CASE WHEN tp3_alerted THEN 'TP3' WHEN tp2_alerted THEN 'TP2'
+            tp_result = CASE WHEN tp5_alerted THEN 'TP5' WHEN tp4_alerted THEN 'TP4'
+                             WHEN tp3_alerted THEN 'TP3' WHEN tp2_alerted THEN 'TP2'
                              WHEN tp1_alerted THEN 'TP1' WHEN stopped THEN 'SL' END
-        WHERE closed_at IS NULL AND (tp1_alerted OR tp2_alerted OR tp3_alerted OR stopped)
+        WHERE closed_at IS NULL AND (tp1_alerted OR tp2_alerted OR tp3_alerted OR tp4_alerted OR tp5_alerted OR stopped)
       `
     }
 
     const open = await sql`
       SELECT id, symbol, exchange, entry_price, stop_price,
              EXTRACT(EPOCH FROM triggered_at) * 1000 AS triggered_ms,
-             tp1_alerted, tp2_alerted, tp3_alerted
+             tp1_alerted, tp2_alerted, tp3_alerted, tp4_alerted, tp5_alerted
       FROM   telegram_alerts_long
       WHERE  triggered_at > NOW() - INTERVAL '48 hours'
         AND  stopped = FALSE
-        AND  NOT (tp1_alerted AND tp2_alerted AND tp3_alerted)
+        AND  NOT (tp1_alerted AND tp2_alerted AND tp3_alerted AND tp4_alerted AND tp5_alerted)
       ORDER  BY triggered_at DESC
     `
 
@@ -145,15 +155,19 @@ export async function GET(request: Request) {
           1: a.tp1_alerted as boolean,
           2: a.tp2_alerted as boolean,
           3: a.tp3_alerted as boolean,
+          4: a.tp4_alerted as boolean,
+          5: a.tp5_alerted as boolean,
         }
         const newlyHit: (typeof TP_FRACTIONS)[number][] = []
         let stoppedOut = false
         let maxHigh = -Infinity // favourable extreme for a long (price rising)
+        let minLow = Infinity   // adverse extreme for a long (price falling)
 
         for (const k of candles) {
           const high = parseFloat(k[2])
           const low  = parseFloat(k[3])
           if (high > maxHigh) maxHigh = high
+          if (low < minLow) minLow = low
           // Long stop is BELOW entry — breached when price falls to it.
           if (stop && low <= stop) { stoppedOut = true; break }
           for (const tp of TP_FRACTIONS) {
@@ -165,10 +179,15 @@ export async function GET(request: Request) {
           }
         }
 
-        // Persist the running peak favourable move (long → high above entry).
+        // Persist the running peak favourable move (long → high above entry),
+        // and its mirror: the deepest adverse move (low below entry).
         const mfePct = maxHigh > -Infinity ? Math.max(0, ((maxHigh - entry) / entry) * 100) : null
+        const maePct = minLow < Infinity ? Math.max(0, ((entry - minLow) / entry) * 100) : null
         if (doWrite && mfePct !== null) {
           await sql`UPDATE telegram_alerts_long SET mfe_pct = GREATEST(COALESCE(mfe_pct, 0), ${mfePct}) WHERE id = ${a.id as number}`
+        }
+        if (doWrite && maePct !== null) {
+          await sql`UPDATE telegram_alerts_long SET mae_pct = GREATEST(COALESCE(mae_pct, 0), ${maePct}) WHERE id = ${a.id as number}`
         }
 
         const displaySymbol = (a.symbol as string).replace('USDT', '')
@@ -180,7 +199,7 @@ export async function GET(request: Request) {
           const best      = newlyHit[newlyHit.length - 1] // deepest TP reached this run
           const deepestLevel = Math.max(
             best.level,
-            already[3] ? 3 : already[2] ? 2 : already[1] ? 1 : 0,
+            already[5] ? 5 : already[4] ? 4 : already[3] ? 3 : already[2] ? 2 : already[1] ? 1 : 0,
           )
           const text = [
             `✅ TARGET HIT — $${displaySymbol}`,
@@ -206,6 +225,8 @@ export async function GET(request: Request) {
                 tp1_alerted = tp1_alerted OR ${newlyHit.some(t => t.level === 1)},
                 tp2_alerted = tp2_alerted OR ${newlyHit.some(t => t.level === 2)},
                 tp3_alerted = tp3_alerted OR ${newlyHit.some(t => t.level === 3)},
+                tp4_alerted = tp4_alerted OR ${newlyHit.some(t => t.level === 4)},
+                tp5_alerted = tp5_alerted OR ${newlyHit.some(t => t.level === 5)},
                 closed_at   = NOW(),
                 tp_result   = ${'TP' + deepestLevel}
               WHERE id = ${a.id as number}
