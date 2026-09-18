@@ -324,113 +324,7 @@ export default async function LongScannerPage() {
       {/* Simulated running P&L */}
       <ScannerPnlCard book={pnl.long} accent="emerald" heading="Simulated P&L — Longs" />
 
-      {/* Recent wins */}
-      <section className="border-b border-border bg-zinc-950">
-        <div className="mx-auto max-w-5xl px-4 py-10 lg:px-6">
-          <div className="mb-5 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                Recent Wins
-              </h2>
-              <Badge variant="outline" className="gap-1.5 border-emerald-500/40 text-emerald-400">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                </span>
-                Live
-              </Badge>
-            </div>
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-              Confirmed longs · last 30 days
-            </span>
-          </div>
-          {recentWins.length > 0 ? (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {recentWins.map((w, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] px-4 py-3"
-                >
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-foreground">${w.symbol.replace("USDT", "")}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {exchangeLabel[w.exchange] ?? w.exchange} · {fmtAgo(w.scannedAt)}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <span className="font-bold tabular-nums text-emerald-400">+{w.pctChange.toFixed(1)}%</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/80">
-                      24h ✓
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-border bg-zinc-900 px-6 py-10 text-center">
-              <p className="text-foreground font-medium">Long scanner launching soon.</p>
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                Short scanner signals available now.{" "}
-                <Link href="/scanner" className="text-emerald-400 hover:underline">View the Short Scanner →</Link>
-              </p>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Feature cards */}
-      <section className="mx-auto max-w-5xl px-4 py-20 lg:px-6">
-        <div className="text-center mb-12">
-          <Badge variant="outline" className="mb-3 text-emerald-400 border-emerald-500/30">
-            How It Works
-          </Badge>
-          <h2 className="text-2xl font-bold text-foreground">Built for Serious Longs</h2>
-          <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
-            Every signal is the output of a multi-factor scoring model — not a single indicator.
-          </p>
-        </div>
-        <div className="grid gap-6 md:grid-cols-3">
-          {features.map((f) => (
-            <div
-              key={f.title}
-              className="flex flex-col gap-4 rounded-xl border border-border bg-zinc-900 p-6"
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
-                <f.icon className="h-5 w-5 text-emerald-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">{f.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {f.description}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Cross-link to short scanner */}
-      <section className="mx-auto max-w-5xl px-4 pb-4 lg:px-6">
-        <Link
-          href="/scanner"
-          className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-border bg-zinc-900 px-6 py-5 hover:border-zinc-700 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-500/10">
-              <TrendingDown className="h-5 w-5 text-red-400" />
-            </div>
-            <p className="text-sm text-muted-foreground">
-              <span className="font-semibold text-foreground">Bear market?</span> {shortClaim}
-            </p>
-          </div>
-          <span className="text-sm font-semibold text-foreground whitespace-nowrap">Short Scanner →</span>
-        </Link>
-      </section>
-
-      {/* Newsletter capture */}
-      <ScannerNewsletter accent="emerald" utmCampaign="long-scanner" />
-
-      {/* Pricing */}
+      {/* Pricing — directly after the proof (stats + P&L), same order as /scanner. */}
       <section id="pricing" className="border-t border-border bg-zinc-950">
         <div className="mx-auto max-w-5xl px-4 py-20 lg:px-6">
           <div className="text-center mb-10">
@@ -546,6 +440,112 @@ export default async function LongScannerPage() {
         </div>
       </section>
 
+      {/* Recent wins */}
+      <section className="border-b border-border bg-zinc-950">
+        <div className="mx-auto max-w-5xl px-4 py-10 lg:px-6">
+          <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                Recent Wins
+              </h2>
+              <Badge variant="outline" className="gap-1.5 border-emerald-500/40 text-emerald-400">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                </span>
+                Live
+              </Badge>
+            </div>
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+              Confirmed longs · last 30 days
+            </span>
+          </div>
+          {recentWins.length > 0 ? (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {recentWins.map((w, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] px-4 py-3"
+                >
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-foreground">${w.symbol.replace("USDT", "")}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {exchangeLabel[w.exchange] ?? w.exchange} · {fmtAgo(w.scannedAt)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="font-bold tabular-nums text-emerald-400">+{w.pctChange.toFixed(1)}%</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/80">
+                      24h ✓
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-border bg-zinc-900 px-6 py-10 text-center">
+              <p className="text-foreground font-medium">Long scanner launching soon.</p>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                Short scanner signals available now.{" "}
+                <Link href="/scanner" className="text-emerald-400 hover:underline">View the Short Scanner →</Link>
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Feature cards */}
+      <section className="mx-auto max-w-5xl px-4 py-20 lg:px-6">
+        <div className="text-center mb-12">
+          <Badge variant="outline" className="mb-3 text-emerald-400 border-emerald-500/30">
+            How It Works
+          </Badge>
+          <h2 className="text-2xl font-bold text-foreground">Built for Serious Longs</h2>
+          <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
+            Every signal is the output of a multi-factor scoring model — not a single indicator.
+          </p>
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {features.map((f) => (
+            <div
+              key={f.title}
+              className="flex flex-col gap-4 rounded-xl border border-border bg-zinc-900 p-6"
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
+                <f.icon className="h-5 w-5 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">{f.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {f.description}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Cross-link to short scanner */}
+      <section className="mx-auto max-w-5xl px-4 pb-4 lg:px-6">
+        <Link
+          href="/scanner"
+          className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-border bg-zinc-900 px-6 py-5 hover:border-zinc-700 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-500/10">
+              <TrendingDown className="h-5 w-5 text-red-400" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">Bear market?</span> {shortClaim}
+            </p>
+          </div>
+          <span className="text-sm font-semibold text-foreground whitespace-nowrap">Short Scanner →</span>
+        </Link>
+      </section>
+
+      {/* Newsletter capture */}
+      <ScannerNewsletter accent="emerald" utmCampaign="long-scanner" />
+
       {/* Bottom CTA */}
       <section className="border-t border-border bg-zinc-900">
         <div className="mx-auto max-w-4xl px-4 py-20 lg:px-6 text-center">
@@ -558,10 +558,11 @@ export default async function LongScannerPage() {
           </p>
           <div className="mt-8">
             <Button size="lg" className="font-semibold gap-2 text-base" asChild>
-              <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer">
+              {/* Signup, not Telegram — same reasoning as /scanner's hero note. */}
+              <Link href="/signup?next=/account">
                 Get Access
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
           </div>
         </div>

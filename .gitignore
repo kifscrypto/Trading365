@@ -29,3 +29,6 @@ scripts/_*-backup-*.json
 # OG card preview output (scripts/og-preview.mjs scratch space)
 /.og-preview/
 
+
+# Signal audit workspace — production data exports + analysis scripts (scripts/ read .env.local)
+/analysis/

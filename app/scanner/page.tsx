@@ -295,87 +295,9 @@ export default async function ScannerPage() {
       {/* Simulated running P&L */}
       <ScannerPnlCard book={pnl.short} accent="red" heading="Simulated P&L — Shorts" />
 
-      {/* Recent wins */}
-      {recentWins.length > 0 && (
-        <section className="border-b border-border bg-zinc-950">
-          <div className="mx-auto max-w-5xl px-4 py-10 lg:px-6">
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                  Recent Wins
-                </h2>
-                <Badge variant="outline" className="gap-1.5 border-emerald-500/40 text-emerald-400">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  </span>
-                  Live
-                </Badge>
-              </div>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                Confirmed shorts · last 30 days
-              </span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {recentWins.map((w, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] px-4 py-3"
-                >
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-foreground">${w.symbol.replace("USDT", "")}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {exchangeLabel[w.exchange] ?? w.exchange} · {fmtAgo(w.scannedAt)}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <span className="font-bold tabular-nums text-emerald-400">{w.pctChange.toFixed(1)}%</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/80">
-                      TP{w.tp} ✓
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Feature cards */}
-      <section className="mx-auto max-w-5xl px-4 py-20 lg:px-6">
-        <div className="text-center mb-12">
-          <Badge variant="outline" className="mb-3 text-primary border-primary/30">
-            How It Works
-          </Badge>
-          <h2 className="text-2xl font-bold text-foreground">Built for Serious Shorts</h2>
-          <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
-            Every signal is the output of a multi-factor scoring model — not a single indicator.
-          </p>
-        </div>
-        <div className="grid gap-6 md:grid-cols-3">
-          {features.map((f) => (
-            <div
-              key={f.title}
-              className="flex flex-col gap-4 rounded-xl border border-border bg-zinc-900 p-6"
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                <f.icon className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">{f.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {f.description}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Newsletter capture */}
-      <ScannerNewsletter accent="red" utmCampaign="short-scanner" />
-
-      {/* Pricing */}
+      {/* Pricing — directly after the proof (stats + P&L), not buried at the
+          bottom: a visitor who has just seen the record should be able to act
+          on it without scrolling past features, newsletter and the outro. */}
       <section id="pricing" className="border-t border-border bg-zinc-950">
         <div className="mx-auto max-w-5xl px-4 py-20 lg:px-6">
           <div className="text-center mb-10">
@@ -491,6 +413,86 @@ export default async function ScannerPage() {
         </div>
       </section>
 
+      {/* Recent wins */}
+      {recentWins.length > 0 && (
+        <section className="border-b border-border bg-zinc-950">
+          <div className="mx-auto max-w-5xl px-4 py-10 lg:px-6">
+            <div className="mb-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
+                  Recent Wins
+                </h2>
+                <Badge variant="outline" className="gap-1.5 border-emerald-500/40 text-emerald-400">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  </span>
+                  Live
+                </Badge>
+              </div>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                Confirmed shorts · last 30 days
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {recentWins.map((w, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] px-4 py-3"
+                >
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-foreground">${w.symbol.replace("USDT", "")}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {exchangeLabel[w.exchange] ?? w.exchange} · {fmtAgo(w.scannedAt)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="font-bold tabular-nums text-emerald-400">{w.pctChange.toFixed(1)}%</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/80">
+                      TP{w.tp} ✓
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Feature cards */}
+      <section className="mx-auto max-w-5xl px-4 py-20 lg:px-6">
+        <div className="text-center mb-12">
+          <Badge variant="outline" className="mb-3 text-primary border-primary/30">
+            How It Works
+          </Badge>
+          <h2 className="text-2xl font-bold text-foreground">Built for Serious Shorts</h2>
+          <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
+            Every signal is the output of a multi-factor scoring model — not a single indicator.
+          </p>
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {features.map((f) => (
+            <div
+              key={f.title}
+              className="flex flex-col gap-4 rounded-xl border border-border bg-zinc-900 p-6"
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <f.icon className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">{f.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {f.description}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Newsletter capture */}
+      <ScannerNewsletter accent="red" utmCampaign="short-scanner" />
+
       {/* Bottom CTA */}
       <section className="border-t border-border bg-zinc-900">
         <div className="mx-auto max-w-4xl px-4 py-20 lg:px-6 text-center">
@@ -503,10 +505,12 @@ export default async function ScannerPage() {
           </p>
           <div className="mt-8">
             <Button size="lg" className="font-semibold gap-2 text-base" asChild>
-              <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer">
+              {/* Signup, not Telegram — the hero comment above explains why the
+                  primary CTA must never punt the most engaged visitor off-site. */}
+              <Link href="/signup?next=/account">
                 Get Access
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
             </Button>
           </div>
         </div>
