@@ -152,7 +152,11 @@ export async function GET(request: Request) {
     `
     await setupSignalTables(sql as SqlClient)
 
-    // Most recent long watchlist (within the last 5h to cover timing gaps)
+    // Freshest long scan cycle only — the 5h bound covers timing gaps, but the
+    // cycle discriminator closes the gate hole: DISTINCT ON across the window
+    // could mix rows from different cycles carrying different regime labels.
+    // One result set = one regime label. (Intra-cycle insert spread <1s,
+    // cycles every 30m — 10 minutes separates cycles safely.)
     const watchlist = await sql`
       SELECT DISTINCT ON (symbol, exchange)
         symbol, exchange, score, adjusted_score,
@@ -160,31 +164,38 @@ export async function GET(request: Request) {
         ema50_4h, ema200_4h, price_distance_pct
       FROM scanner_long_watchlist
       WHERE created_at > NOW() - INTERVAL '5 hours'
+        AND created_at >= (SELECT MAX(created_at) FROM scanner_long_watchlist
+                           WHERE created_at > NOW() - INTERVAL '5 hours') - INTERVAL '10 minutes'
       ORDER BY symbol, exchange, created_at DESC
     `
 
-    console.log(`[long-entries] watchlist: ${watchlist.length} symbols found`)
+    console.log(`[long-entries] watchlist: ${watchlist.length} symbols found (freshest cycle)`)
 
     if (watchlist.length === 0) {
       return NextResponse.json({ ok: true, checked: 0, triggered: 0, note: 'watchlist empty' })
     }
 
-    // Hard regime gate — longs ONLY fire when the BTC regime is 'uptrend' (bullish BTC).
-    const marketCondition = (watchlist[0].market_condition as string) ?? 'neutral'
-    if (marketCondition !== 'uptrend') {
-      console.log(`[Long Scanner] Regime gate: ${marketCondition} — suppressing all long signals`)
+    // Hard regime gate — PER-ROW, mirroring /entries. The old watchlist[0]-only
+    // check let neutral-stamped rows fire post-gate (analysis/task1_gate_report.md:
+    // 68 neutral + 3 downtrend longs). 'hostile' is the pre-Jul-2026 label for
+    // the same bullish-BTC state — kept defensively for legacy rows.
+    const ALIGNED_REGIMES = new Set(['uptrend', 'hostile'])
+    const alignedWatchlist = watchlist.filter(w => ALIGNED_REGIMES.has((w.market_condition as string) ?? ''))
+    if (alignedWatchlist.length === 0) {
+      const seen = [...new Set(watchlist.map(w => (w.market_condition as string | null) ?? 'null'))].join(',')
+      console.log(`[Long Scanner] gate suppressed cycle at ${new Date().toISOString()} — regime seen: ${seen} (0/${watchlist.length} rows aligned)`)
       return NextResponse.json({
         ok:                   true,
         checked:               watchlist.length,
         triggered:             0,
-        suppressed_by_regime:  marketCondition,
+        suppressed_by_regime:  seen,
       })
     }
 
     const triggered: string[] = []
 
-    for (let i = 0; i < watchlist.length; i += 10) {
-      const batch = watchlist.slice(i, i + 10)
+    for (let i = 0; i < alignedWatchlist.length; i += 10) {
+      const batch = alignedWatchlist.slice(i, i + 10)
 
       const klineResults = await Promise.allSettled(
         batch.map(item => {
@@ -264,6 +275,11 @@ export async function GET(request: Request) {
             )
             RETURNING id
           `
+          // Tripwire: the per-row filter above makes a non-aligned label here
+          // impossible — if this ever fires, the gate regressed. Loud by design.
+          if (!ALIGNED_REGIMES.has(item.market_condition as string)) {
+            console.error(`[Long Scanner] REGIME TRIPWIRE: fired ${sym} (${item.exchange as string}) with non-aligned label '${item.market_condition as string}' at ${new Date().toISOString()}`)
+          }
           // Publish the public receipt at FIRE time (immutable half only).
           // Never throws — see lib/signals/public.ts.
           await publishReceiptSafe('long', (inserted as { id: number }[])[0]?.id)

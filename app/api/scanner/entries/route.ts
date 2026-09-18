@@ -126,18 +126,26 @@ export async function GET(request: Request) {
     `
     await setupSignalTables(sql as SqlClient)
 
-    // Fetch most recent watchlist (within the last 5h to cover timing gaps)
+    // Fetch the FRESHEST scan cycle only. The 5h bound covers timing gaps, but
+    // the cycle discriminator is what closes the gate hole: DISTINCT ON across
+    // the whole window can mix rows from different cycles carrying different
+    // regime labels (a symbol absent from the newest cycle keeps its older,
+    // stale-label row). One result set = one regime label now. Intra-cycle
+    // insert spread is <1s and cycles run every 30m, so 10 minutes cleanly
+    // separates cycles without splitting one.
     const watchlist = await sql`
       SELECT DISTINCT ON (symbol, exchange)
         symbol, exchange, score, adjusted_score,
         signals, market_condition, price
       FROM scanner_watchlist
       WHERE created_at > NOW() - INTERVAL '5 hours'
+        AND created_at >= (SELECT MAX(created_at) FROM scanner_watchlist
+                           WHERE created_at > NOW() - INTERVAL '5 hours') - INTERVAL '10 minutes'
       ORDER BY symbol, exchange, created_at DESC
     `
 
     // Stage 1 — watchlist read
-    console.log(`[entries] watchlist: ${watchlist.length} symbols found`)
+    console.log(`[entries] watchlist: ${watchlist.length} symbols found (freshest cycle)`)
     for (const w of watchlist) {
       console.log(`[entries]   ${w.symbol} (${w.exchange}) score=${w.score} adjusted=${w.adjusted_score}`)
     }
@@ -146,16 +154,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, checked: 0, triggered: 0, note: 'watchlist empty' })
     }
 
-    // Hard regime gate — only fire signals when the BTC sentiment regime is downtrend (bearish).
-    // market_condition is computed by the watchlist builder and shared across all rows in a cycle.
-    const marketCondition = (watchlist[0].market_condition as string) ?? 'neutral'
-    if (marketCondition !== 'downtrend') {
-      console.log(`[Scanner] Regime gate: ${marketCondition} — suppressing all signals`)
+    // Hard regime gate — PER-ROW. The cycle scope above plus this filter replace
+    // the old watchlist[0]-only check, which let 105 neutral-stamped rows fire
+    // post-gate (analysis/task1_gate_report.md). Each row must carry an aligned
+    // label itself. 'favourable' is the pre-Jul-2026 label for the same
+    // bearish-BTC state — kept defensively in case a legacy row survives.
+    const ALIGNED_REGIMES = new Set(['downtrend', 'favourable'])
+    const alignedWatchlist = watchlist.filter(w => ALIGNED_REGIMES.has((w.market_condition as string) ?? ''))
+    if (alignedWatchlist.length === 0) {
+      const seen = [...new Set(watchlist.map(w => (w.market_condition as string | null) ?? 'null'))].join(',')
+      console.log(`[Scanner] gate suppressed cycle at ${new Date().toISOString()} — regime seen: ${seen} (0/${watchlist.length} rows aligned)`)
       return NextResponse.json({
         ok:                   true,
         checked:               watchlist.length,
         triggered:             0,
-        suppressed_by_regime:  marketCondition,
+        suppressed_by_regime:  seen,
       })
     }
 
@@ -192,9 +205,9 @@ export async function GET(request: Request) {
 
     const triggered: string[] = []
 
-    // Process in batches of 10
-    for (let i = 0; i < watchlist.length; i += 10) {
-      const batch = watchlist.slice(i, i + 10)
+    // Process in batches of 10 (aligned rows only — the gate above)
+    for (let i = 0; i < alignedWatchlist.length; i += 10) {
+      const batch = alignedWatchlist.slice(i, i + 10)
 
       const klineResults = await Promise.allSettled(
         batch.map(item => {
@@ -295,6 +308,11 @@ export async function GET(request: Request) {
             )
             RETURNING id
           `
+          // Tripwire: the per-row filter above makes a non-aligned label here
+          // impossible — if this ever fires, the gate regressed. Loud by design.
+          if (!ALIGNED_REGIMES.has(item.market_condition as string)) {
+            console.error(`[Scanner] REGIME TRIPWIRE: fired ${sym} (${item.exchange as string}) with non-aligned label '${item.market_condition as string}' at ${new Date().toISOString()}`)
+          }
           // Publish the public receipt at FIRE time: this writes the immutable
           // half of the record (entry, targets, fired_at). The outcome is filled
           // in later by the monitor. Never throws — a receipts failure must not
