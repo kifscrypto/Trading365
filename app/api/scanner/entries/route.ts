@@ -9,7 +9,8 @@ import {
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl, isExcludedSymbol } from '@/app/api/scanner/_config'
 import { discordSignal } from '@/lib/discord'
-import { publishReceiptSafe, FEE_MODEL_VERSION } from '@/lib/signals/public'
+import { buildFiredTelegram } from '@/lib/signal-messages'
+import { publishReceiptSafe, receiptUrlForSource, FEE_MODEL_VERSION } from '@/lib/signals/public'
 
 // Human-readable labels for Telegram alert
 const SIGNAL_DISPLAY: Record<string, string> = {
@@ -336,32 +337,29 @@ export async function GET(request: Request) {
           const tp2 = entryPrice * 0.975
           const tp3 = entryPrice * 0.96
           const rawScore = item.score as number
-          const div = '━━━━━━━━━━━━━━━━━━'
 
-          const text = '<b>' + [
-            div,
-            '🔴 SHORT SIGNAL',
-            div,
-            '',
-            `💰 $${displaySymbol}`,
-            `📊 Score: ${adjustedScore} (${rawScore})`,
-            `🏦 Exchange: ${exchangeLabel}`,
-            '📉 Market: BEARISH ✅',
-            '',
-            `💲 Entry: $${fmtPrice(entryPrice)}`,
-            '',
-            '🎯 Targets:',
-            `   TP1: $${fmtPrice(tp1)} (-1.5%)`,
-            `   TP2: $${fmtPrice(tp2)} (-2.5%)`,
-            `   TP3: $${fmtPrice(tp3)} (-4.0%)`,
-            '',
-            `🛑 Stop: $${fmtPrice(stopPrice)} (+${(((stopPrice - entryPrice) / entryPrice) * 100).toFixed(1)}%)`,
-            '',
-            `📋 Signals: ${signalStr}`,
-            '',
-            '⚡ trading365.org/scanner',
-            div,
-          ].join('\n') + '</b>'
+          // Target percentages here describe the LEVEL (1.5% below entry), not the
+          // gain — a short's TP1 is a −1.5% price move and a +1.5% profit. The close
+          // posts use the gain instead, because by then the question is what it paid.
+          // Receipt link is resolved separately from publishReceiptSafe's return:
+          // that only yields a URL on the transition into public, and this post must
+          // carry the link whether or not this run is the one that made it public.
+          const receiptUrl = await receiptUrlForSource('short', (inserted as { id: number }[])[0]?.id)
+
+          const text = buildFiredTelegram({
+            side:      'short',
+            pair:      displaySymbol,
+            timeframe: '4H',
+            exchange:  exchangeLabel,
+            entry:     fmtPrice(entryPrice),
+            tiers: [
+              { label: 'TP1', price: fmtPrice(tp1), pct: '-1.5%' },
+              { label: 'TP2', price: fmtPrice(tp2), pct: '-2.5%' },
+              { label: 'TP3', price: fmtPrice(tp3), pct: '-4.0%' },
+            ],
+            stop:      fmtPrice(stopPrice),
+            receiptUrl,
+          })
 
           // Single premium channel (TELEGRAM_CHAT_ID = @ShortsScanner) — one send only.
           // Trade link is a tappable inline button carrying our referral link.

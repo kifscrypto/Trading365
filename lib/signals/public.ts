@@ -457,6 +457,35 @@ export async function publishReceiptSafe(side: SignalSide, id: number | undefine
   }
 }
 
+/**
+ * Public URL of the receipt already recorded for a scanner row, or null when no
+ * receipt exists yet.
+ *
+ * WHY THE MESSAGE LAYER NEEDS THIS
+ * publishReceiptSafe() only returns a URL on the transition INTO public, which is
+ * exactly right for its IndexNow job and useless for a message: a signal that
+ * already posted TP1 has a public receipt, and the TP2 post still needs the same
+ * link. This is a plain read of the mapping that already exists, so the posting
+ * layer never has to reconstruct a public_id (or duplicate SOURCE_TABLE) and can
+ * never invent a URL for a row that has no receipt.
+ *
+ * Read-only and never throws — a message must still send without its link.
+ */
+export async function receiptUrlForSource(side: SignalSide, id: number | undefined | null): Promise<string | null> {
+  if (!id) return null
+  try {
+    const rows = (await sql`
+      SELECT public_id FROM signal_receipts
+      WHERE source_table = ${SOURCE_TABLE[side]} AND source_id = ${id}
+      LIMIT 1
+    `) as unknown as { public_id: string }[]
+    return rows[0] ? receiptUrl(rows[0].public_id) : null
+  } catch (err) {
+    console.error(`[signals/public] receiptUrlForSource failed (${side} ${id}):`, err)
+    return null
+  }
+}
+
 // ── Display helpers (pure — safe to import from anywhere) ───────────────────
 /** 'BTWUSDT' → 'BTW' */
 export function displayPair(symbol: string): string {
@@ -759,6 +788,23 @@ export interface ArchiveSideStats {
   hitRate: number | null
   /** Average % banked per WINNING signal (same metric as /live). */
   avgMove: number | null
+  /**
+   * EXPECTANCY — mean realised move per RESOLVED signal (winners and losers
+   * together, scratches excluded). This is the number that answers "what does one
+   * signal return on average", which "avg move / winner" deliberately does not.
+   * Gross of costs; `netExpectancy` is the same set minus the round trip.
+   */
+  expectancy: number | null
+  /** Expectancy net of the round-trip fee model (see NET_ROUND_TRIP_PCT). */
+  netExpectancy: number | null
+  /**
+   * Resolved signals behind netExpectancy. Always equals `resolved` in practice —
+   * see the COALESCE in getArchiveStats — but kept separate so a future gap cannot
+   * silently turn a full-history average into an eight-row one.
+   */
+  netSamples: number
+  /** How many of those were DERIVED rather than read from a stamped column. */
+  netDerived: number
 }
 
 export interface ArchiveStats {
@@ -769,6 +815,16 @@ export interface ArchiveStats {
   expired: number
   hitRate: number | null
   avgMove: number | null
+  /** Pooled gross expectancy across both books, over resolved signals. */
+  expectancy: number | null
+  /** Pooled NET expectancy — the headline number. */
+  netExpectancy: number | null
+  netSamples: number
+  /** Pooled count of derived (un-stamped) net values, surfaced for the footnote. */
+  netDerived: number
+  /** Fee model behind netExpectancy, surfaced so the number is auditable. */
+  feeModelVersion: string
+  netRoundTripPct: number
   short: ArchiveSideStats | null
   long: ArchiveSideStats | null
 }
@@ -782,17 +838,27 @@ interface ArchiveStatsRow {
   losses: number
   winners: number
   win_move: number
+  resolved_move: number
+  net_move: number
+  net_samples: number
+  net_derived: number
 }
 
 function sideStats(r: ArchiveStatsRow | undefined): ArchiveSideStats | null {
   if (!r) return null
+  const resolved = r.resolved ?? 0
   return {
-    resolved: r.resolved,
+    resolved,
     wins: r.wins,
     losses: r.losses,
     expired: r.expired,
-    hitRate: r.resolved > 0 ? (r.wins / r.resolved) * 100 : null,
+    hitRate: resolved > 0 ? (r.wins / resolved) * 100 : null,
     avgMove: r.winners > 0 ? r.win_move / r.winners : null,
+    // Over RESOLVED rows, not winners — that is what makes it an expectancy.
+    expectancy: resolved > 0 ? r.resolved_move / resolved : null,
+    netExpectancy: r.net_samples > 0 ? r.net_move / r.net_samples : null,
+    netSamples: r.net_samples ?? 0,
+    netDerived: r.net_derived ?? 0,
   }
 }
 
@@ -807,10 +873,34 @@ function sideStats(r: ArchiveStatsRow | undefined): ArchiveSideStats | null {
  */
 export async function getArchiveStats(days = 30): Promise<ArchiveStats> {
   const empty: ArchiveStats = {
-    days, total: 0, resolved: 0, wins: 0, expired: 0, hitRate: null, avgMove: null, short: null, long: null,
+    days, total: 0, resolved: 0, wins: 0, expired: 0, hitRate: null, avgMove: null,
+    expectancy: null, netExpectancy: null, netSamples: 0, netDerived: 0,
+    feeModelVersion: FEE_MODEL_VERSION, netRoundTripPct: NET_ROUND_TRIP_PCT,
+    short: null, long: null,
   }
   try {
-    const rows = (await sql`
+    // `move_pct` is signed favourable (a TP is positive for both books, a stop is
+    // negative), so SUM over resolved rows is already the right sign for a pooled
+    // expectancy and needs no per-side correction. `net_move_pct` carries the same
+    // sign net of the fee model; it is NULL on fired/expired rows by construction,
+    // which is why the net denominator is its own count rather than `resolved`.
+    // NET COVERAGE — the reason this is COALESCE and not a plain SUM.
+    //
+    // `net_move_pct` is stamped by the receipt sync, which only ever runs on rows
+    // it touches. The 2,235-row reconstructed history was synced BEFORE that
+    // column existed (migration 001 is new-rows-only by design), so only a handful
+    // of resolved rows carry a value — 8 of 2,096 at the time of writing. Summing
+    // the stamped column alone therefore produced a wild number (+4.95% against a
+    // +1.12% gross) from eight samples, which is worse than showing nothing.
+    //
+    // The derivation is exact, not an estimate: on every row that HAS a stamped
+    // value, `net_move_pct = move_pct - 0.30` to zero residual. So:
+    //   * stamped value present -> use it (a future fee-model change must never
+    //     retroactively rewrite history that was already reported)
+    //   * absent                -> derive it from the same constant
+    // Both cases are per-row the same arithmetic the sync would have written.
+    const netExpr = `COALESCE(net_move_pct, move_pct - ${NET_ROUND_TRIP_PCT})`
+    const rows = (await sql(`
       SELECT side,
         COUNT(*)::int AS total,
         COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int AS resolved,
@@ -825,12 +915,16 @@ export async function getArchiveStats(days = 30): Promise<ArchiveStats> {
           WHEN status = 'tp2' THEN 2.5
           WHEN status LIKE 'tp%' THEN 1.5
           ELSE 0
-        END) FILTER (WHERE status LIKE 'tp%'), 0)::float AS win_move
+        END) FILTER (WHERE status LIKE 'tp%'), 0)::float AS win_move,
+        COALESCE(SUM(move_pct) FILTER (WHERE closed_at IS NOT NULL), 0)::float AS resolved_move,
+        COALESCE(SUM(${netExpr}) FILTER (WHERE closed_at IS NOT NULL), 0)::float AS net_move,
+        COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int AS net_samples,
+        COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND net_move_pct IS NULL)::int AS net_derived
       FROM signal_receipts
       WHERE status <> 'fired'
-        AND fired_at > NOW() - (${days}::int * INTERVAL '1 day')
+        AND fired_at > NOW() - ($1::int * INTERVAL '1 day')
       GROUP BY side
-    `) as unknown as ArchiveStatsRow[]
+    `, [days])) as unknown as ArchiveStatsRow[]
 
     const short = sideStats(rows.find((r) => r.side === 'short'))
     const long = sideStats(rows.find((r) => r.side === 'long'))
@@ -838,6 +932,10 @@ export async function getArchiveStats(days = 30): Promise<ArchiveStats> {
     const wins = (short?.wins ?? 0) + (long?.wins ?? 0)
     const winners = rows.reduce((n, r) => n + (r.winners ?? 0), 0)
     const winMove = rows.reduce((n, r) => n + (r.win_move ?? 0), 0)
+    const resolvedMove = rows.reduce((n, r) => n + (r.resolved_move ?? 0), 0)
+    const netMove = rows.reduce((n, r) => n + (r.net_move ?? 0), 0)
+    const netSamples = rows.reduce((n, r) => n + (r.net_samples ?? 0), 0)
+    const netDerived = rows.reduce((n, r) => n + (r.net_derived ?? 0), 0)
     return {
       days,
       total: rows.reduce((n, r) => n + (r.total ?? 0), 0),
@@ -846,6 +944,12 @@ export async function getArchiveStats(days = 30): Promise<ArchiveStats> {
       expired: (short?.expired ?? 0) + (long?.expired ?? 0),
       hitRate: resolved > 0 ? (wins / resolved) * 100 : null,
       avgMove: winners > 0 ? winMove / winners : null,
+      expectancy: resolved > 0 ? resolvedMove / resolved : null,
+      netExpectancy: netSamples > 0 ? netMove / netSamples : null,
+      netSamples,
+      netDerived,
+      feeModelVersion: FEE_MODEL_VERSION,
+      netRoundTripPct: NET_ROUND_TRIP_PCT,
       short,
       long,
     }

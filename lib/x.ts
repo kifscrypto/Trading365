@@ -208,34 +208,16 @@ export function choosePosts<T extends PostCandidate>(candidates: T[], limit: num
   return chosen.slice(0, limit)
 }
 
-// ── Tweet text ──────────────────────────────────────────────────────────────
-export interface TweetSignal {
-  pair: string
-  side: 'long' | 'short'
-  /** Pre-rendered outcome, e.g. "TP3 hit +4.0%" or "no target or stop hit in 48h". */
-  outcome: string
-  entry: string
-  timeframe: string
-  exchange: string
-  firedOn: string
-  url: string
-}
-
-const ARROW: Record<'long' | 'short', string> = { short: '🔴', long: '🟢' }
-
-export function buildReceiptTweet(s: TweetSignal): string {
-  return [
-    `${ARROW[s.side]} ${s.pair} ${s.side.toUpperCase()} — ${s.outcome}`,
-    `Entry $${s.entry} · ${s.timeframe} · ${s.exchange} · ${s.firedOn}`,
-    '',
-    'Every Trading365 signal is published at fire time, unedited:',
-    s.url,
-    '',
-    'Not financial advice.',
-  ].join('\n')
-}
-
-/** Daily aggregate post. */
+// ── Digest ──────────────────────────────────────────────────────────────────
+/**
+ * Daily aggregate post for the automated queue.
+ *
+ * NOTE the distinction from buildWeeklyDigestTweet in lib/signal-messages.ts:
+ * this is the DAILY digest the cron posts (fired/hit/stopped today, plus the
+ * running published count), while the weekly one is the manual cross-post shape
+ * that quotes net expectancy. They answer different questions and both exist on
+ * purpose — do not collapse them.
+ */
 export function buildDigestTweet(d: {
   fired: number
   wins: number

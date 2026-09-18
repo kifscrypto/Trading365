@@ -8,7 +8,8 @@ import {
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl } from '@/app/api/scanner/_config'
 import { discordOutcome } from '@/lib/discord'
-import { publishReceiptSafe } from '@/lib/signals/public'
+import { buildOutcomeTelegram } from '@/lib/signal-messages'
+import { publishReceiptSafe, receiptUrlForSource } from '@/lib/signals/public'
 import { pingIndexNow } from '@/lib/indexnow'
 
 // Real-time TP-touch monitor for already-alerted short signals.
@@ -216,6 +217,15 @@ export async function GET(request: Request) {
         const displaySymbol = (a.symbol as string).replace('USDT', '')
         const exchange      = a.exchange as string
         const exchangeLabel = EXCHANGE_LABEL[exchange] ?? 'OKX'
+        // Resolved ONCE per alert, before either branch: a signal that already posted
+        // TP1 has a public receipt and the TP2 post still needs the same link, so this
+        // cannot ride on publishReceiptSafe's "just became public" return. Null is a
+        // valid answer — the message then goes out without its link line.
+        const receiptUrl = await receiptUrlForSource('short', a.id as number)
+        // Elapsed fire → this pass. The exact touch time is never recorded, so this
+        // rounds up to the monitor's 15-minute cadence; fmtDuration() labels it plainly.
+        const holdingHours = (Date.now() - triggeredMs) / 3_600_000
+        const tradeButton = { text: `Trade ${displaySymbol} on ${exchangeLabel}`, url: exchangeReferralUrl(exchange) }
 
         if (newlyHit.length > 0) {
           const hitLabels = newlyHit.map(tp => `TP${tp.level} (${tp.label})`).join(' & ')
@@ -225,16 +235,24 @@ export async function GET(request: Request) {
             best.level,
             already[5] ? 5 : already[4] ? 4 : already[3] ? 3 : already[2] ? 2 : already[1] ? 1 : 0,
           )
-          const text = [
-            `✅ TARGET HIT — $${displaySymbol}`,
-            `Exchange: ${exchangeLabel}`,
-            `Short entry: $${fmtPrice(entry)}`,
-            `Reached: ${hitLabels}`,
-            `Target price: $${fmtPrice(entry * best.mult)}`,
-            `Signal confirmed 🎯`,
-          ].join('\n')
+          // ONE post per run, announcing the DEEPEST level reached — matching the
+          // message count this route has always produced. If a single 15-minute window
+          // ran from below TP1 to above TP2, "TP2 HIT" is the honest announcement: TP1
+          // was never separately observable, and posting both would read as padding.
+          // TP4/TP5 get the big-win shape, everything else the standard win.
+          const text = buildOutcomeTelegram({
+            kind:         deepestLevel >= 4 ? 'bigwin' : 'win',
+            side:         'short',
+            pair:         displaySymbol,
+            timeframe:    '4H',
+            exchange:     exchangeLabel,
+            entry:        fmtPrice(entry),
+            level:        deepestLevel,
+            holdingHours,
+            receiptUrl,
+          })
           if (doSend) {
-            await broadcast(text, { text: `Trade ${displaySymbol} on ${exchangeLabel}`, url: exchangeReferralUrl(exchange) })
+            await broadcast(text, tradeButton)
             await discordOutcome({
               win: true,
               title: text.split('\n')[0],
@@ -270,6 +288,27 @@ export async function GET(request: Request) {
                 tp_result = COALESCE(tp_result, 'SL')
               WHERE id = ${a.id as number}
             `
+          }
+          // LOSS POST — deliberately inside the same loop, sending through the same
+          // helper as a win, because the format spec makes this non-negotiable: a
+          // track record that announces targets and stays silent on stops is not a
+          // track record. Fires AT MOST ONCE per alert: the query above only selects
+          // rows with stopped = FALSE, so this branch is unreachable on later passes.
+          // Stop distance is computed from the levels themselves (the fill price is
+          // never recorded), which is why it reads as the stop's own distance.
+          if (doSend) {
+            const lossDistancePct = Math.abs(((stop - entry) / entry) * 100)
+            const text = buildOutcomeTelegram({
+              kind:            'loss',
+              side:            'short',
+              pair:            displaySymbol,
+              timeframe:       '4H',
+              exchange:        exchangeLabel,
+              entry:           fmtPrice(entry),
+              lossDistancePct,
+              receiptUrl,
+            })
+            await broadcast(text, tradeButton)
           }
           stoppedCount++
         }

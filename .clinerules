@@ -1,0 +1,48 @@
+# Trading365 — agent rules
+
+## Scope discipline (hard rule)
+
+Build exactly what was asked. Nothing else. Do not expand the task.
+
+**Never do these unless explicitly requested in the message:**
+
+- **Before/after comparisons.** No old-vs-new output diffs, no "here's how the
+  previous version rendered", no side-by-side. If the user wants a comparison they
+  will ask for one. Reconstructing legacy code from memory to show a diff is the
+  single most expensive thing to do in this repo — it burns context and produces
+  something nobody asked to read.
+- **Comparison harnesses.** Don't build tooling whose purpose is to demonstrate a
+  change. Demonstrate the change by showing the new output.
+- **Extra assertions and guards.** If the ask is "render the new shapes", render the
+  new shapes. Don't bolt on HTML-safety sweeps, promise-language regexes, tamper
+  checks, or exhaustive input matrices on your own initiative.
+- **Wider test coverage than requested.** One example per shape, not every
+  permutation of every shape.
+- **Generalising a fix.** If one file needs a change, change that file.
+
+When tempted to add something "while I'm here": stop, don't. Mention it in one line
+at the end as an option instead.
+
+## Verification
+
+Verify with the smallest thing that proves the work: run the script, run `tsc` on
+the touched files, confirm the build. Don't invent a verification framework.
+
+## Writing files
+
+The `editor` tool caps a single write at ~6000 characters. Estimate length BEFORE
+writing and split into chunks up front. Do not discover the limit by failing — every
+failed write is a full wasted round-trip.
+
+## Known repo noise (not your problem, don't try to fix)
+
+- `npx tsc --noEmit` reports ~20 pre-existing errors in `app/admin/*`,
+  `app/api/scanner/_core.ts`, `app/api/llms/route.ts`,
+  `app/api/scanner/long-watchlist/route.ts`. Pre-existing, unrelated to most work.
+- `next.config.mjs` sets `ignoreBuildErrors`, so `npx next build` stays green
+  despite those errors.
+- `node` exits 1 when its `MODULE_TYPELESS_PACKAGE_JSON` warning is piped through
+  PowerShell — that is stderr, not a real failure. Redirect stderr to check the real
+  exit code.
+- PowerShell console output mangles UTF-8 emoji/dashes into mojibake. The files are
+  fine; don't "fix" encoding in response to console output.

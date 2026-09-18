@@ -15,13 +15,14 @@
  */
 import { neon } from '@neondatabase/serverless'
 import {
-  SITE, STATUS_LABEL, displayPair, fmtPct, fmtPrice, fmtUtc, receiptUrl,
+  SITE, displayPair, fmtPrice, receiptUrl,
   type Receipt,
 } from '@/lib/signals/public'
 import {
-  buildDigestTweet, buildReceiptTweet, choosePosts, maxPostsPerDay, postTweet,
-  postingMode, type PostCandidate, type TweetSignal,
+  buildDigestTweet, choosePosts, maxPostsPerDay, postTweet,
+  postingMode, type PostCandidate,
 } from '@/lib/x'
+import { buildXTweet, type XSignalInput } from '@/lib/signal-messages'
 
 const db = neon(process.env.DATABASE_URL!)
 
@@ -69,16 +70,29 @@ export async function candidatePool(): Promise<(Receipt & PostCandidate)[]> {
   `) as unknown as (Receipt & PostCandidate)[]
 }
 
-function toTweetSignal(r: Receipt): TweetSignal {
+function toXSignal(r: Receipt): XSignalInput {
+  // The receipt's own status decides the shape: 'sl' is the loss template, TP4/TP5
+  // the big-win template, everything else the standard win.
+  const level = r.status.startsWith('tp') ? Number(r.status.slice(2)) : 0
+  const kind = r.status === 'sl' ? 'loss' : level >= 4 ? 'bigwin' : 'win'
+  // Stop distance from the stored levels — the fill price is not recorded, so this
+  // is the stop's own distance, the same figure the close telegram quotes.
+  const entry = Number(r.entry_price)
+  const stop = Number(r.stop_price)
+  const lossDistancePct =
+    entry > 0 && isFinite(stop) && stop > 0
+      ? Math.abs(((r.side === 'short' ? stop - entry : entry - stop) / entry) * 100)
+      : 0
   return {
-    pair: displayPair(r.symbol),
+    kind,
     side: r.side,
-    outcome: r.status === 'expired' ? 'no target or stop hit in 48h' : `${STATUS_LABEL[r.status]} ${fmtPct(r.move_pct)}`,
-    entry: fmtPrice(r.entry_price),
+    pair: displayPair(r.symbol),
     timeframe: r.timeframe,
     exchange: r.exchange.toUpperCase(),
-    firedOn: fmtUtc(r.fired_at, false),
-    url: receiptUrl(r.public_id),
+    entry: fmtPrice(r.entry_price),
+    level: level || 1,
+    lossDistancePct,
+    receiptUrl: receiptUrl(r.public_id),
   }
 }
 
@@ -195,7 +209,7 @@ export async function drainReceiptQueue(): Promise<DrainResult> {
 
     const chosen = choosePosts(await candidatePool(), allowance)
     for (const r of chosen) {
-      const text = buildReceiptTweet(toTweetSignal(r))
+      const text = buildXTweet(toXSignal(r))
       // Manual mode: hand it over and stop. Everything above this line — the
       // selection policy, the window, the cap — already ran, so a handoff is as
       // selective as a real post would have been.

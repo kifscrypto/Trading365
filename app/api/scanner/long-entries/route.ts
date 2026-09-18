@@ -9,7 +9,8 @@ import {
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl, isExcludedSymbol } from '@/app/api/scanner/_config'
 import { discordSignal } from '@/lib/discord'
-import { publishReceiptSafe, FEE_MODEL_VERSION } from '@/lib/signals/public'
+import { buildFiredTelegram } from '@/lib/signal-messages'
+import { publishReceiptSafe, receiptUrlForSource, FEE_MODEL_VERSION } from '@/lib/signals/public'
 
 // Long entry trigger — parallel to /api/scanner/entries, inverted for longs.
 // Reads the long watchlist, fires only in a BULLISH-BTC ('uptrend') regime, and
@@ -303,34 +304,28 @@ export async function GET(request: Request) {
           const tp4 = entryPrice * 1.06
           const tp5 = entryPrice * 1.08
           const rawScore = item.score as number
-          const div = '━━━━━━━━━━━━━━━━━━'
 
-          const text = '<b>' + [
-            div,
-            '🟢 LONG SIGNAL',
-            div,
-            '',
-            `💰 $${displaySymbol}`,
-            `📊 Score: ${adjustedScore} (${rawScore})`,
-            `🏦 Exchange: ${exchangeLabel}`,
-            '📈 Market: BULLISH ✅',
-            '',
-            `💲 Entry: $${fmtPrice(entryPrice)}`,
-            '',
-            '🎯 Targets:',
-            `   TP1: $${fmtPrice(tp1)} (+1.5%)`,
-            `   TP2: $${fmtPrice(tp2)} (+2.5%)`,
-            `   TP3: $${fmtPrice(tp3)} (+4.0%)`,
-            `   TP4: $${fmtPrice(tp4)} (+6.0%)`,
-            `   TP5: $${fmtPrice(tp5)} (+8.0%)`,
-            '',
-            `🛑 Stop: $${fmtPrice(stopPrice)} (-${(((entryPrice - stopPrice) / entryPrice) * 100).toFixed(1)}%)`,
-            '',
-            `📋 Signals: ${signalStr}`,
-            '',
-            '⚡ trading365.org/scanner/longs',
-            div,
-          ].join('\n') + '</b>'
+          // Five tiers, same shape as the short book — the long ladder gained TP4/TP5
+          // (migration 003) and the fired post now advertises the whole ladder instead
+          // of stopping at TP3. Percentages describe the LEVEL, as on the short side.
+          const receiptUrl = await receiptUrlForSource('long', (inserted as { id: number }[])[0]?.id)
+
+          const text = buildFiredTelegram({
+            side:      'long',
+            pair:      displaySymbol,
+            timeframe: '4H',
+            exchange:  exchangeLabel,
+            entry:     fmtPrice(entryPrice),
+            tiers: [
+              { label: 'TP1', price: fmtPrice(tp1), pct: '+1.5%' },
+              { label: 'TP2', price: fmtPrice(tp2), pct: '+2.5%' },
+              { label: 'TP3', price: fmtPrice(tp3), pct: '+4.0%' },
+              { label: 'TP4', price: fmtPrice(tp4), pct: '+6.0%' },
+              { label: 'TP5', price: fmtPrice(tp5), pct: '+8.0%' },
+            ],
+            stop:      fmtPrice(stopPrice),
+            receiptUrl,
+          })
 
           // Trade link is a tappable inline button carrying our referral link.
           await sendTelegram(text, { text: `Trade ${displaySymbol} on ${exchangeLabel}`, url: exchangeReferralUrl(exchange) })

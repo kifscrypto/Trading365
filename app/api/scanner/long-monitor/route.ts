@@ -8,7 +8,8 @@ import {
 } from '@/app/api/scanner/_core'
 import { exchangeReferralUrl } from '@/app/api/scanner/_config'
 import { discordOutcome } from '@/lib/discord'
-import { publishReceiptSafe } from '@/lib/signals/public'
+import { buildOutcomeTelegram } from '@/lib/signal-messages'
+import { publishReceiptSafe, receiptUrlForSource } from '@/lib/signals/public'
 import { pingIndexNow } from '@/lib/indexnow'
 
 // Real-time TP-touch monitor for already-alerted LONG signals — mirror of the
@@ -193,6 +194,12 @@ export async function GET(request: Request) {
         const displaySymbol = (a.symbol as string).replace('USDT', '')
         const exchange      = a.exchange as string
         const exchangeLabel = EXCHANGE_LABEL[exchange] ?? 'OKX'
+        // Resolved ONCE per alert, before either branch — see the note in the short
+        // monitor: publishReceiptSafe only yields a URL on the transition into public,
+        // and a later TP still needs the same link.
+        const receiptUrl = await receiptUrlForSource('long', a.id as number)
+        const holdingHours = (Date.now() - triggeredMs) / 3_600_000
+        const tradeButton = { text: `Trade ${displaySymbol} on ${exchangeLabel}`, url: exchangeReferralUrl(exchange) }
 
         if (newlyHit.length > 0) {
           const hitLabels = newlyHit.map(tp => `TP${tp.level} (${tp.label})`).join(' & ')
@@ -201,16 +208,21 @@ export async function GET(request: Request) {
             best.level,
             already[5] ? 5 : already[4] ? 4 : already[3] ? 3 : already[2] ? 2 : already[1] ? 1 : 0,
           )
-          const text = [
-            `✅ TARGET HIT — $${displaySymbol}`,
-            `Exchange: ${exchangeLabel}`,
-            `Long entry: $${fmtPrice(entry)}`,
-            `Reached: ${hitLabels}`,
-            `Target price: $${fmtPrice(entry * best.mult)}`,
-            `Signal confirmed 🎯`,
-          ].join('\n')
+          // Deepest level only, one post per run — identical policy to the short book,
+          // so a TP4/TP5 long and a TP4/TP5 short read the same way.
+          const text = buildOutcomeTelegram({
+            kind:         deepestLevel >= 4 ? 'bigwin' : 'win',
+            side:         'long',
+            pair:         displaySymbol,
+            timeframe:    '4H',
+            exchange:     exchangeLabel,
+            entry:        fmtPrice(entry),
+            level:        deepestLevel,
+            holdingHours,
+            receiptUrl,
+          })
           if (doSend) {
-            await sendTelegram(text, { text: `Trade ${displaySymbol} on ${exchangeLabel}`, url: exchangeReferralUrl(exchange) })
+            await sendTelegram(text, tradeButton)
             await discordOutcome({
               win: true,
               title: text.split('\n')[0],
@@ -244,6 +256,22 @@ export async function GET(request: Request) {
                 tp_result = COALESCE(tp_result, 'SL')
               WHERE id = ${a.id as number}
             `
+          }
+          // LOSS POST — same non-negotiable as the short book. At most once per
+          // alert: the selection query only takes rows with stopped = FALSE.
+          if (doSend) {
+            const lossDistancePct = Math.abs(((entry - stop) / entry) * 100)
+            const text = buildOutcomeTelegram({
+              kind:            'loss',
+              side:            'long',
+              pair:            displaySymbol,
+              timeframe:       '4H',
+              exchange:        exchangeLabel,
+              entry:           fmtPrice(entry),
+              lossDistancePct,
+              receiptUrl,
+            })
+            await sendTelegram(text, tradeButton)
           }
           stoppedCount++
         }
