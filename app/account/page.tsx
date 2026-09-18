@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { siteConfig } from '@/lib/data/site-config'
-import { SESSION_COOKIE, getAccountFromToken } from '@/lib/users'
+import { SESSION_COOKIE, getAccountFromToken, getReferralStats } from '@/lib/users'
 import { PLANS, getSubscriberAccess } from '@/lib/premium'
 import { FREE_TIER_DELAY_HOURS } from '@/lib/signals/public'
 import { UpgradeButtons, type PlanOption } from '@/components/upgrade-buttons'
@@ -43,6 +43,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   // Telegram is an OPT-IN surface: the invite is minted at payment time, but a
   // member who ignores it keeps full site access.
   const access = await getSubscriberAccess(account.id)
+  const referralStats = await getReferralStats(account.id, account.referral_code)
   const plans: PlanOption[] = Object.values(PLANS).map((p) => ({
     key: p.key, label: p.label, amount: p.amount, days: p.days,
   }))
@@ -142,6 +143,27 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </code>
           <span className="break-all font-mono text-xs text-muted-foreground">{referralUrl}</span>
         </div>
+        {/* The numbers behind the promise above. Shown even at zero: a counter that
+            only appears once it is non-zero reads as decoration, and this one is
+            the only evidence a member has that a referral actually landed. */}
+        <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <div>
+            <dt className="text-xs uppercase tracking-wider text-muted-foreground">Signed up</dt>
+            <dd className="mt-0.5 tabular-nums">{referralStats.referred}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wider text-muted-foreground">Became members</dt>
+            <dd className="mt-0.5 tabular-nums">{referralStats.conversions}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wider text-muted-foreground">Free days earned</dt>
+            <dd className="mt-0.5 tabular-nums text-emerald-400">{referralStats.daysEarned}</dd>
+          </div>
+        </dl>
+        <p className="mt-2 text-xs text-muted-foreground">
+          A free month is added when your referral&apos;s first payment clears, and it extends your membership from
+          wherever it currently ends rather than running alongside it.
+        </p>
       </section>
 
       {/* ── Account details ────────────────────────────────────────────────── */}

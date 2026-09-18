@@ -4,6 +4,7 @@ import { ArrowRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Breadcrumbs } from '@/components/breadcrumbs'
+import { SignalEligibilityNote } from '@/components/signal-eligibility-note'
 import {
   SITE, getArchiveStats, getArchivePage, parseArchiveFilters, filtersActive,
   getOpenSignals, FREE_TIER_DELAY_HOURS,
@@ -108,12 +109,25 @@ export default async function SignalsArchivePage({ searchParams }: PageProps) {
             {page.total.toLocaleString('en-US')} signals published in total
           </p>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <BigStat
             label="Hit rate"
             value={stats.hitRate != null ? `${stats.hitRate.toFixed(1)}%` : '—'}
             sub={`${stats.wins} of ${stats.resolved} resolved`}
             tone="up"
+          />
+          {/* The headline number is NET. Gross sits beside it rather than instead
+              of it, because the gap between the two IS the honest story. */}
+          <BigStat
+            label="Net expectancy / signal"
+            value={stats.netExpectancy != null ? fmtPct(stats.netExpectancy) : '—'}
+            sub={`after ${stats.netRoundTripPct.toFixed(2)}% round trip`}
+            tone={stats.netExpectancy == null ? undefined : stats.netExpectancy >= 0 ? 'up' : 'down'}
+          />
+          <BigStat
+            label="Gross expectancy / signal"
+            value={stats.expectancy != null ? fmtPct(stats.expectancy) : '—'}
+            sub="before fees and slippage"
           />
           <BigStat
             label="Avg move / winner"
@@ -139,6 +153,8 @@ export default async function SignalsArchivePage({ searchParams }: PageProps) {
                 <th className="px-4 py-2 font-medium">Book</th>
                 <th className="px-4 py-2 font-medium">Resolved</th>
                 <th className="px-4 py-2 font-medium">Hit rate</th>
+                <th className="px-4 py-2 font-medium">Net exp. / signal</th>
+                <th className="px-4 py-2 font-medium">Gross exp. / signal</th>
                 <th className="px-4 py-2 font-medium">Avg move / winner</th>
               </tr>
             </thead>
@@ -150,6 +166,14 @@ export default async function SignalsArchivePage({ searchParams }: PageProps) {
                   <td className="px-4 py-2 tabular-nums text-emerald-400">
                     {s?.hitRate != null ? `${s.hitRate.toFixed(1)}%` : '—'}
                   </td>
+                  <td className={`px-4 py-2 tabular-nums font-medium ${
+                    s?.netExpectancy == null ? '' : s.netExpectancy >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {s?.netExpectancy != null ? fmtPct(s.netExpectancy) : '—'}
+                  </td>
+                  <td className="px-4 py-2 tabular-nums">
+                    {s?.expectancy != null ? fmtPct(s.expectancy) : '—'}
+                  </td>
                   <td className="px-4 py-2 tabular-nums">{s?.avgMove != null ? `+${s.avgMove.toFixed(1)}%` : '—'}</td>
                 </tr>
               ))}
@@ -157,9 +181,21 @@ export default async function SignalsArchivePage({ searchParams }: PageProps) {
           </table>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Hit rate counts only signals that reached a target or the stop — signals that did neither inside the 48-hour
-          watch window are excluded rather than counted as losses. Avg move is the percentage banked by closing at the
-          target reached, averaged over winners. Per-signal results, not a portfolio; fees and funding excluded.
+          <span className="text-foreground">Expectancy</span> is the average realised move per <em>resolved</em> signal —
+          winners and stopped-out signals together, which is what one signal returns on average. Signals that neither
+          reached a target nor the stop inside the 48-hour watch window are unresolved and are excluded rather than
+          counted as losses. <span className="text-foreground">Net</span> deducts a round-trip cost of{' '}
+          {stats.netRoundTripPct.toFixed(2)}% ({stats.feeModelVersion}: 0.10% taker + 0.05% slippage per side);{' '}
+          <span className="text-foreground">Gross</span> deducts nothing.
+          {stats.netDerived > 0 && (
+            <>
+              {' '}For {stats.netDerived.toLocaleString('en-US')} of {stats.netSamples.toLocaleString('en-US')} signals
+              that predate the fee stamp, net is derived from the same constant — verified to zero residual against every
+              stamped row.
+            </>
+          )}{' '}
+          Hit rate counts resolved signals only. These are per-signal results, not a portfolio: taking every signal at a
+          fixed size would not compound to this number, and funding is not modelled.
         </p>
       </section>
       {/* ── Filters (a plain GET form — no client JS, fully crawlable) ─────── */}
@@ -323,6 +359,11 @@ export default async function SignalsArchivePage({ searchParams }: PageProps) {
         than you deposit. See our{' '}
         <Link href="/disclaimer" className="underline hover:text-foreground">full disclaimer</Link>.
       </p>
+
+      {/* Placed last, after the disclaimer: a reader who has looked at the numbers
+          and wants to know what was behind them finds it without it interrupting
+          the record. The thresholds are the shipped ones — see the component. */}
+      <SignalEligibilityNote className="mt-6" />
     </div>
   )
 }

@@ -3,7 +3,7 @@ import {
   PLANS, isPlanKey, PAID_STATUSES, verifyIpnSignature,
   createPremiumInvite, setupSubscribersTable, sql,
 } from '@/lib/premium'
-import { grantEntitlement } from '@/lib/users'
+import { grantEntitlement, grantReferralReward } from '@/lib/users'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -41,12 +41,23 @@ export async function POST(request: Request) {
     // so if anything below throws, this order stays 'pending' and NOWPayments'
     // retry re-runs the whole block — a retry can never silently skip the
     // entitlement, and can never double-grant either.
+    let referral: { granted: boolean; reason?: string } = { granted: false, reason: 'no-site-account' }
     if (rows[0].user_id) {
       await grantEntitlement(Number(rows[0].user_id), {
         source: 'nowpayments',
         externalId: orderId,
         days,
       })
+      // The referee has now CONVERTED, which is the trigger /account promises the
+      // referrer a free month for. Deliberately after the buyer's own grant and
+      // deliberately non-fatal: grantReferralReward() never throws, so a referral
+      // problem can neither cost the buyer their access nor make the processor
+      // retry a block that already succeeded. Idempotent per referee, so a retried
+      // webhook and a second purchase both pay the referrer exactly once.
+      referral = await grantReferralReward(Number(rows[0].user_id))
+      if (referral.granted) {
+        console.log(`[pay/webhook] referral reward granted for referee ${rows[0].user_id}`)
+      }
     }
 
     // Telegram stays a secondary surface: the invite is still minted here, but
@@ -63,7 +74,7 @@ export async function POST(request: Request) {
           invite_link = ${invite}
       WHERE order_id = ${orderId}
     `
-    return NextResponse.json({ ok: true, activated: true, siteAccess: !!rows[0].user_id })
+    return NextResponse.json({ ok: true, activated: true, siteAccess: !!rows[0].user_id, referral })
   } catch (err) {
     console.error('[pay/webhook]', err)
     return NextResponse.json({ error: 'processing failed' }, { status: 500 })

@@ -12,6 +12,7 @@ import {
   getReceipt, isIndexable, isRunning, displayPair, sideLabel, tiersFor, signalLabels,
   STATUS_LABEL, fmtPrice, fmtPct, fmtUtc, hoursHeld, resultPhrase,
   receiptTitle, receiptDescription, receiptUrl, WATCH_WINDOW_HOURS,
+  FEE_MODEL_VERSION, NET_ROUND_TRIP_PCT,
   type Receipt,
 } from '@/lib/signals/public'
 
@@ -166,6 +167,13 @@ export default async function SignalReceiptPage({ params }: Params) {
           value={r.move_pct != null ? fmtPct(r.move_pct) : '—'}
           tone={won ? 'up' : r.status === 'sl' ? 'down' : 'muted'}
         />
+        {/* Net of the fee model, on the same row the gross move is on. `net_move_pct`
+            is stamped by the sync, so this is the stored figure, not recomputed here. */}
+        <Stat
+          label="Net of fees"
+          value={r.net_move_pct != null ? fmtPct(r.net_move_pct) : '—'}
+          tone={r.net_move_pct == null ? 'muted' : Number(r.net_move_pct) >= 0 ? 'up' : 'down'}
+        />
         <Stat label="Fired (UTC)" value={fmtUtc(r.fired_at)} />
         <Stat label="Closed (UTC)" value={fmtUtc(r.closed_at)} tone="muted" />
         <Stat
@@ -310,8 +318,14 @@ export default async function SignalReceiptPage({ params }: Params) {
           48-hour window the scanner watches. It is not a claim that nothing happened afterwards.
         </li>
         <li>
-          Results are per signal, not per portfolio: trading both books together would not produce these numbers, and no
-          fees, funding or slippage are deducted.
+          <span className="text-foreground">Net of fees</span> deducts a round-trip cost of{' '}
+          {NET_ROUND_TRIP_PCT.toFixed(2)}% ({r.fee_model_version ?? FEE_MODEL_VERSION}: 0.10% taker + 0.05% slippage per
+          side). Move is gross — it deducts nothing. Funding is not modelled.
+        </li>
+        <li>
+          <span className="text-foreground">Per signal, not per portfolio.</span> Taking every signal at a fixed size
+          would not compound to the archive averages, because position sizing, concurrency and capital limits are all
+          ignored.
         </li>
       </ul>
 

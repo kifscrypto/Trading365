@@ -437,3 +437,134 @@ export async function revokeEntitlement(source: string, externalId: string): Pro
     WHERE source = ${source} AND external_id = ${externalId}
   `
 }
+
+// ── Referral rewards ────────────────────────────────────────────────────────
+/**
+ * /account has told members "when someone you refer becomes a member, you get a
+ * free month" since the referral section shipped — but nothing ever granted it.
+ * `referred_by` was captured at signup and then never read again, so the promise
+ * was live, public and unfulfilled. These functions are the missing half.
+ *
+ * Two properties matter more than the feature itself:
+ *
+ *   1. IDEMPOTENT, and idempotent the OTHER way from grantEntitlement.
+ *      grantEntitlement uses ON CONFLICT DO UPDATE because a processor retry
+ *      should re-assert the same access. A referral reward must NOT work that way:
+ *      a webhook retried three times, or a referee who buys a second month, must
+ *      never pay the referrer twice. So this is DO NOTHING, keyed on the REFEREE
+ *      (`referee:<id>`) rather than the order — one reward per referee, ever.
+ *
+ *   2. IT STACKS, rather than running concurrently.
+ *      A reward inserted with `NOW() + 30 days` would be swallowed for any member
+ *      who is already paid: getAccount() derives access from MAX(expires_at), so a
+ *      referral month that expires before their existing paid period changes
+ *      nothing. The expiry is therefore placed at the END of whatever they already
+ *      have — `GREATEST(NOW(), MAX(active expires_at)) + 30 days` — which is what
+ *      "a free month added to your account" actually means to a paying member.
+ */
+export const REFERRAL_REWARD_DAYS = 30
+
+/** Resolve a share code to its owner. Codes are stored lowercase by createUser. */
+export async function findUserByReferralCode(code: string): Promise<User | null> {
+  const clean = (code ?? '').trim().toLowerCase()
+  if (!clean) return null
+  await setupUserTables()
+  const rows = await sql`
+    SELECT id, email, referral_code, referred_by, created_at, last_login_at
+    FROM users WHERE referral_code = ${clean} LIMIT 1
+  `
+  return (rows[0] as unknown as User) ?? null
+}
+
+export interface ReferralRewardResult {
+  granted: boolean
+  referrerId?: number
+  days?: number
+  /** Machine-readable reason when nothing was granted. */
+  reason?: 'no-such-user' | 'not-referred' | 'unknown-code' | 'self-referral' | 'already-rewarded' | 'error'
+}
+
+/**
+ * Reward the referrer of `refereeUserId`. Called when the referee's payment
+ * converts — not at signup, because a free account is not a conversion and
+ * rewarding signups is how referral schemes get farmed.
+ *
+ * Never throws: it is called from a payment webhook whose job is to grant the
+ * BUYER access. A referral-side failure must not fail that grant or cause the
+ * processor to retry the whole block.
+ */
+export async function grantReferralReward(
+  refereeUserId: number,
+  days: number = REFERRAL_REWARD_DAYS,
+): Promise<ReferralRewardResult> {
+  try {
+    await setupUserTables()
+    const refRows = (await sql`
+      SELECT referred_by FROM users WHERE id = ${refereeUserId} LIMIT 1
+    `) as unknown as { referred_by: string | null }[]
+    const code = refRows[0]?.referred_by
+    if (!refRows.length) return { granted: false, reason: 'no-such-user' }
+    if (!code) return { granted: false, reason: 'not-referred' }
+
+    const referrer = await findUserByReferralCode(code)
+    if (!referrer) return { granted: false, reason: 'unknown-code' }
+    if (Number(referrer.id) === Number(refereeUserId)) return { granted: false, reason: 'self-referral' }
+
+    const inserted = (await sql`
+      INSERT INTO entitlements (user_id, source, status, external_id, expires_at)
+      VALUES (
+        ${referrer.id}, 'referral', 'active', ${`referee:${refereeUserId}`},
+        GREATEST(
+          NOW(),
+          COALESCE(
+            (SELECT MAX(expires_at) FROM entitlements
+             WHERE user_id = ${referrer.id} AND status = 'active'),
+            NOW()
+          )
+        ) + (${days}::int * INTERVAL '1 day')
+      )
+      ON CONFLICT ON CONSTRAINT entitlements_external_uniq DO NOTHING
+      RETURNING id
+    `) as unknown as { id: number }[]
+
+    if (!inserted.length) return { granted: false, referrerId: Number(referrer.id), reason: 'already-rewarded' }
+    return { granted: true, referrerId: Number(referrer.id), days }
+  } catch (err) {
+    console.error('[users] grantReferralReward failed:', err)
+    return { granted: false, reason: 'error' }
+  }
+}
+
+export interface ReferralStats {
+  /** People who signed up with this user's code. */
+  referred: number
+  /** Of those, how many have converted to a paying member. */
+  conversions: number
+  /** Free days earned so far — what /account promises, made visible. */
+  daysEarned: number
+}
+
+/** Referral activity for the /account panel. Degrades to zeros, never throws. */
+export async function getReferralStats(userId: number, myCode: string): Promise<ReferralStats> {
+  const empty: ReferralStats = { referred: 0, conversions: 0, daysEarned: 0 }
+  try {
+    await setupUserTables()
+    const code = (myCode ?? '').trim().toLowerCase()
+    if (!code) return empty
+    const [row] = (await sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM users WHERE referred_by = ${code}) AS referred,
+        (SELECT COUNT(*)::int FROM entitlements
+          WHERE user_id = ${userId} AND source = 'referral' AND status = 'active') AS conversions
+    `) as unknown as { referred: number; conversions: number }[]
+    const conversions = row?.conversions ?? 0
+    return {
+      referred: row?.referred ?? 0,
+      conversions,
+      daysEarned: conversions * REFERRAL_REWARD_DAYS,
+    }
+  } catch (err) {
+    console.error('[users] getReferralStats failed:', err)
+    return empty
+  }
+}

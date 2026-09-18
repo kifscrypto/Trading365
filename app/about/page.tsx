@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Breadcrumbs } from "@/components/breadcrumbs"
+import { SignalEligibilityNote } from "@/components/signal-eligibility-note"
 
 const BASE_URL = "https://trading365.org"
 const OG_IMAGE = `${BASE_URL}/trading365-crypto-exchange-reviews.jpg`
@@ -221,6 +222,18 @@ export default function AboutPage() {
             We update our reviews regularly to reflect changes in fees, features, and security. If an exchange's quality changes significantly, we will adjust our rating accordingly and note the change.
           </p>
         </div>
+      </section>
+
+      {/* Scanner eligibility — the same component the verified-results archive
+          uses, so the thresholds can only ever be stated one way. */}
+      <section id="scanner-eligibility" className="mx-auto max-w-4xl px-4 pb-16 lg:px-6">
+        <div className="text-center">
+          <Badge variant="outline" className="mb-3 text-primary border-primary/30">
+            Scanner Policy
+          </Badge>
+          <h2 className="text-2xl font-bold text-foreground">What We Scan, and What We Refuse To</h2>
+        </div>
+        <SignalEligibilityNote className="mt-8" />
       </section>
 
       {/* Contact */}
