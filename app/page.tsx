@@ -3,7 +3,7 @@ export const revalidate = 300
 import type { Metadata } from "next"
 import { jsonLd } from "@/lib/utils/json-ld"
 import Link from "next/link"
-import { ArrowRight, Star, Zap, ShieldOff, ShieldAlert, Gift } from "lucide-react"
+import { ArrowRight, Star, Zap, ShieldOff, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArticleCard } from "@/components/article-card"
@@ -16,7 +16,6 @@ import { PromoBanner } from "@/components/promo-banner"
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
 import { getScannerStats, getTrackedSignalCount, getCurrentRegime } from "@/lib/scanner-stats"
 import { ScannerSpotlight } from "@/components/scanner-spotlight"
-import { DiscordCta } from "@/components/discord-cta"
 import { getFeaturedSlot } from "@/lib/data/featured"
 import { TopPicks } from "@/components/top-picks"
 import { getTopPicks } from "@/lib/data/top-picks"
@@ -97,8 +96,7 @@ export default async function HomePage() {
   const reviewCount = allArticles.filter((a) => a.categorySlug === "reviews").length
   const comparisonCount = allArticles.filter((a) => a.categorySlug === "comparisons").length
   const noKycCount = allArticles.filter((a) => a.categorySlug === "no-kyc").length
-  const bonusCount = allArticles.filter((a) => a.categorySlug === "bonuses").length
-  const scamAlertCount = allArticles.filter((a) => a.categorySlug === "scam-alerts").length
+  const guidesCount = allArticles.filter((a) => a.categorySlug === "guides").length
 
   const categories = [
     {
@@ -123,18 +121,11 @@ export default async function HomePage() {
       count: noKycCount,
     },
     {
-      title: "Bonuses & Deals",
-      description: "Exclusive sign-up bonuses and referral rewards",
-      href: "/bonuses",
-      icon: Gift,
-      count: bonusCount,
-    },
-    {
-      title: "Scam Alerts",
-      description: "Evidence-based warnings about fraudulent platforms",
-      href: "/scam-alerts",
-      icon: ShieldAlert,
-      count: scamAlertCount,
+      title: "Guides",
+      description: "Step-by-step walkthroughs for trading and getting started",
+      href: "/guides",
+      icon: BookOpen,
+      count: guidesCount,
     },
   ]
 
@@ -341,12 +332,6 @@ export default async function HomePage() {
               .
             </p>
           </section>
-
-          {/* Both "join us" asks sit together at the foot, after the content,
-              rather than interrupting the path to it. */}
-          <div className="mx-auto flex max-w-7xl justify-center px-4 pb-4 lg:px-6">
-            <DiscordCta />
-          </div>
 
           {/* 6e. Email capture — brings its own section wrapper */}
           <NewsletterCta />

@@ -15,6 +15,8 @@ import {
 import { cn } from "@/lib/utils"
 import { LOCALES } from "@/lib/i18n/config"
 import { SiteSearch } from "@/components/site-search"
+import { DiscordIcon } from "@/components/discord-icon"
+import { siteConfig } from "@/lib/data/site-config"
 
 const navLinks = [
   // The scanner cluster leads. It is the product — the rest of the menu is
@@ -128,6 +130,22 @@ export function SiteHeader() {
               </div>
             )}
           </div>
+          {/* Icon-only Discord entry point. It sits with the other header
+              actions, which are lg-and-up: at smaller widths this whole cluster
+              is already hidden, so the icon cannot crowd the mobile header. It
+              renders nothing when no invite is configured, matching the CTA. */}
+          {siteConfig.socials.discord && (
+            <a
+              href={siteConfig.socials.discord}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Join the Trading365 Discord on Discord"
+              title="Join the Trading365 Discord"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[#5865F2]/15 hover:text-[#5865F2]"
+            >
+              <DiscordIcon className="h-[18px] w-[18px]" />
+            </a>
+          )}
           <Button size="sm" className="font-semibold" asChild>
             <Link href="/bonuses">Get Bonuses</Link>
           </Button>

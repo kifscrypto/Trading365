@@ -23,6 +23,25 @@ Build exactly what was asked. Nothing else. Do not expand the task.
 When tempted to add something "while I'm here": stop, don't. Mention it in one line
 at the end as an option instead.
 
+## Working directory (hard rule)
+
+This repo lives at `C:\dev\trading365`. It must never live inside OneDrive
+(`C:\Users\Lee\OneDrive\...`).
+
+- OneDrive dehydrates files into cloud placeholders. Anything that walks the tree
+  file-by-file must re-download each file first, and Windows refuses to
+  rename or delete while OneDrive holds handles. Moving this repo out of OneDrive
+  ran at ~158 files/minute — a job that should have been instant — and the
+  original `Move-Item` failed outright with "used by another process".
+- **Never run `next build`, `next dev`, `pnpm install`, `tsc`, or anything else
+  that writes a large tree while the working directory is under OneDrive.** If the
+  cwd resolves to a OneDrive path, stop and say so rather than building.
+- `.next` is the worst offender: tens of thousands of small files, every one
+  synced. A build there also intermittently fails with `EPERM: unlink` when
+  OneDrive locks a file mid-build.
+- If a build ever fails with `EPERM` or a rename/delete is refused, check the path
+  first — it is almost certainly this, not the code.
+
 ## Verification
 
 Verify with the smallest thing that proves the work: run the script, run `tsc` on
