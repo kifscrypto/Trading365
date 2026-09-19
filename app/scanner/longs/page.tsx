@@ -20,19 +20,19 @@ const WALLET_ADDRESS = "0x2338748664bfdb1fce28a9ad63ce79d65b54eb2d"
 const TELEGRAM_SUB_HANDLE = "@Trading365Sub"
 
 export const metadata: Metadata = {
-  title: "Altcoin Long Scanner | Real-Time Crypto Long Signals — Trading365",
+  title: { absolute: "Altcoin Long Scanner — Real-Time Crypto Signals | Trading365" },
   description: META_DESCRIPTION,
   alternates: { canonical: `${BASE_URL}/scanner/longs` },
   openGraph: {
     type: "website",
-    title: "Altcoin Long Scanner | Real-Time Crypto Long Signals — Trading365",
+    title: "Altcoin Long Scanner — Real-Time Crypto Signals | Trading365",
     description: META_DESCRIPTION,
     url: `${BASE_URL}/scanner/longs`,
     siteName: "Trading365",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Altcoin Long Scanner | Real-Time Crypto Long Signals — Trading365",
+    title: "Altcoin Long Scanner — Real-Time Crypto Signals | Trading365",
     description: META_DESCRIPTION,
   },
 }

@@ -15,7 +15,7 @@ import {
 // Matches /scanner — the numbers this page shows must not lag the scanner's.
 export const revalidate = 300
 
-const TITLE = 'Verified Results — Every Signal Trading365 Has Fired'
+const TITLE = 'Verified Crypto Signal Results — Every Result Published | Trading365'
 const DESCRIPTION =
   'Every crypto signal Trading365 has fired, with entry, targets, stop and the verified result. A full track record you can filter by pair, direction or date.'
 
@@ -28,7 +28,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   const filtered = filtersActive(filters)
   const canonical = filtered ? `${SITE}/signals?${toQuery(filters)}` : `${SITE}/signals`
   return {
-    title: TITLE,
+    title: { absolute: TITLE },
     description: DESCRIPTION,
     alternates: { canonical },
     // Only the clean hub is indexable. Filter and pagination combinations are

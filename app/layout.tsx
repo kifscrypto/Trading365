@@ -24,13 +24,31 @@ export const viewport: Viewport = {
   initialScale: 1,
 }
 
+// The site identity is SCANNER-FIRST, and this block is the root cause of the
+// split identity the site had: every page body said "signal scanner" while the
+// metadata said "exchange reviews". Pages override `title` and `description`
+// but almost none override `openGraph`/`twitter`, and Next inherits those from
+// here — so this object was deciding the social identity of the whole site.
+//
+// Review keywords are kept on purpose. /reviews, /comparisons and /bonuses are
+// real traffic with real link equity; a title that drops "exchange reviews"
+// entirely would strand them. Scanner leads, reviews follow.
+//
+// NO HIT-RATE NUMBERS IN TITLES. A number in a title is a claim that goes stale
+// the moment the archive moves, and a stale number beside a public archive that
+// publishes the real one is an inflated claim. Numbers belong in the body, read
+// from the database, or on the OG card, regenerated from the same source.
+const SITE_TITLE = 'Trading365 — Live Crypto Signal Scanner & Exchange Reviews'
+const SITE_DESCRIPTION =
+  '62,000+ signals tracked, every result published at fire time. Live AI altcoin signal scanners, plus independent crypto exchange reviews and bonuses.'
+
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: 'Trading365 — Crypto Exchange Reviews, Comparisons & Bonuses',
+    default: SITE_TITLE,
     template: '%s | Trading365',
   },
-  description: 'Expert crypto exchange reviews, comparisons, and exclusive bonus deals. Find the best trading platforms with unbiased analysis and real user insights.',
+  description: SITE_DESCRIPTION,
   // meta keywords intentionally omitted — ignored by Google, leaks targeting.
   alternates: {
     canonical: BASE_URL,
@@ -38,16 +56,16 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'Trading365',
-    title: 'Trading365 - Trade Smarter. Earn Bigger.',
-    description: 'Expert crypto exchange reviews, comparisons, and exclusive bonus deals. Find the best trading platforms with unbiased analysis and real user insights.',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     url: BASE_URL,
-    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: 'Trading365 - Trade Smarter. Earn Bigger.' }],
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: 'Trading365 — live crypto signal scanner with a public, verified track record' }],
   },
   twitter: {
     card: 'summary_large_image',
     site: '@trading365x',
-    title: 'Trading365 - Trade Smarter. Earn Bigger.',
-    description: 'Expert crypto exchange reviews, comparisons, and exclusive bonus deals. Find the best trading platforms with unbiased analysis and real user insights.',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     images: [OG_IMAGE],
   },
 }

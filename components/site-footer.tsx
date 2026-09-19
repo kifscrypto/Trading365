@@ -4,16 +4,20 @@ import { Separator } from "@/components/ui/separator"
 import { siteConfig } from "@/lib/data/site-config"
 
 const footerLinks = {
+  // Scanner cluster first, matching the header: the product leads and the
+  // content that supports it follows. "Join free" sits with it because it is the
+  // conversion path for both. "Home" is dropped — the footer logo beside this
+  // column already links to /, so no internal link is lost.
   navigate: [
-    { href: "/", label: "Home" },
-    { href: "/reviews", label: "Reviews" },
-    { href: "/comparisons", label: "Comparisons" },
-    { href: "/no-kyc", label: "No-KYC Exchanges" },
-    { href: "/bonuses", label: "Bonuses" },
-    { href: "/guides", label: "Guides" },
-    { href: "/scam-alerts", label: "Scam Alerts" },
     { href: "/scanner", label: "Scanner" },
     { href: "/signals", label: "Verified Results" },
+    { href: "/signup", label: "Join free" },
+    { href: "/reviews", label: "Reviews" },
+    { href: "/comparisons", label: "Comparisons" },
+    { href: "/guides", label: "Guides" },
+    { href: "/no-kyc", label: "No-KYC Exchanges" },
+    { href: "/bonuses", label: "Bonuses" },
+    { href: "/scam-alerts", label: "Scam Alerts" },
   ],
   company: [
     { href: "/about", label: "About Us" },

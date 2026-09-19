@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next"
+import type { Metadata } from "next"
 import { jsonLd } from "@/lib/utils/json-ld"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -24,26 +24,20 @@ const WALLET_ADDRESS = "0x2338748664bfdb1fce28a9ad63ce79d65b54eb2d"
 const TELEGRAM_SUB_HANDLE = "@Trading365Sub"
 
 export async function generateMetadata(): Promise<Metadata> {
-  const TITLE = "Altcoin Short Scanner â€” Real-Time Crypto Short Signals | Trading365"
+  const TITLE = "Altcoin Short Scanner — Real-Time Crypto Signals | Trading365"
   // Flooring to the nearest 5% keeps the claim strictly TRUE (never an
   // overstatement) while staying stable enough that the SERP snippet does not
   // churn on every revalidation. The exact figure lives in the page body.
-  let rateClaim = "Verified"
-  let setups = ""
-  try {
-    const stats = await getScannerStats("short")
-    if (stats.tp1WinRate != null) rateClaim = `${Math.floor(stats.tp1WinRate / 5) * 5}%+`
-    if (stats.totalSignals > 0) {
-      setups = `${(Math.floor(stats.totalSignals / 1000) * 1000).toLocaleString("en-US")}+`
-    }
-  } catch {
-    /* fall back to the neutral wording above */
-  }
+  // The description no longer carries a hit rate or a setup count. It quoted the
+  // TP1-within-24h proxy ("60%+ ... 33,000+ tracked setups") while the sitewide
+  // metadata says "62,000+ signals tracked" and the archive publishes 2,269
+  // receipts - three different numbers describing the same subject, which is
+  // precisely the split identity this pass exists to remove. A durable claim
+  // beats a drifting one, and the real figures are one click away on the page.
   const description =
-    `${rateClaim} TP1 hit rate on fired signals${setups ? ` across ${setups} tracked setups` : ""}. ` +
-    `Automated altcoin short scanner with real-time alerts and a full published track record.`
+    "Altcoin short scanner firing on 100+ perpetual futures. Every signal and its verified result is published at fire time - wins, losses, nothing deleted."
   return {
-    title: TITLE,
+    title: { absolute: TITLE },
     description,
     alternates: { canonical: `${BASE_URL}/scanner` },
     openGraph: {

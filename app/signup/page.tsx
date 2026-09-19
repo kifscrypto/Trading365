@@ -12,7 +12,7 @@ import { FREE_TIER_DELAY_HOURS, getFiredCountSinceHours } from '@/lib/signals/pu
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Create your free account',
+  title: { absolute: 'Create a Free Account — Live Crypto Signals | Trading365' },
   description: 'Create a free Trading365 account to follow every signal and its verified result, and manage your access.',
   // A private utility page: noindex, and NOT disallowed in robots.txt — a
   // disallowed URL can never be crawled to see this noindex, which is the

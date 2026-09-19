@@ -36,13 +36,37 @@ const BASE_URL = 'https://trading365.org'
 // The title is `absolute` on purpose: the root layout sets a
 // '%s | Trading365' template, and a plain string here would render as
 // "... | Trading365 | Trading365".
+// The homepage's own identity, mirroring the root layout so the social card and
+// the page body agree. `absolute` again: the layout template would otherwise
+// append a second "| Trading365".
+//
+// No hit-rate number in the title, deliberately — see the note in app/layout.tsx.
+// `images` is intentionally omitted so the file convention (app/opengraph-image)
+// supplies the card. That card renders from the same aggregates the page does,
+// so it cannot go stale the way a checked-in JPEG does.
+const HOME_TITLE = 'Trading365 — Live Crypto Signal Scanner & Exchange Reviews'
+const HOME_DESCRIPTION =
+  '62,000+ signals tracked, every result published at fire time. Live AI altcoin signal scanners, plus independent crypto exchange reviews and bonuses.'
+
 export const metadata: Metadata = {
-  title: { absolute: 'AI Altcoin Scanner — Verified Signal Track Record | Trading365' },
-  description:
-    'Two AI altcoin scanners on perpetual futures. Every signal is published at fire time to a public archive — wins, losses, nothing deleted.',
+  title: { absolute: HOME_TITLE },
+  description: HOME_DESCRIPTION,
   alternates: {
     canonical: BASE_URL,
     languages: buildHomeLanguages(),
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'Trading365',
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+    url: BASE_URL,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    site: '@trading365x',
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
   },
 }
 
@@ -231,8 +255,24 @@ export default async function HomePage() {
             and which do not. The ones that do are placed unwrapped so their
             padding is not doubled. */}
         <div className="t-theme">
-          {/* The two scanners in detail. This carried the hero before; now it
-              supports the claim above instead of being the whole page. */}
+          {/* The two scanners in detail.
+              The per-book figures below (TP1 hit rate, directional accuracy,
+              setups tracked) are the TP1-within-24h proxy over the scored
+              candidate pool - NOT the verified record. They are labelled as
+              such, because sitting unlabelled beside the hero's archive numbers
+              is how this page came to show two different hit rates for the same
+              scanner on one screen. */}
+          <div className="mx-auto max-w-7xl px-4 lg:px-6">
+            <p className="rounded-[10px] border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">
+                Measured differently from the verified record.
+              </span>{' '}
+              The figures below are the scanner&apos;s internal TP1-within-24h proxy over the scored
+              candidate pool, not fired signals. The verified record is the hit rate, net expectancy and
+              receipts published above, and in the{' '}
+              <Link href="/signals" className="underline hover:text-foreground">public archive</Link>.
+            </p>
+          </div>
           <ScannerSpotlight short={shortStats} long={longStats} />
 
           {/* The site-wide tracked figure, still READ from the database rather
