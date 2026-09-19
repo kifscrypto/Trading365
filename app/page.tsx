@@ -20,6 +20,7 @@ import { getFeaturedSlot } from "@/lib/data/featured"
 import { TopPicks } from "@/components/top-picks"
 import { getTopPicks } from "@/lib/data/top-picks"
 import { generateWebsiteSchema } from "@/lib/schema"
+import { PLANS } from "@/lib/premium"
 import { buildHomeLanguages } from "@/lib/i18n/hreflang"
 import { getArchiveStats, getArchivePage } from "@/lib/signals/public"
 import { StatusStrip } from "@/components/home/status-strip"
@@ -29,6 +30,54 @@ import { SignalFeed } from "@/components/signal-feed"
 import { ResultMarquee } from "@/components/home/result-marquee"
 
 const BASE_URL = 'https://trading365.org'
+
+/**
+ * SoftwareApplication schema for the scanner itself.
+ *
+ * Built from PLANS rather than typed in, so a price change in lib/premium.ts
+ * propagates to the markup. Google's SoftwareApplication rich result expects
+ * `offers`; the free tier is a real offer at price 0, not an omission, because
+ * the whole funnel depends on the free tier being discoverable.
+ *
+ * No aggregateRating: the site has no ratings to aggregate, and inventing one is
+ * the fastest route to a structured-data manual action.
+ */
+const scannerSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Trading365 Altcoin Signal Scanner',
+  url: BASE_URL,
+  applicationCategory: 'FinanceApplication',
+  operatingSystem: 'Web',
+  description:
+    'AI altcoin signal scanner covering 100+ perpetual futures. Every signal and its verified result is published at fire time, wins and losses alike.',
+  offers: [
+    {
+      '@type': 'Offer',
+      name: 'Free',
+      price: '0',
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+      url: `${BASE_URL}/signup`,
+    },
+    {
+      '@type': 'Offer',
+      name: `Pro — ${PLANS.monthly.label}`,
+      price: String(PLANS.monthly.amount),
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+      url: `${BASE_URL}/scanner`,
+    },
+    {
+      '@type': 'Offer',
+      name: `Pro — ${PLANS.quarterly.label}`,
+      price: String(PLANS.quarterly.amount),
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+      url: `${BASE_URL}/scanner`,
+    },
+  ],
+}
 
 // hreflang links the homepage to the launched locale landings (reciprocal with
 // their x-default → EN). See INDEXED_LOCALES in lib/i18n/config.
@@ -206,6 +255,11 @@ export default async function HomePage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLd(generateWebsiteSchema()) }}
+      />
+      {/* The scanner as a SoftwareApplication, with its real offers. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(scannerSchema) }}
       />
 
       {/* Content sits above the texture. `relative z-10` is what lifts it; the
