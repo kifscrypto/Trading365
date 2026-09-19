@@ -863,6 +863,70 @@ function sideStats(r: ArchiveStatsRow | undefined): ArchiveSideStats | null {
 }
 
 /**
+ * The aggregate expressions behind every published record number.
+ *
+ * ONE SOURCE OF TRUTH. `getArchiveStats` (the /signals archive header) and
+ * `getArchiveStatsForDay` (the Discord daily snapshot) both interpolate this exact
+ * string and both roll the per-side rows up through `rollUpArchive`. A second,
+ * hand-written copy of this arithmetic is how two surfaces end up disagreeing
+ * about the same day — which is the one thing the snapshot must never do.
+ */
+const NET_MOVE_EXPR = `COALESCE(net_move_pct, move_pct - ${NET_ROUND_TRIP_PCT})`
+
+const ARCHIVE_AGG_SELECT = `
+        side,
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int AS resolved,
+        COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND status LIKE 'tp%')::int AS wins,
+        COUNT(*) FILTER (WHERE status = 'expired')::int AS expired,
+        COUNT(*) FILTER (WHERE status = 'sl')::int AS losses,
+        COUNT(*) FILTER (WHERE status LIKE 'tp%')::int AS winners,
+        COALESCE(SUM(CASE
+          WHEN status = 'tp5' THEN 8.0
+          WHEN status = 'tp4' THEN 6.0
+          WHEN status = 'tp3' THEN 4.0
+          WHEN status = 'tp2' THEN 2.5
+          WHEN status LIKE 'tp%' THEN 1.5
+          ELSE 0
+        END) FILTER (WHERE status LIKE 'tp%'), 0)::float AS win_move,
+        COALESCE(SUM(move_pct) FILTER (WHERE closed_at IS NOT NULL), 0)::float AS resolved_move,
+        COALESCE(SUM(${NET_MOVE_EXPR}) FILTER (WHERE closed_at IS NOT NULL), 0)::float AS net_move,
+        COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int AS net_samples,
+        COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND net_move_pct IS NULL)::int AS net_derived`
+
+/** Pooled record across both books from per-side aggregate rows. */
+function rollUpArchive(rows: ArchiveStatsRow[], days: number): ArchiveStats {
+  const short = sideStats(rows.find((r) => r.side === 'short'))
+  const long = sideStats(rows.find((r) => r.side === 'long'))
+  const resolved = (short?.resolved ?? 0) + (long?.resolved ?? 0)
+  const wins = (short?.wins ?? 0) + (long?.wins ?? 0)
+  const winners = rows.reduce((n, r) => n + (r.winners ?? 0), 0)
+  const winMove = rows.reduce((n, r) => n + (r.win_move ?? 0), 0)
+  const resolvedMove = rows.reduce((n, r) => n + (r.resolved_move ?? 0), 0)
+  const netMove = rows.reduce((n, r) => n + (r.net_move ?? 0), 0)
+  const netSamples = rows.reduce((n, r) => n + (r.net_samples ?? 0), 0)
+  const netDerived = rows.reduce((n, r) => n + (r.net_derived ?? 0), 0)
+  return {
+    days,
+    total: rows.reduce((n, r) => n + (r.total ?? 0), 0),
+    resolved,
+    wins,
+    expired: (short?.expired ?? 0) + (long?.expired ?? 0),
+    hitRate: resolved > 0 ? (wins / resolved) * 100 : null,
+    avgMove: winners > 0 ? winMove / winners : null,
+    expectancy: resolved > 0 ? resolvedMove / resolved : null,
+    netExpectancy: netSamples > 0 ? netMove / netSamples : null,
+    netSamples,
+    netDerived,
+    feeModelVersion: FEE_MODEL_VERSION,
+    netRoundTripPct: NET_ROUND_TRIP_PCT,
+    short,
+    long,
+  }
+}
+
+
+/**
  * Aggregate record over the trailing window.
  *
  * The predicates are deliberately IDENTICAL to /live's getRecord — in
@@ -899,63 +963,113 @@ export async function getArchiveStats(days = 30): Promise<ArchiveStats> {
     //     retroactively rewrite history that was already reported)
     //   * absent                -> derive it from the same constant
     // Both cases are per-row the same arithmetic the sync would have written.
-    const netExpr = `COALESCE(net_move_pct, move_pct - ${NET_ROUND_TRIP_PCT})`
     const rows = (await sql(`
-      SELECT side,
-        COUNT(*)::int AS total,
-        COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int AS resolved,
-        COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND status LIKE 'tp%')::int AS wins,
-        COUNT(*) FILTER (WHERE status = 'expired')::int AS expired,
-        COUNT(*) FILTER (WHERE status = 'sl')::int AS losses,
-        COUNT(*) FILTER (WHERE status LIKE 'tp%')::int AS winners,
-        COALESCE(SUM(CASE
-          WHEN status = 'tp5' THEN 8.0
-          WHEN status = 'tp4' THEN 6.0
-          WHEN status = 'tp3' THEN 4.0
-          WHEN status = 'tp2' THEN 2.5
-          WHEN status LIKE 'tp%' THEN 1.5
-          ELSE 0
-        END) FILTER (WHERE status LIKE 'tp%'), 0)::float AS win_move,
-        COALESCE(SUM(move_pct) FILTER (WHERE closed_at IS NOT NULL), 0)::float AS resolved_move,
-        COALESCE(SUM(${netExpr}) FILTER (WHERE closed_at IS NOT NULL), 0)::float AS net_move,
-        COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int AS net_samples,
-        COUNT(*) FILTER (WHERE closed_at IS NOT NULL AND net_move_pct IS NULL)::int AS net_derived
+      SELECT ${ARCHIVE_AGG_SELECT}
       FROM signal_receipts
       WHERE status <> 'fired'
         AND fired_at > NOW() - ($1::int * INTERVAL '1 day')
       GROUP BY side
     `, [days])) as unknown as ArchiveStatsRow[]
 
-    const short = sideStats(rows.find((r) => r.side === 'short'))
-    const long = sideStats(rows.find((r) => r.side === 'long'))
-    const resolved = (short?.resolved ?? 0) + (long?.resolved ?? 0)
-    const wins = (short?.wins ?? 0) + (long?.wins ?? 0)
-    const winners = rows.reduce((n, r) => n + (r.winners ?? 0), 0)
-    const winMove = rows.reduce((n, r) => n + (r.win_move ?? 0), 0)
-    const resolvedMove = rows.reduce((n, r) => n + (r.resolved_move ?? 0), 0)
-    const netMove = rows.reduce((n, r) => n + (r.net_move ?? 0), 0)
-    const netSamples = rows.reduce((n, r) => n + (r.net_samples ?? 0), 0)
-    const netDerived = rows.reduce((n, r) => n + (r.net_derived ?? 0), 0)
-    return {
-      days,
-      total: rows.reduce((n, r) => n + (r.total ?? 0), 0),
-      resolved,
-      wins,
-      expired: (short?.expired ?? 0) + (long?.expired ?? 0),
-      hitRate: resolved > 0 ? (wins / resolved) * 100 : null,
-      avgMove: winners > 0 ? winMove / winners : null,
-      expectancy: resolved > 0 ? resolvedMove / resolved : null,
-      netExpectancy: netSamples > 0 ? netMove / netSamples : null,
-      netSamples,
-      netDerived,
-      feeModelVersion: FEE_MODEL_VERSION,
-      netRoundTripPct: NET_ROUND_TRIP_PCT,
-      short,
-      long,
-    }
+    return rollUpArchive(rows, days)
   } catch (err) {
     console.error('[signals/public] getArchiveStats failed:', err)
     return empty
+  }
+}
+
+/**
+ * The same record, scoped to ONE UTC calendar day rather than a trailing window.
+ *
+ * Used by the Discord daily snapshot. It shares `ARCHIVE_AGG_SELECT` and
+ * `rollUpArchive` with getArchiveStats above, so the snapshot's hit rate and net
+ * figure are the archive header's arithmetic on a one-day slice — not a parallel
+ * implementation that could drift away from it.
+ *
+ * The boundary is `date_trunc('day', fired_at AT TIME ZONE 'UTC')`, the same UTC
+ * convention the rest of the codebase uses (see the digest guard in x-queue).
+ *
+ * TWO NUMBERS THE ARCHIVE DOES NOT PUBLISH, because it counts settled rows only:
+ *   `fired` — every receipt that fired that day, INCLUDING still-open ones
+ *   `open`  — of those, the ones still unresolved (status = 'fired')
+ * Both come from the same rows in the same query, so
+ * `wins + losses + expired + open === fired` holds by construction.
+ */
+export interface ArchiveDayStats extends ArchiveStats {
+  /** ISO date, YYYY-MM-DD, UTC. */
+  day: string
+  /** Receipts that fired that day, including still-open ones. */
+  fired: number
+  /** Of `fired`, those still unresolved (status = 'fired'). */
+  open: number
+  /** Pooled stopped-out count. */
+  losses: number
+  /** Fired counts per side, read from the same rows as `fired`. */
+  firedBySide: { long: number; short: number }
+}
+
+export async function getArchiveStatsForDay(day: string): Promise<ArchiveDayStats> {
+  const empty: ArchiveDayStats = {
+    day, days: 1, total: 0, fired: 0, open: 0, resolved: 0, wins: 0, losses: 0,
+    expired: 0, hitRate: null, avgMove: null, expectancy: null, netExpectancy: null,
+    netSamples: 0, netDerived: 0, feeModelVersion: FEE_MODEL_VERSION,
+    netRoundTripPct: NET_ROUND_TRIP_PCT, short: null, long: null,
+    firedBySide: { long: 0, short: 0 },
+  }
+  try {
+    const rows = (await sql(`
+      SELECT ${ARCHIVE_AGG_SELECT},
+        COUNT(*)::int AS fired_all,
+        COUNT(*) FILTER (WHERE status = 'fired')::int AS open
+      FROM signal_receipts
+      WHERE date_trunc('day', fired_at AT TIME ZONE 'UTC') = $1::date
+      GROUP BY side
+    `, [day])) as unknown as (ArchiveStatsRow & { fired_all: number; open: number })[]
+
+    return {
+      ...rollUpArchive(rows, 1),
+      day,
+      fired: rows.reduce((n, r) => n + (r.fired_all ?? 0), 0),
+      open: rows.reduce((n, r) => n + (r.open ?? 0), 0),
+      losses: rows.reduce((n, r) => n + (r.losses ?? 0), 0),
+      firedBySide: {
+        long: rows.find((r) => r.side === 'long')?.fired_all ?? 0,
+        short: rows.find((r) => r.side === 'short')?.fired_all ?? 0,
+      },
+    }
+  } catch (err) {
+    console.error('[signals/public] getArchiveStatsForDay failed:', err)
+    return empty
+  }
+}
+
+/**
+ * The deepest tier reached by any signal that FIRED that day — the snapshot's
+ * "Best" line. Scoped by fired_at to match the counts above, so it cannot name a
+ * signal the rest of the embed has not counted.
+ *
+ * Not an aggregate: a single-row lookup, so it cannot contradict the totals.
+ */
+export async function getDayBest(
+  day: string,
+): Promise<{ symbol: string; side: SignalSide; status: string; movePct: number } | null> {
+  try {
+    const rows = (await sql(`
+      SELECT symbol, side, status, COALESCE(move_pct, 0)::float AS move_pct
+      FROM signal_receipts
+      WHERE date_trunc('day', fired_at AT TIME ZONE 'UTC') = $1::date
+        AND status LIKE 'tp%'
+      ORDER BY CASE status
+        WHEN 'tp5' THEN 5 WHEN 'tp4' THEN 4 WHEN 'tp3' THEN 3
+        WHEN 'tp2' THEN 2 ELSE 1 END DESC,
+        COALESCE(move_pct, 0) DESC
+      LIMIT 1
+    `, [day])) as unknown as { symbol: string; side: SignalSide; status: string; move_pct: number }[]
+    const r = rows[0]
+    return r ? { symbol: r.symbol, side: r.side, status: r.status, movePct: r.move_pct } : null
+  } catch (err) {
+    console.error('[signals/public] getDayBest failed:', err)
+    return null
   }
 }
 

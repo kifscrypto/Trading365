@@ -36,9 +36,14 @@ failed write is a full wasted round-trip.
 
 ## Known repo noise (not your problem, don't try to fix)
 
-- `npx tsc --noEmit` reports ~20 pre-existing errors in `app/admin/*`,
-  `app/api/scanner/_core.ts`, `app/api/llms/route.ts`,
-  `app/api/scanner/long-watchlist/route.ts`. Pre-existing, unrelated to most work.
+- `npx tsc --noEmit` reports ~140 pre-existing errors. They cluster in `app/admin/*`,
+  `app/api/scanner/_core.ts` (3 errors, TS2339/TS7053 on `.length` / index `[0]`),
+  `app/api/llms/route.ts`, `lib/db.ts`, `lib/data/articles-db.ts`,
+  `components/admin/*`, and the separate `trading365-ops/` sub-project, which
+  tsconfig sweeps in via `"include": ["**/*.ts"]`. Pre-existing, unrelated to most
+  work. Do NOT read the count as a regression signal — check whether any error names
+  a file you touched instead. (An earlier version of this note said "~20"; that was
+  wrong, it came from reading only the first 20 lines of tsc output.)
 - `next.config.mjs` sets `ignoreBuildErrors`, so `npx next build` stays green
   despite those errors.
 - `node` exits 1 when its `MODULE_TYPELESS_PACKAGE_JSON` warning is piped through

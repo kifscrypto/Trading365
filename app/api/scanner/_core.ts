@@ -3,7 +3,7 @@
  * Not a route itself; Next.js only treats route.ts as an API endpoint.
  */
 import { neon } from '@neondatabase/serverless'
-import { isExcludedSymbol } from './_config'
+import { isExcludedSymbol, normalizeSymbolBase } from './_config'
 
 export type Kline = [string, string, string, string, string, string, ...string[]]
 export type SqlClient = ReturnType<typeof neon>
@@ -167,7 +167,10 @@ export function scoreKlines(
   price: number,
   fundingRate: number
 ): ScoreResult {
-  const base = symbol.replace(/USDT$|USDC$|BUSD$|-USDT|-USDC|_USDT/i, '').toUpperCase()
+  // Base from the SHARED normalizer — the same one isExcludedSymbol uses below.
+  // This carried its own inline regex that did not strip a trailing '-SWAP', so
+  // HARD_EXCLUDE could be evaded by that suffix.
+  const base = normalizeSymbolBase(symbol)
   if (HARD_EXCLUDE.includes(base) || isExcludedSymbol(symbol)) return { score: 0, signals: [], skip: true }
 
   const signals: string[] = []
@@ -290,7 +293,8 @@ export function scoreLongKlines(
   price: number,
   fundingRate: number
 ): ScoreResult {
-  const base = symbol.replace(/USDT$|USDC$|BUSD$|-USDT|-USDC|_USDT/i, '').toUpperCase()
+  // Base from the SHARED normalizer — see the note in scoreKlines above.
+  const base = normalizeSymbolBase(symbol)
   if (HARD_EXCLUDE.includes(base) || isExcludedSymbol(symbol)) return { score: 0, signals: [], skip: true }
 
   const signals: string[] = []

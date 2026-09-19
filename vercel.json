@@ -48,6 +48,14 @@
     {
       "path": "/api/social/x?cron=true",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/scanner/shadow-patterns?cron=true",
+      "schedule": "13,43 * * * *"
+    },
+    {
+      "path": "/api/scanner/discord-snapshot?cron=true",
+      "schedule": "5 0 * * *"
     }
   ]
 }

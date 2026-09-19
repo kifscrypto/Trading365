@@ -15,9 +15,15 @@ const COLORS = {
 
 type Embed = Record<string, unknown>
 
-async function post(embeds: Embed[], content?: string, webhookUrl?: string): Promise<void> {
+export interface DiscordPostResult {
+  ok: boolean
+  /** HTTP status from Discord, or 0 when the request never completed. */
+  status: number
+}
+
+export async function post(embeds: Embed[], content?: string, webhookUrl?: string): Promise<DiscordPostResult> {
   const url = webhookUrl ?? process.env.DISCORD_WEBHOOK_URL
-  if (!url) return
+  if (!url) return { ok: false, status: 0 }
   // When several scanner crons fire in the same slot they hammer one webhook and
   // Discord replies 429. Honour retry_after and try once more so a message
   // (notably the daily digest) isn't silently dropped in the burst.
@@ -28,7 +34,7 @@ async function post(embeds: Embed[], content?: string, webhookUrl?: string): Pro
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: 'Trading365 Scanner', content, embeds }),
       })
-      if (res.ok) return
+      if (res.ok) return { ok: true, status: res.status }
       if (res.status === 429 && attempt === 0) {
         const body = await res.json().catch(() => ({}) as { retry_after?: number })
         const retryAfter = Number(body?.retry_after) || 2
@@ -37,12 +43,13 @@ async function post(embeds: Embed[], content?: string, webhookUrl?: string): Pro
         continue
       }
       console.error('[discord] webhook error:', res.status, await res.text())
-      return
+      return { ok: false, status: res.status }
     } catch (err) {
       console.error('[discord] send failed:', err)
-      return
+      return { ok: false, status: 0 }
     }
   }
+  return { ok: false, status: 0 }
 }
 
 export interface DiscordTarget {

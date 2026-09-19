@@ -75,9 +75,22 @@ const INDEX_ETF_RE = /^(NAS\d+|SPX\d*|US\d{2,3}|GER\d+|UK\d+|JP\d+|QQQ|TQQQ|SQQQ
 // Leveraged tokens, e.g. BTC3L / ETH3S / SOL2L.
 const LEVERAGED_RE = /\d(L|S)$/
 
-// Normalise any exchange symbol form to its BASE: HL bare ('BTC'),
-// MEXC underscore ('BTC_USDT'), OKX/WEEX/Bitunix ('BTCUSDT'), '-SWAP', etc.
-function baseOf(symbol: string): string {
+/**
+ * THE symbol normalizer. Every exclusion rule in the scanner must reduce a symbol
+ * to its base through this one function, so a rule can never be evaded by an
+ * exchange's particular spelling of the same contract.
+ *
+ * Normalises to the BASE: HL bare ('BTC'), MEXC underscore ('BTC_USDT'),
+ * OKX/WEEX/Bitunix ('BTCUSDT'), Bitunix '-SWAP', etc.
+ *
+ * WHY IT IS EXPORTED: app/api/scanner/_core.ts used to carry its own inline regex
+ * for the HARD_EXCLUDE check, and the two disagreed. That regex stripped a quote
+ * suffix only when it sat at the very END of the string, so 'BTCUSDT-SWAP'
+ * normalised to 'BTCUSDT-SWAP' — a string that matches nothing — while this
+ * function returns 'BTC'. A named exclusion could therefore be evaded by
+ * appending '-SWAP' to the symbol.
+ */
+export function normalizeSymbolBase(symbol: string): string {
   return symbol
     .toUpperCase()
     .replace(/[-_]/g, '')
@@ -85,12 +98,20 @@ function baseOf(symbol: string): string {
     .replace(/(USDT|USDC|BUSD)$/, '')
 }
 
+/** Local alias — every call site in this file reads as before. */
+const baseOf = normalizeSymbolBase
+
 /**
  * Allow-by-pattern: true only for symbols that look like a genuine altcoin perp.
  * Rejects whole classes of non-crypto instruments so new junk is filtered without
  * enumerating every ticker.
  */
 export function isValidCryptoSymbol(symbol: string): boolean {
+  // Non-ASCII tickers are never genuine perpetual contracts. Allow-by-default let
+  // one through: WEEX lists a Chinese-character ticker whose base matches no rule
+  // below, so it passed every class check and reached scoring. Rejecting on the
+  // raw symbol (not the base) catches the junk wherever the characters sit.
+  if (/[^\x20-\x7E]/.test(symbol)) return false
   const base = baseOf(symbol)
   if (!base) return false
   if (base.startsWith('1000')) return false   // 1000x-denominated duplicate listings
