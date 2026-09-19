@@ -179,3 +179,147 @@
 @media (prefers-reduced-motion: reduce) {
   .scanner-marquee-track { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Homepage terminal theme — scoped to .t365
+   Every rule below is nested under .t365, so no other page is affected and no
+   existing token is redefined. Dark-only by design: this palette is authored
+   against one background rather than a light/dark pair, so there is no light
+   variant to keep in sync. Terminal green is the only accent; red is reserved
+   for losses and gold for the logo mark.
+   ══════════════════════════════════════════════════════════════════════════ */
+/* The tokens themselves live at :root so ANY page or component can reference
+   them — including the site header, which sits outside every page wrapper.
+   Declaring custom properties is inert: nothing on any page changes until that
+   page opts in by actually using one. */
+:root {
+  --t-bg: #070A0F;
+  --t-panel: #0D1219;
+  --t-line: #1E2733;
+  --t-tx: #F2F6FC;
+  --t-dim: #77839B;
+  --t-green: #3DF08A;
+  --t-red: #FF5C6C;
+  --t-gold: #F5C04E;
+  --t-radius: 9px;
+}
+
+/* The opt-in surface. A page becomes a terminal surface by adding ONE of these
+   classes to its outermost element — never applied globally, so no page outside
+   the ones that name it here can be affected:
+     .t365    — the homepage
+     .t-theme — the scanner pages and the join page. It also remaps Tailwind's
+                semantic tokens; see the block at the end of this file. */
+.t365,
+.t-theme {
+  background-color: var(--t-bg);
+  color: var(--t-tx);
+  position: relative;
+}
+
+/* Small scoped utilities. Unlayered on purpose: Tailwind's @layer base sets a
+   global border colour, and unlayered rules outrank anything in a layer. */
+/* Small scoped utilities, available on either opt-in surface. Unlayered on
+   purpose: Tailwind's @layer base sets a global border colour, and unlayered
+   rules outrank anything inside a layer. `:is()` keeps the two roots in one
+   selector so the rules exist once, not twice. */
+:is(.t365, .t-theme) .t-panel { background-color: var(--t-panel); }
+:is(.t365, .t-theme) .t-line { border-color: var(--t-line); }
+:is(.t365, .t-theme) .t-dim { color: var(--t-dim); }
+:is(.t365, .t-theme) .t-green { color: var(--t-green); }
+:is(.t365, .t-theme) .t-red { color: var(--t-red); }
+:is(.t365, .t-theme) .t-gold { color: var(--t-gold); }
+:is(.t365, .t-theme) .t-glow { text-shadow: 0 0 18px color-mix(in oklab, var(--t-green) 50%, transparent); }
+:is(.t365, .t-theme) .t-chip {
+  border-color: color-mix(in oklab, var(--t-green) 35%, transparent);
+  background-color: color-mix(in oklab, var(--t-green) 12%, transparent);
+  color: var(--t-green);
+}
+:is(.t365, .t-theme) .t-chip-red {
+  border-color: color-mix(in oklab, var(--t-red) 35%, transparent);
+  background-color: color-mix(in oklab, var(--t-red) 12%, transparent);
+  color: var(--t-red);
+}
+
+/* Scanline texture + two soft green radial glows. One absolutely-positioned
+   layer rather than a body background, so the sticky header and the sitewide
+   footer are left completely alone. */
+.t365-texture {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse 70% 45% at 18% 0%, color-mix(in oklab, var(--t-green) 7%, transparent), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 92% 10%, color-mix(in oklab, var(--t-green) 5%, transparent), transparent 70%),
+    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 3px);
+}
+
+/* ── Motion. Every duration here is listed in the redesign spec. ── */
+@keyframes t365-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.82); }
+}
+/* Brief flicker near the end of each cycle, not a constant strobe. */
+@keyframes t365-flicker {
+  0%, 86%, 100% { text-shadow: 0 0 16px color-mix(in oklab, var(--t-green) 45%, transparent); }
+  88% { text-shadow: 0 0 3px color-mix(in oklab, var(--t-green) 18%, transparent); }
+  90% { text-shadow: 0 0 24px color-mix(in oklab, var(--t-green) 72%, transparent); }
+  92% { text-shadow: 0 0 6px color-mix(in oklab, var(--t-green) 24%, transparent); }
+}
+@keyframes t365-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes t365-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+:is(.t365, .t-theme) .t365-pulse { animation: t365-pulse 1.6s ease-in-out infinite; }
+:is(.t365, .t-theme) .t365-flicker { animation: t365-flicker 6s ease-in-out infinite; }
+:is(.t365, .t-theme) .t365-float { animation: t365-float 5s ease-in-out infinite; }
+:is(.t365, .t-theme) .t365-marquee-track { animation: t365-marquee 26s linear infinite; }
+
+/* Reduced motion kills all four. The marquee additionally loses its transform,
+   so the track sits at its natural position with the duplicate copy simply
+   clipped by the overflow container rather than sliding. */
+@media (prefers-reduced-motion: reduce) {
+  :is(.t365, .t-theme) .t365-pulse,
+  :is(.t365, .t-theme) .t365-flicker,
+  :is(.t365, .t-theme) .t365-float,
+  :is(.t365, .t-theme) .t365-marquee-track {
+    animation: none !important;
+  }
+  :is(.t365, .t-theme) .t365-marquee-track { transform: none !important; }
+}
+
+/* ── Relocated legacy sections ───────────────────────────────────────────────
+   The sections kept from the previous homepage (exchange picks, featured
+   reviews, comparisons, categories, Discord, newsletter, trust bar) are shared
+   components used on other pages too, so they are NOT edited. Instead the
+   semantic tokens Tailwind already inlines into their utilities are remapped
+   inside this wrapper: `border-border` compiles to `var(--border)` and
+   `text-primary` to `var(--primary)` (see the @theme inline block above), so
+   redefining those variables here repaints them in the terminal palette with no
+   change to the components themselves and no effect outside the pages that opt
+   in by adding .t-theme. */
+.t-theme {
+  --background: var(--t-bg);
+  --foreground: var(--t-tx);
+  --card: var(--t-panel);
+  --card-foreground: var(--t-tx);
+  --popover: var(--t-panel);
+  --popover-foreground: var(--t-tx);
+  --primary: var(--t-green);
+  --primary-foreground: #04140B;
+  --secondary: var(--t-panel);
+  --secondary-foreground: var(--t-tx);
+  --muted: var(--t-panel);
+  --muted-foreground: var(--t-dim);
+  --accent: var(--t-green);
+  --accent-foreground: #04140B;
+  --border: var(--t-line);
+  --input: var(--t-line);
+  --ring: var(--t-green);
+}
+

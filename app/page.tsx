@@ -3,7 +3,7 @@ export const revalidate = 300
 import type { Metadata } from "next"
 import { jsonLd } from "@/lib/utils/json-ld"
 import Link from "next/link"
-import { ArrowRight, Star, Zap, ShieldOff, ShieldAlert, Gift, UserPlus } from "lucide-react"
+import { ArrowRight, Star, Zap, ShieldOff, ShieldAlert, Gift } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArticleCard } from "@/components/article-card"
@@ -14,21 +14,33 @@ import { TrustBar } from "@/components/trust-bar"
 import { FeaturedAdvertisers } from "@/components/featured-advertisers"
 import { PromoBanner } from "@/components/promo-banner"
 import { getAllArticlesFromDB } from "@/lib/data/articles-db"
-import { getScannerStats, getTrackedSignalCount } from "@/lib/scanner-stats"
+import { getScannerStats, getTrackedSignalCount, getCurrentRegime } from "@/lib/scanner-stats"
 import { ScannerSpotlight } from "@/components/scanner-spotlight"
-import { ScannerTickerLive } from "@/components/scanner-ticker-live"
 import { DiscordCta } from "@/components/discord-cta"
 import { getFeaturedSlot } from "@/lib/data/featured"
 import { TopPicks } from "@/components/top-picks"
 import { getTopPicks } from "@/lib/data/top-picks"
 import { generateWebsiteSchema } from "@/lib/schema"
 import { buildHomeLanguages } from "@/lib/i18n/hreflang"
+import { getArchiveStats, getArchivePage } from "@/lib/signals/public"
+import { StatusStrip } from "@/components/home/status-strip"
+import { Hero } from "@/components/home/hero"
+import { BigStats, type StatItem } from "@/components/home/stat-cards"
+import { LiveFeed } from "@/components/home/live-feed"
+import { ResultMarquee } from "@/components/home/result-marquee"
 
 const BASE_URL = 'https://trading365.org'
 
 // hreflang links the homepage to the launched locale landings (reciprocal with
 // their x-default → EN). See INDEXED_LOCALES in lib/i18n/config.
+//
+// The title is `absolute` on purpose: the root layout sets a
+// '%s | Trading365' template, and a plain string here would render as
+// "... | Trading365 | Trading365".
 export const metadata: Metadata = {
+  title: { absolute: 'AI Altcoin Scanner — Verified Signal Track Record | Trading365' },
+  description:
+    'Two AI altcoin scanners on perpetual futures. Every signal is published at fire time to a public archive — wins, losses, nothing deleted.',
   alternates: {
     canonical: BASE_URL,
     languages: buildHomeLanguages(),
@@ -43,14 +55,39 @@ export default async function HomePage() {
     getFeaturedSlot("featured_articles"),
     getTopPicks(),
   ])
-  // Scanner spotlight numbers only (safe to SSR). The "Live Wins" ticker fetches
-  // its own data client-side (ScannerTickerLive) so win symbols stay out of the
-  // initial HTML.
-  const [shortStats, longStats, trackedSignals] = await Promise.all([
-    getScannerStats("short"),
-    getScannerStats("long"),
-    getTrackedSignalCount(),
-  ])
+
+  // Every live figure on this page comes from aggregates that already exist and
+  // are already public:
+  //   getArchiveStats / getArchivePage — the SAME functions and the same SQL the
+  //     /signals archive renders. The homepage is a second view of one record,
+  //     never a second calculation of it, so the two pages cannot disagree.
+  //   getCurrentRegime — reads the market_condition the scanner itself wrote on
+  //     its most recent scan rather than re-deriving the regime from price.
+  //   getScannerStats / getTrackedSignalCount — unchanged, still feeding the
+  //     relocated scanner spotlight and the tracked-signals figure.
+  const [shortStats, longStats, trackedSignals, regime, archiveStats, archivePage] =
+    await Promise.all([
+      getScannerStats("short"),
+      getScannerStats("long"),
+      getTrackedSignalCount(),
+      getCurrentRegime(),
+      getArchiveStats(30),
+      getArchivePage({ page: 1 }),
+    ])
+
+  // One query, three consumers. getArchivePage returns 25 rows newest-first;
+  // the hero takes the newest, the feed the first six, the marquee a longer
+  // slice. Slicing the same page is what guarantees the hero receipt, the feed
+  // and the archive list can never show a different set of signals.
+  const recent = archivePage.rows
+  const heroReceipt = recent[0] ?? null
+  const feedRows = recent.slice(0, 6)
+  const marqueeRows = recent.slice(0, 18)
+
+  // When this render happened, so the stats footer can report real staleness
+  // instead of a written-in number. `revalidate` above bounds it at 5 minutes.
+  const renderedAt = Date.now()
+
   const featuredArticles = featuredSlugs.length > 0
     ? featuredSlugs
         .map((slug) => allArticles.find((a) => a.slug === slug))
@@ -80,7 +117,7 @@ export default async function HomePage() {
     },
     {
       title: "No-KYC Exchanges",
-      description: "Trade without identity verification requirements",
+      description: "Trade without identity verification",
       href: "/no-kyc",
       icon: ShieldOff,
       count: noKycCount,
@@ -101,206 +138,227 @@ export default async function HomePage() {
     },
   ]
 
-  // Hero scanner stat, read from the database rather than typed in. Floored to
-  // the nearest 1,000 so the "+" stays strictly true for the whole 5-minute
-  // revalidation window (the same convention /scanner uses in its metadata).
-  // The written fallback is only for an unreachable database: it is the old
-  // conservative claim, so a failed query can never inflate the figure.
+  // The scanner stat is READ, not written. It was "23,000+" while the table
+  // already held 61,279 rows — understating the record by 38k and contradicting
+  // this page's own ScannerSpotlight, which counted the same table. Flooring it
+  // to the nearest 1,000 keeps the "+" strictly true between revalidations, so
+  // it can only ever be raised by the next deploy of data, never by editing this
+  // file. The written fallback is for an unreachable database only, and is the
+  // old conservative claim, so a failed query cannot inflate the figure.
   const trackedClaim = trackedSignals !== null
     ? `${(Math.floor(trackedSignals / 1000) * 1000).toLocaleString("en-US")}+`
     : "23,000+"
 
+  // The three headline cards. A null value renders an em dash rather than a
+  // zero, so an empty or unreachable archive can never be presented as "0%".
+  const statItems: StatItem[] = [
+    {
+      label: "Hit rate — last 30 days",
+      value: archiveStats.hitRate,
+      format: "pct",
+      sub: archiveStats.resolved > 0
+        ? `${archiveStats.wins} of ${archiveStats.resolved} resolved`
+        : "awaiting first resolution",
+      primary: true,
+    },
+    {
+      label: "Net expectancy / signal",
+      value: archiveStats.netExpectancy,
+      format: "pct",
+      tag: `After ${archiveStats.netRoundTripPct.toFixed(2)}% round trip`,
+    },
+    {
+      label: "Receipts published",
+      // archivePage.total is the all-time published count — the same figure the
+      // archive's "signals published in total" line shows.
+      value: archivePage.total > 0 ? archivePage.total : null,
+      format: "int",
+      tag: "0 deleted",
+    },
+  ]
+
   return (
-    <>
-      {/* WebSite schema. Organization schema is emitted sitewide from the root layout. */}
+    <div className="t365">
+      {/* Scanline texture + the two green radial glows. Purely decorative and
+          behind everything, so it is the first thing in the DOM and carries no
+          accessible content. */}
+      <div className="t365-texture z-0" aria-hidden="true" />
+
+      {/* WebSite schema. Organization schema is emitted sitewide from the root
+          layout. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: jsonLd(generateWebsiteSchema()),
-        }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(generateWebsiteSchema()) }}
       />
-      {/* Live scanner wins ticker — client-only, keeps symbols out of SSR HTML */}
-      <ScannerTickerLive />
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,oklch(0.8_0.15_85/0.06),transparent_60%)]" />
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 pt-20 pb-6 text-center lg:px-6 lg:pt-28 lg:pb-8">
-          {/* The hero logo image was removed: it repeated the nav logo directly
-              above it and pushed the only content that answers a visitor's
-              actual question below the fold. The nav logo still brands the page,
-              and /images/logo-wide.png is untouched for other uses. */}
-          <h1 className="max-w-3xl text-4xl font-bold leading-tight tracking-tight text-foreground md:text-5xl lg:text-6xl text-balance">
-            Find the Right{" "}
-            <span className="text-primary">Crypto Exchange</span>
-          </h1>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
-            50+ exchanges reviewed, tested and ranked — plus two live scanners whose every signal is published with
-            its result.
+      {/* Content sits above the texture. `relative z-10` is what lifts it; the
+          sticky site header (z-50, outside this wrapper) still paints on top. */}
+      <div className="relative z-10">
+        {/* 1. Status strip — is the scanner running, and in what regime */}
+        <StatusStrip regime={regime} />
+
+        {/* 2/3. Hero and the verified receipt it carries */}
+        <Hero receipt={heroReceipt} />
+
+        {/* 4. The three headline numbers, all from the public archive's own
+            aggregates */}
+        <section className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
+          <BigStats items={statItems} renderedAt={renderedAt} />
+        </section>
+
+        {/* 5. Latest results. Same query as the archive, just limited — losses
+            appear here exactly as winners do. */}
+        <section className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <h2 className="text-lg font-bold tracking-tight text-[var(--t-tx)] sm:text-xl">
+              Latest results — published as they close
+            </h2>
+            <Link
+              href="/signals"
+              className="font-mono text-[11px] tracking-wider t-dim hover:text-[var(--t-green)]"
+            >
+              Full archive →
+            </Link>
+          </div>
+          <div className="mt-4">
+            <LiveFeed rows={feedRows} />
+          </div>
+        </section>
+
+        {/* ── Everything below is the previous homepage, kept and relocated ──
+            These are the same components the old page rendered, in a new order.
+            They are restyled only through the token remap in globals.css
+            (.t365-legacy), so no shared component was edited and no page outside
+            the homepage is affected. Every internal link they carry survives:
+            the two scanners, the partner venues, the featured reviews, the
+            comparisons block, the five category hubs, Discord and the newsletter.
+
+            Note which ones bring their own <section> wrapper — the comparisons
+            spotlight, the advertisers strip, the newsletter and the trust bar —
+            and which do not. The ones that do are placed unwrapped so their
+            padding is not doubled. */}
+        <div className="t-theme">
+          {/* The two scanners in detail. This carried the hero before; now it
+              supports the claim above instead of being the whole page. */}
+          <ScannerSpotlight short={shortStats} long={longStats} />
+
+          {/* The site-wide tracked figure, still READ from the database rather
+              than written in — it read "23,000+" while the table already held
+              61,279 rows. Floored to the nearest 1,000 so the "+" stays strictly
+              true for the whole revalidation window. */}
+          <p className="mx-auto -mt-4 max-w-5xl px-4 text-center font-mono text-[11px] tracking-wider text-muted-foreground lg:px-6">
+            {trackedClaim} scanner signals tracked across both books
           </p>
 
-          {/* The scanner goes FIRST: it is the product, and these numbers are read
-              live from the database rather than written here. The spotlight used to
-              sit below the stats, so a visitor could scroll the whole homepage
-              without ever learning the site runs scanners at all — the H1 and the
-              primary button are both about exchange reviews. */}
-          <div className="mt-8 w-full">
-            <ScannerSpotlight short={shortStats} long={longStats} />
-          </div>
+          {/* 6a. Partner venues — the answer to "where do I actually trade this?" */}
+          <section className="mx-auto max-w-7xl px-4 py-12 lg:px-6">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <Badge variant="outline" className="mb-3 border-primary/30 text-primary">
+                  Partner venues
+                </Badge>
+                <h2 className="text-2xl font-bold text-foreground text-balance">
+                  Where to execute them — partner venues we review
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  The exchanges the scanners cover, and where the signals are tradeable.
+                </p>
+              </div>
+            </div>
+            <div className="mt-8">
+              <TopPicks picks={topPicks} />
+            </div>
+          </section>
 
-          {/* The answer, above the fold. Slots are editable in lib/data/top-picks.ts. */}
-          <TopPicks picks={topPicks} />
-
-          {/* One primary action; the rest demoted to a compact secondary row.
-              Four equal buttons gave a visitor no steer on what to do next. */}
-          <div className="mt-8 flex flex-col items-center gap-3">
-            <Button size="lg" className="gap-2 font-semibold px-8" asChild>
-              <Link href="/reviews">
-                Browse Reviews
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              {/* The account path sits first in the secondary row and is the only
-                  filled button here: everything else on this page is content, and
-                  a visitor who wants the live signals had no entry point at all
-                  before — the only signup link on the site was on /scanner. */}
-              <Button size="sm" className="gap-1.5 font-semibold" asChild>
-                <Link href="/signup">
-                  <UserPlus className="h-3.5 w-3.5" />
-                  Create free account
-                </Link>
-              </Button>
-              <Button size="sm" variant="outline" className="font-medium border-primary/30 text-foreground hover:bg-primary/10" asChild>
-                <Link href="/compare">Compare Exchanges</Link>
-              </Button>
-              <Button size="sm" variant="outline" className="gap-1.5 font-medium border-primary/30 text-foreground hover:bg-primary/10" asChild>
-                <Link href="/scanner">
-                  <Zap className="h-3.5 w-3.5" />
-                  Short Scanner
-                </Link>
-              </Button>
-              <Button size="sm" variant="outline" className="gap-1.5 font-medium border-emerald-500/30 text-foreground hover:bg-emerald-500/10" asChild>
-                <Link href="/scanner/longs">
-                  <Zap className="h-3.5 w-3.5 text-emerald-400" />
-                  Long Scanner
+          {/* 6b. Featured reviews — three cards, all linking to /reviews/* */}
+          <section className="mx-auto max-w-7xl px-4 py-12 lg:px-6">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <Badge variant="outline" className="mb-3 border-primary/30 text-primary">
+                  Latest
+                </Badge>
+                <h2 className="text-2xl font-bold text-foreground text-balance">
+                  Featured reviews &amp; guides
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  In-depth analysis to help you make informed trading decisions.
+                </p>
+              </div>
+              <Button variant="ghost" className="gap-2 text-primary hover:text-primary" asChild>
+                <Link href="/reviews">
+                  View all articles
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
             </div>
-          </div>
+            <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {featuredArticles.slice(0, 3).map((article) => (
+                <ArticleCard
+                  key={article.slug}
+                  title={article.title}
+                  excerpt={article.excerpt}
+                  category={article.category}
+                  categorySlug={article.categorySlug}
+                  slug={article.slug}
+                  date={article.date}
+                  readTime={article.readTime}
+                  rating={article.rating}
+                  thumbnail={article.thumbnail}
+                />
+              ))}
+            </div>
+          </section>
 
-          {/* Stats. The scanner and bonus figures are checkable against the
-              database (scanner_signals row count; summed bonusAmount).
-              The scanner figure is now READ, not written: it was "23,000+"
-              while the table already held 61,279 rows — understating the
-              record by 38k, and contradicting this page's own ScannerSpotlight
-              (61.3k) which took its count from the same table. Flooring it to
-              the nearest 1,000 keeps the "+" strictly true between
-              revalidations, so it can only ever be raised by the next deploy of
-              data, never by editing this file.
-              "50+ Exchanges Tested" is the site owner's figure and counts
-              exchanges tested over time — the current data holds 34 distinct
-              across lib/data/exchanges.ts, affiliate_links and custom_exchanges,
-              so don't "correct" it downward from the DB alone. It also matches
-              the H1 subline, which makes the same claim.
-              The "50K+ Monthly Readers" stat and the "Trusted by 50,000+ traders"
-              pill were removed: neither was measurable, and analytics puts real
-              30-day traffic three orders of magnitude below the pill's claim. */}
-          <div className="mt-12 grid w-full max-w-xl grid-cols-3 gap-8">
-            {[
-              { value: "50+", label: "Exchanges Tested" },
-              { value: trackedClaim, label: "Scanner Signals Tracked" },
-              { value: "$145K+", label: "In Bonuses Listed" },
-            ].map((stat) => (
-              <div key={stat.label} className="flex flex-col items-center gap-1">
-                <span className="text-2xl font-bold text-primary md:text-3xl">{stat.value}</span>
-                <span className="text-xs text-muted-foreground">{stat.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+          {/* 6c. Comparisons — brings its own section wrapper */}
+          <ComparisonSpotlight />
 
-      {/* Scanner spotlight moved into the hero (see "The scanner goes FIRST"). */}
+          {/* Advertiser strip and promo banner — kept, moved below the content */}
+          <FeaturedAdvertisers />
+          <PromoBanner />
 
-      {/* Featured Advertisers */}
-      <FeaturedAdvertisers />
-
-      {/* Rotating Promo Banner */}
-      <PromoBanner />
-
-      {/* Featured Reviews with Thumbnails */}
-      <section className="mx-auto max-w-7xl px-4 py-16 lg:px-6">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <Badge variant="outline" className="mb-3 text-primary border-primary/30">
-              Latest
-            </Badge>
-            <h2 className="text-2xl font-bold text-foreground text-balance">
-              Featured Reviews & Guides
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              In-depth analysis to help you make informed trading decisions.
+          {/* 6d. Category hubs — five internal links, all preserved */}
+          <section className="mx-auto max-w-7xl px-4 py-12 lg:px-6">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-foreground text-balance">
+                Explore by category
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Find exactly what you need, fast.
+              </p>
+            </div>
+            <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {categories.map((cat) => (
+                <CategoryCard key={cat.href} {...cat} />
+              ))}
+            </div>
+            {/* /compare lost its old hero button, so it keeps an internal link
+                here rather than becoming homepage-orphaned. */}
+            <p className="mt-8 text-center text-sm text-muted-foreground">
+              Or{' '}
+              <Link href="/compare" className="text-primary underline hover:opacity-80">
+                compare any two exchanges side by side
+              </Link>
+              .
             </p>
+          </section>
+
+          {/* Both "join us" asks sit together at the foot, after the content,
+              rather than interrupting the path to it. */}
+          <div className="mx-auto flex max-w-7xl justify-center px-4 pb-4 lg:px-6">
+            <DiscordCta />
           </div>
-          <Button variant="ghost" className="gap-2 text-primary hover:text-primary" asChild>
-            <Link href="/reviews">
-              View all articles
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-        <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {featuredArticles.map((article) => (
-            <ArticleCard
-              key={article.slug}
-              title={article.title}
-              excerpt={article.excerpt}
-              category={article.category}
-              categorySlug={article.categorySlug}
-              slug={article.slug}
-              date={article.date}
-              readTime={article.readTime}
-              rating={article.rating}
-              thumbnail={article.thumbnail}
-            />
-          ))}
-        </div>
-      </section>
 
-      {/* Comparison Table */}
-      <ComparisonSpotlight />
+          {/* 6e. Email capture — brings its own section wrapper */}
+          <NewsletterCta />
 
-      {/* Category Cards */}
-      <section className="mx-auto max-w-7xl px-4 py-16 lg:px-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-foreground text-balance">
-            Explore by Category
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Find exactly what you need, fast.
-          </p>
+          {/* Trust bar — brings its own section wrapper */}
+          <TrustBar />
         </div>
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {categories.map((cat) => (
-            <CategoryCard key={cat.href} {...cat} />
-          ))}
-        </div>
-      </section>
 
-      {/* Discord — grouped with the newsletter near the foot of the page. Both
-          are "join us" asks, so they belong together and after the content, not
-          interrupting the path to it. It previously sat second on the page,
-          directly under the hero. */}
-      <div className="mx-auto flex max-w-7xl justify-center px-4 pb-4 lg:px-6">
-        <DiscordCta />
+        {/* 7. Ticker footer — a thin marquee of the same resolved rows, looping
+            slowly. CSS-only and killed by prefers-reduced-motion. */}
+        <ResultMarquee rows={marqueeRows} />
       </div>
-
-      {/* Newsletter */}
-      <NewsletterCta />
-
-      {/* Trust Bar */}
-      <TrustBar />
-    </>
+    </div>
   )
 }

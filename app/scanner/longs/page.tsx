@@ -232,7 +232,7 @@ export default async function LongScannerPage() {
     : "Our Short Scanner publishes every signal it has ever fired, wins and losses alike."
 
   return (
-    <>
+    <div className="t-theme">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLd(schemaData) }}
@@ -567,6 +567,6 @@ export default async function LongScannerPage() {
           </div>
         </div>
       </section>
-    </>
+    </div>
   )
 }

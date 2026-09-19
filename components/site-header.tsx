@@ -77,7 +77,7 @@ export function SiteHeader() {
             className="rounded-lg h-9 w-9"
           />
           <span className="text-lg font-bold tracking-tight text-foreground hidden sm:inline">
-            Trading<span className="text-primary">365</span>
+            Trading<span className="text-[var(--t-green)]">365</span>
           </span>
         </Link>
 
@@ -150,7 +150,7 @@ export function SiteHeader() {
                   height={28}
                   className="rounded-lg h-7 w-7"
                 />
-                Trading<span className="text-primary">365</span>
+                Trading<span className="text-[var(--t-green)]">365</span>
               </SheetTitle>
             </SheetHeader>
             <nav className="flex flex-col gap-1 px-4 pt-4">

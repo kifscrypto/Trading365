@@ -188,7 +188,7 @@ export default async function ScannerPage() {
   const savingsPct = Math.round((1 - quarterlyUsd / (monthlyUsd * quarterlyMonths)) * 100)
 
   return (
-    <>
+    <div className="t-theme">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLd(schemaData) }}
@@ -515,6 +515,6 @@ export default async function ScannerPage() {
           </div>
         </div>
       </section>
-    </>
+    </div>
   )
 }

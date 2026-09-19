@@ -150,6 +150,36 @@ export async function getTrackedSignalCount(): Promise<number | null> {
   }
 }
 
+/**
+ * The regime the scanner last actually operated under — 'uptrend', 'neutral'
+ * or 'downtrend' — read straight off the newest scan row.
+ *
+ * This is deliberately a READ of stored state rather than a recomputation: the
+ * homepage status strip and the scanner must never be able to disagree about
+ * the current regime, and re-deriving it from BTC price would be a second
+ * implementation that could drift. `market_condition` is what applyBtcSentiment
+ * already decided at scan time and wrote to the row.
+ *
+ * Returns null when nothing has been scanned or the database is unreachable, so
+ * the caller can drop the label instead of rendering a wrong one.
+ */
+export async function getCurrentRegime(): Promise<string | null> {
+  const sql = neon(process.env.DATABASE_URL!)
+  try {
+    const rows = await sql`
+      SELECT market_condition
+      FROM scanner_signals
+      WHERE market_condition IS NOT NULL
+      ORDER BY scanned_at DESC
+      LIMIT 1
+    `
+    const v = (rows[0]?.market_condition ?? null) as string | null
+    return v && v.trim() ? v : null
+  } catch {
+    return null
+  }
+}
+
 export async function getScannerRecentWins(side: ScannerSide, limit = 12): Promise<ScannerRecentWin[]> {
   const sql = neon(process.env.DATABASE_URL!)
   try {

@@ -1168,6 +1168,32 @@ export async function getArchivePage(f: ArchiveFilters): Promise<ArchivePage> {
  */
 export const FREE_TIER_DELAY_HOURS = Number(process.env.FREE_SIGNAL_DELAY_HOURS ?? 6)
 
+/**
+ * How many signals FIRED in the last `hours` hours — still-open ones included.
+ *
+ * Used by the join page's success state to make the free-tier delay concrete:
+ * "N signals fired in the last 6 hours, members saw them live." It counts the
+ * same signal_receipts rows the archive publishes, so the number can never
+ * exceed what a visitor could go and verify.
+ *
+ * Returns null when the table is missing or unreachable, so the caller drops the
+ * line instead of rendering a fabricated "0".
+ */
+export async function getFiredCountSinceHours(hours: number): Promise<number | null> {
+  try {
+    const rows = (await sql(
+      `SELECT COUNT(*)::int AS n
+         FROM signal_receipts
+        WHERE fired_at > NOW() - ($1::int * INTERVAL '1 hour')`,
+      [hours],
+    )) as unknown as { n: number }[]
+    return rows[0]?.n ?? 0
+  } catch (err) {
+    console.error('[signals/public] getFiredCountSinceHours failed:', err)
+    return null
+  }
+}
+
 export type OpenReceipt = Receipt & { age_hours: number }
 
 export interface OpenSignals {

@@ -9,7 +9,19 @@ import { Label } from '@/components/ui/label'
 
 // Mirrors the plain-useState approach of app/admin/login/page.tsx rather than
 // react-hook-form: these are two fields, and the simpler code is easier to audit.
-function AuthFormInner({ mode }: { mode: 'signup' | 'login' }) {
+interface AuthFormProps {
+  mode: 'signup' | 'login'
+  /** Signals that fired inside the free-tier delay window, fetched server-side. */
+  firedRecently?: number | null
+  /**
+   * The delay itself, passed in rather than imported. lib/signals/public.ts
+   * creates a Neon client at module scope, so a client component must never
+   * import from it — doing so would pull the DB module into the browser bundle.
+   */
+  delayHours?: number
+}
+
+function AuthFormInner({ mode, firedRecently, delayHours }: AuthFormProps) {
   const router = useRouter()
   const params = useSearchParams()
   const isSignup = mode === 'signup'
@@ -25,6 +37,7 @@ function AuthFormInner({ mode }: { mode: 'signup' | 'login' }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -38,6 +51,13 @@ function AuthFormInner({ mode }: { mode: 'signup' | 'login' }) {
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
+        // Signup lands on a success screen rather than redirecting instantly, so
+        // the "while you waited" line is actually read instead of flashing past.
+        // Login keeps the direct redirect — it is not a conversion surface.
+        if (isSignup) {
+          setDone(true)
+          return
+        }
         router.push(next)
         router.refresh()
         return
@@ -48,6 +68,47 @@ function AuthFormInner({ mode }: { mode: 'signup' | 'login' }) {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (done && isSignup) {
+    const n = typeof firedRecently === 'number' ? firedRecently : null
+    const hours = delayHours ?? 6
+    return (
+      <div className="mt-8">
+        <p className="font-mono text-[11px] tracking-[0.16em] t-green">// ACCOUNT CREATED</p>
+        <h2 className="mt-3 text-2xl font-bold tracking-tight">You&apos;re in.</h2>
+        <p className="mt-3 text-sm t-dim">
+          {n !== null && n > 0 ? (
+            <>
+              While you waited:{' '}
+              <span className="font-mono font-bold t-green">{n.toLocaleString('en-US')}</span>{' '}
+              signal{n === 1 ? '' : 's'} fired in the last {hours} hours — members saw them live.
+            </>
+          ) : (
+            <>Your account is ready. Members see every signal the moment it fires.</>
+          )}
+        </p>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <Link
+            href="/scanner"
+            className="inline-flex items-center justify-center rounded-[10px] bg-[var(--t-green)] px-6 py-3 text-sm font-semibold text-[#04140B] transition hover:brightness-110"
+          >
+            Open the live scanner →
+          </Link>
+          <Link
+            href="/signals"
+            className="inline-flex items-center justify-center rounded-[10px] border t-line px-6 py-3 text-sm font-semibold transition hover:border-[var(--t-green)] hover:text-[var(--t-green)]"
+          >
+            Browse the verified archive
+          </Link>
+        </div>
+        <p className="mt-5 text-xs t-dim">
+          <Link href={next} className="underline hover:text-[var(--t-green)]">
+            Continue to your account →
+          </Link>
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -110,10 +171,10 @@ function AuthFormInner({ mode }: { mode: 'signup' | 'login' }) {
 
 // useSearchParams requires a Suspense boundary during prerender (same pattern as
 // app/admin/login/page.tsx).
-export function AuthForm({ mode }: { mode: 'signup' | 'login' }) {
+export function AuthForm({ mode, firedRecently, delayHours }: AuthFormProps) {
   return (
     <Suspense fallback={<div className="mt-6 h-72" />}>
-      <AuthFormInner mode={mode} />
+      <AuthFormInner mode={mode} firedRecently={firedRecently} delayHours={delayHours} />
     </Suspense>
   )
 }

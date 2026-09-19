@@ -34,6 +34,20 @@ The `editor` tool caps a single write at ~6000 characters. Estimate length BEFOR
 writing and split into chunks up front. Do not discover the limit by failing — every
 failed write is a full wasted round-trip.
 
+## Writing style
+
+Write in plain English. The reader is the repo owner, not a compiler.
+
+- Lead with the answer. Reasoning after, and only if it earns its place.
+- Short sentences. One idea each.
+- No jargon, no internal shorthand, no invented labels for things.
+- Do not paste raw command output, JSON blobs or big tables unless asked for them.
+  Say what the result was in a sentence.
+- Skip the hedging and the long parentheticals.
+- Don't narrate what you are about to do or what you just did at length. Do it,
+  then say what happened.
+- Say "no" or "I couldn't do that" plainly and immediately, not buried at the end.
+
 ## Known repo noise (not your problem, don't try to fix)
 
 - `npx tsc --noEmit` reports ~140 pre-existing errors. They cluster in `app/admin/*`,

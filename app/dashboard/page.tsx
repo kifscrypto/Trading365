@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { LiveRefresh } from '@/components/live-refresh'
+import { ScannerBanner } from '@/components/scanner-banner'
 import { SESSION_COOKIE, getAccountFromToken } from '@/lib/users'
 import {
   FREE_TIER_DELAY_HOURS, getOpenSignals, displayPair, sideLabel, tiersFor, fmtPrice, fmtUtc,
@@ -94,7 +95,13 @@ export default async function DashboardPage() {
   const liveNow = open.rows.length + open.hidden
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-12">
+    /* The terminal theme is opt-in per page: .t-theme repaints Tailwind's
+       semantic tokens for everything inside it (see globals.css). The extra
+       full-width wrapper exists so the surface background spans the viewport
+       rather than just the centred column. */
+    <div className="t-theme">
+      <div className="t365-texture z-0" aria-hidden="true" />
+      <div className="relative z-10 container mx-auto max-w-5xl px-4 py-12">
       <Breadcrumbs items={[{ label: 'Dashboard' }]} />
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -119,6 +126,16 @@ export default async function DashboardPage() {
             Signals that are running right now are reserved for members. Each one is published publicly only once it has
             resolved — that is what keeps the live alerts from being given away.
           </p>
+          {/* Funnel (b): the anonymous banner. Dismissible per session so it never
+              nags, and it states the delay plainly rather than hiding it — the
+              delay is the product, not a defect to be glossed over. */}
+          <ScannerBanner
+            storageKey="t365-anon-banner"
+            href="/signup?next=/dashboard"
+            action="Join free →"
+          >
+            Members see signals live. Free tier: {FREE_TIER_DELAY_HOURS}h delay.
+          </ScannerBanner>
           <div className="mt-6 flex gap-3 rounded-xl border border-border bg-card p-6">
             <Lock className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
             <div>
@@ -163,19 +180,32 @@ export default async function DashboardPage() {
                   {open.hidden} signal{open.hidden === 1 ? ' is' : 's are'} live but not visible to you yet.
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Members see these the moment they fire, with entry, targets and stop.
+                  You&apos;re on the {FREE_TIER_DELAY_HOURS}h-delayed free tier. Members see these the moment they fire,
+                  with entry, targets and stop.
                 </p>
+                {/* Funnel (c): the free-tier upgrade prompt, driven by the same
+                    open.hidden count the gate already computes. */}
+                <Button asChild size="sm" className="mt-3">
+                  <Link href="/account">
+                    Upgrade to live <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                  </Link>
+                </Button>
               </div>
             </div>
           )}
 
           {open.rows.length === 0 ? (
-            <div className="mt-6 rounded-xl border border-border bg-card p-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                No open signals right now — the scanner only fires when conditions favour the trade.
+            /* Funnel (a): the honest empty state. An empty book is the gate
+               working, not the product failing, and saying so plainly is more
+               persuasive than a spinner. It still ends somewhere real. */
+            <div className="t-panel mt-6 rounded-[10px] border t-line p-8 text-center">
+              <p className="font-semibold">The gate stood the book down.</p>
+              <p className="mt-1 text-sm t-dim">
+                No signals are open — the scanner only fires when conditions favour the trade, and it stays
+                deliberately quiet when they don&apos;t. Signals resume when conditions clear.
               </p>
-              <Button asChild variant="outline" className="mt-3">
-                <Link href="/signals">See verified results</Link>
+              <Button asChild variant="outline" className="mt-4">
+                <Link href="/signals">See the verified archive</Link>
               </Button>
             </div>
           ) : (
@@ -199,5 +229,7 @@ export default async function DashboardPage() {
         </Button>
       </div>
     </div>
+      </div>
+
   )
 }

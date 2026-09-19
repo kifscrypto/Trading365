@@ -45,7 +45,7 @@ export function SiteFooter() {
                 className="rounded-lg h-8 w-8"
               />
               <span className="text-lg font-bold tracking-tight text-foreground">
-                Trading<span className="text-primary">365</span>
+                Trading<span className="text-[var(--t-green)]">365</span>
               </span>
             </Link>
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground max-w-xs">
