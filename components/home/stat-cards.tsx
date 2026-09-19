@@ -6,8 +6,14 @@ export interface StatItem {
   label: string
   /** Raw number to count up to. null renders an em dash — never a zero. */
   value: number | null
-  /** 'pct' → signed, one decimal. 'int' → thousands-separated integer. */
+  /** 'pct' → one decimal. 'int' → thousands-separated integer. */
   format: 'pct' | 'int'
+  /**
+   * Prefix a "+" on positive values. Only correct for genuinely signed metrics
+   * like expectancy — a hit rate is not signed, and rendering it as "+63.5%"
+   * made the homepage disagree with /scanner on the same aggregate.
+   */
+  signed?: boolean
   /** Small tag under the number, e.g. "0 DELETED". */
   tag?: string
   /** Context line, e.g. "of N resolved". */
@@ -16,9 +22,9 @@ export interface StatItem {
   primary?: boolean
 }
 
-function formatValue(n: number, format: 'pct' | 'int'): string {
+function formatValue(n: number, format: 'pct' | 'int', signed: boolean): string {
   if (format === 'int') return Math.round(n).toLocaleString('en-US')
-  return `${n > 0 ? '+' : ''}${n.toFixed(1)}%`
+  return `${signed && n > 0 ? '+' : ''}${n.toFixed(1)}%`
 }
 
 const COUNT_MS = 900
@@ -60,7 +66,7 @@ function StatCard({ item }: { item: StatItem }) {
     return () => io.disconnect()
   }, [item.value])
 
-  const body = shown === null ? '—' : formatValue(shown, item.format)
+  const body = shown === null ? '—' : formatValue(shown, item.format, item.signed ?? false)
 
   return (
     <div

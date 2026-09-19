@@ -25,7 +25,7 @@ import { getArchiveStats, getArchivePage } from "@/lib/signals/public"
 import { StatusStrip } from "@/components/home/status-strip"
 import { Hero } from "@/components/home/hero"
 import { BigStats, type StatItem } from "@/components/home/stat-cards"
-import { LiveFeed } from "@/components/home/live-feed"
+import { SignalFeed } from "@/components/signal-feed"
 import { ResultMarquee } from "@/components/home/result-marquee"
 
 const BASE_URL = 'https://trading365.org'
@@ -156,6 +156,8 @@ export default async function HomePage() {
       label: "Net expectancy / signal",
       value: archiveStats.netExpectancy,
       format: "pct",
+      // The only signed metric on this page. A hit rate is not signed.
+      signed: true,
       tag: `After ${archiveStats.netRoundTripPct.toFixed(2)}% round trip`,
     },
     {
@@ -212,7 +214,7 @@ export default async function HomePage() {
             </Link>
           </div>
           <div className="mt-4">
-            <LiveFeed rows={feedRows} />
+            <SignalFeed rows={feedRows} />
           </div>
         </section>
 

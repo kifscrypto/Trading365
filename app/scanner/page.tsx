@@ -1,7 +1,6 @@
-import type { Metadata } from "next"
+﻿import type { Metadata } from "next"
 import { jsonLd } from "@/lib/utils/json-ld"
 import Link from "next/link"
-import { neon } from "@neondatabase/serverless"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingUp } from "lucide-react"
@@ -10,11 +9,13 @@ import { ScannerNewsletter } from "@/components/scanner-newsletter"
 import { computePnl } from "@/lib/scanner-pnl"
 import { getScannerStats } from "@/lib/scanner-stats"
 import { ScannerPnlCard } from "@/components/scanner-pnl-card"
+import { getArchiveStats, getArchivePage } from "@/lib/signals/public"
+import { SignalFeed } from "@/components/signal-feed"
 
 const BASE_URL = "https://trading365.org"
 
 // The advertised hit rate and tracked-setup count are DERIVED in
-// generateMetadata below — never typed in. A hardcoded claim silently becomes a
+// generateMetadata below â€” never typed in. A hardcoded claim silently becomes a
 // false one as soon as the record moves (this read "65%" while the
 // fired-signal record was 60.4%), and /scanner now sits one click away from the
 // public archive that publishes the real number.
@@ -23,7 +24,7 @@ const WALLET_ADDRESS = "0x2338748664bfdb1fce28a9ad63ce79d65b54eb2d"
 const TELEGRAM_SUB_HANDLE = "@Trading365Sub"
 
 export async function generateMetadata(): Promise<Metadata> {
-  const TITLE = "Altcoin Short Scanner — Real-Time Crypto Short Signals | Trading365"
+  const TITLE = "Altcoin Short Scanner â€” Real-Time Crypto Short Signals | Trading365"
   // Flooring to the nearest 5% keeps the claim strictly TRUE (never an
   // overstatement) while staying stable enough that the SERP snippet does not
   // churn on every revalidation. The exact figure lives in the page body.
@@ -84,64 +85,9 @@ const schemaData = {
 
 export const revalidate = 300
 
-interface RecentWin {
-  symbol: string
-  exchange: string
-  pctChange: number
-  tp: number // highest target reached: 1, 2 or 3
-  scannedAt: string
-}
-
-// Recent confirmed wins — sourced from the SAME dataset as the headline win
-// rate (downtrend regime, score ≥ 7, 24h outcome ≤ −1.5% = TP1), so the feed
-// can never contradict the advertised numbers.
-async function getRecentWins(): Promise<RecentWin[]> {
-  const sql = neon(process.env.DATABASE_URL!)
-  try {
-    const rows = await sql`
-      SELECT s.symbol, s.exchange,
-             o24.pct_change::float AS pct_change,
-             s.scanned_at
-      FROM scanner_signals s
-      JOIN scanner_outcomes o24 ON o24.signal_id = s.id AND o24.hours_after = 24
-      WHERE s.direction = 'short'
-        AND s.market_condition = 'downtrend'
-        AND s.score >= 7
-        AND o24.pct_change <= -1.5
-        AND s.scanned_at > NOW() - INTERVAL '30 days'
-      ORDER BY s.scanned_at DESC
-      LIMIT 12
-    `
-    return (rows as Array<{ symbol: string; exchange: string; pct_change: number; scanned_at: string }>).map(r => ({
-      symbol:    r.symbol,
-      exchange:  r.exchange,
-      pctChange: r.pct_change,
-      tp:        r.pct_change <= -4 ? 3 : r.pct_change <= -2.5 ? 2 : 1,
-      scannedAt: r.scanned_at,
-    }))
-  } catch {
-    return []
-  }
-}
-
-function fmtAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60_000)
-  if (mins < 60) return `${Math.max(1, mins)}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
-}
-
 function fmtPct(n: number | null, digits = 0): string {
-  if (n === null) return "—"
+  if (n === null) return "â€”"
   return `${n.toFixed(digits)}%`
-}
-
-const exchangeLabel: Record<string, string> = {
-  okx: "OKX",
-  hyperliquid: "Hyperliquid",
-  mexc: "MEXC",
 }
 
 const features = [
@@ -155,13 +101,13 @@ const features = [
     icon: ShieldCheck,
     title: "BTC Sentiment Filter",
     description:
-      "Signals are completely suppressed during neutral and uptrend market conditions — the scanner only fires when the macro supports the trade.",
+      "Signals are completely suppressed during neutral and uptrend market conditions â€” the scanner only fires when the macro supports the trade.",
   },
   {
     icon: Bell,
     title: "Telegram Alerts",
     description:
-      "Entry signals fired instantly with price, stop level and full signal breakdown. No dashboard to check — the alert comes to you.",
+      "Entry signals fired instantly with price, stop level and full signal breakdown. No dashboard to check â€” the alert comes to you.",
   },
 ]
 
@@ -175,10 +121,23 @@ const monthlyFeatures = [
 const quarterlyFeatures = ["Same features as monthly", "Priority support"]
 
 export default async function ScannerPage() {
-  const [stats, recentWins, pnl] = await Promise.all([getScannerStats("short"), getRecentWins(), computePnl()])
+  // Two datasets, deliberately kept apart:
+  //   stats        - the TP1-within-24h proxy on the scored candidate pool
+  //                  (scanner internals, quarantined in the UI)
+  //   archiveStats - the verified record, from the SAME rollUpArchive source the
+  //                  homepage and /signals render. The headline numbers use it.
+  const [stats, archiveStats, archivePage, pnl] = await Promise.all([
+    getScannerStats("short"),
+    getArchiveStats(30),
+    getArchivePage({ page: 1 }),
+    computePnl(),
+  ])
+  // The uncurated feed: the same rows the archive publishes, newest first, wins
+  // and losses together. Ten of them.
+  const feedRows = archivePage.rows.slice(0, 10)
   const { tp1WinRate, directionalAccuracy, totalSignals, signalsConfirmed, avgMove } = stats
   const automated = premiumEnabled()
-  // Prices and the savings badge are derived from PLANS — the same object
+  // Prices and the savings badge are derived from PLANS â€” the same object
   // /api/pay/create charges from. Typed into the markup they would silently
   // become a lie the moment a price changed, advertising a number the checkout
   // no longer honours.
@@ -196,7 +155,7 @@ export default async function ScannerPage() {
       {/* Hero */}
       <section className="relative border-b border-border bg-zinc-950 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
-        <div className="mx-auto max-w-4xl px-4 py-24 lg:px-6 text-center relative">
+        <div className="mx-auto max-w-7xl px-4 py-12 lg:px-6 text-center relative">
           <Badge variant="outline" className="mb-6 border-primary/40 text-primary gap-1.5">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
@@ -209,7 +168,7 @@ export default async function ScannerPage() {
             <span className="text-primary">Signals in Real Time.</span>
           </h1>
           <p className="mt-6 max-w-2xl mx-auto text-lg leading-relaxed text-muted-foreground text-balance">
-            Automated crypto altcoin scanner covering 100+ perpetual futures across OKX, Hyperliquid and Bybit. Short signals with entry price and stop level — and every result published on the site, wins and losses alike.
+            Automated crypto altcoin scanner covering 100+ perpetual futures across OKX, Hyperliquid and Bybit. Short signals with entry price and stop level â€” and every result published on the site, wins and losses alike.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Button size="lg" className="font-semibold gap-2 text-base" asChild>
@@ -225,7 +184,7 @@ export default async function ScannerPage() {
 
           {/* Telegram is a SECONDARY link now. As the primary button it sent the most
               engaged visitor on the whole site off-site before they had seen a single
-              result — nothing to attribute, no account to follow up with, and no way
+              result â€” nothing to attribute, no account to follow up with, and no way
               to show them the record they were about to subscribe to. */}
           <p className="mt-4 text-sm text-muted-foreground">
             Free account, no card needed. Prefer Telegram?{' '}
@@ -239,7 +198,7 @@ export default async function ScannerPage() {
 
       {/* Cross-link to long scanner */}
       <section className="bg-zinc-950">
-        <div className="mx-auto max-w-5xl px-4 py-6 lg:px-6">
+        <div className="mx-auto max-w-7xl px-4 py-5 lg:px-6">
           <Link
             href="/scanner/longs"
             className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-6 py-5 hover:border-emerald-500/40 transition-colors"
@@ -249,64 +208,135 @@ export default async function ScannerPage() {
                 <TrendingUp className="h-5 w-5 text-emerald-400" />
               </div>
               <p className="text-sm text-muted-foreground">
-                <span className="font-semibold text-foreground">New — the Long Scanner is live.</span> When BTC turns bullish, catch the upside: the same engine, inverted for long setups. One subscription covers both.
+                <span className="font-semibold text-foreground">New â€” the Long Scanner is live.</span> When BTC turns bullish, catch the upside: the same engine, inverted for long setups. One subscription covers both.
               </p>
             </div>
-            <span className="text-sm font-semibold text-emerald-400 whitespace-nowrap">Open Long Scanner →</span>
+            <span className="text-sm font-semibold text-emerald-400 whitespace-nowrap">Open Long Scanner â†’</span>
           </Link>
         </div>
       </section>
 
       {/* Stats bar */}
+      {/* -- The verified record ------------------------------------------------
+          These three are the HEADLINE numbers and they come from getArchiveStats
+          - the same rollUpArchive source the homepage and /signals render, so
+          all three agree by construction. They used to come from the
+          TP1-within-24h proxy quarantined below, which measures a different
+          thing on a different population (the scored candidate pool, not fired
+          signals) and so disagreed with the archive on every visit. */}
       <section id="performance" className="border-b border-border bg-zinc-900">
-        <div className="mx-auto max-w-5xl px-4 py-8 lg:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-5 divide-x divide-border text-center">
-            <div className="px-4 py-2">
-              <p className="text-3xl font-bold text-emerald-400 tabular-nums">{fmtPct(tp1WinRate)}</p>
-              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">TP1 Win Rate</p>
-              <p className="text-[10px] text-muted-foreground/70 mt-0.5">TP1 hit rate (1.5% move)</p>
-            </div>
-            <div className="px-4 py-2">
-              <p className="text-3xl font-bold text-foreground tabular-nums">{fmtPct(directionalAccuracy)}</p>
-              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Directional Accuracy</p>
-              <p className="text-[10px] text-muted-foreground/70 mt-0.5">price fell within 24h</p>
-            </div>
-            <div className="px-4 py-2">
-              <p className="text-3xl font-bold text-foreground tabular-nums">{totalSignals.toLocaleString()}</p>
-              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Total Signals Tracked</p>
-              <p className="text-[10px] text-muted-foreground/70 mt-0.5">and counting</p>
-            </div>
-            <div className="px-4 py-2">
-              <p className="text-3xl font-bold text-emerald-400 tabular-nums">{signalsConfirmed.toLocaleString()}</p>
-              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Signals Confirmed</p>
-              <p className="text-[10px] text-muted-foreground/70 mt-0.5">hit TP1 within 24h</p>
-            </div>
-            <div className="px-4 py-2">
-              <p className={`text-3xl font-bold tabular-nums ${avgMove !== null && avgMove < 0 ? "text-emerald-400" : "text-foreground"}`}>
-                {avgMove === null ? "—" : `${avgMove > 0 ? "+" : ""}${avgMove.toFixed(2)}%`}
+        <div className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5">
+              <p className="text-3xl font-bold text-emerald-400 tabular-nums">
+                {archiveStats.hitRate != null ? `${archiveStats.hitRate.toFixed(1)}%` : "-"}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Avg Move</p>
-              <p className="text-[10px] text-muted-foreground/70 mt-0.5">avg 24h move</p>
+              <p className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">Hit rate - last 30 days</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground/70">
+                {archiveStats.wins} of {archiveStats.resolved} resolved
+              </p>
             </div>
+            <div className="rounded-xl border border-border bg-zinc-950 p-5">
+              <p className={`text-3xl font-bold tabular-nums ${
+                archiveStats.netExpectancy == null
+                  ? ""
+                  : archiveStats.netExpectancy >= 0 ? "text-emerald-400" : "text-rose-400"
+              }`}>
+                {archiveStats.netExpectancy != null
+                  ? `${archiveStats.netExpectancy > 0 ? "+" : ""}${archiveStats.netExpectancy.toFixed(1)}%`
+                  : "-"}
+              </p>
+              <p className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">Net expectancy / signal</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground/70">
+                after {archiveStats.netRoundTripPct.toFixed(2)}% round trip
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-zinc-950 p-5">
+              <p className="text-3xl font-bold text-foreground tabular-nums">
+                {archivePage.total.toLocaleString("en-US")}
+              </p>
+              <p className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">Receipts published</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground/70">0 deleted</p>
+            </div>
+          </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            Same aggregates as the{" "}
+            <Link href="/signals" className="underline hover:text-foreground">public archive</Link> - every
+            resolved signal is published, wins and losses alike.
+          </p>
+
+          {/* -- Secondary metric, explicitly quarantined --------------------- */}
+          <div className="mt-8 rounded-xl border border-border bg-zinc-950/60 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Scanner internals - measured differently from the verified record
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground/70">
+              TP1 within 24 hours, over the scored candidate pool rather than fired signals. Not comparable
+              to the hit rate above, and not part of the published track record.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+              <div>
+                <p className="text-xl font-bold tabular-nums text-foreground">{fmtPct(tp1WinRate)}</p>
+                <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">TP1 win rate</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold tabular-nums text-foreground">{fmtPct(directionalAccuracy)}</p>
+                <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">Directional accuracy</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold tabular-nums text-foreground">{totalSignals.toLocaleString()}</p>
+                <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">Setups tracked</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold tabular-nums text-foreground">{signalsConfirmed.toLocaleString()}</p>
+                <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">TP1 within 24h</p>
+              </div>
+            </div>
+            <p className="mt-3 text-[10px] text-muted-foreground/60">
+              Average 24h move across that pool:{" "}
+              {avgMove === null ? "-" : `${avgMove > 0 ? "+" : ""}${avgMove.toFixed(2)}%`}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* -- Latest results: the uncurated feed -------------------------------- */}
+      <section className="border-b border-border bg-zinc-950">
+        <div className="mx-auto max-w-7xl px-4 py-8 lg:px-6">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <h2 className="text-xl font-bold text-foreground">
+              Latest results - published as they close
+            </h2>
+            <Link href="/signals" className="text-xs text-muted-foreground hover:text-foreground">
+              Full archive
+            </Link>
+          </div>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            The last ten resolved signals, newest first, wins and losses together. This replaced a
+            wins-only list: showing only the targets that hit, on a site whose entire claim is that
+            nothing is deleted, was the clearest contradiction of that claim anywhere on the site.
+          </p>
+          <div className="mt-4">
+            <SignalFeed rows={feedRows} />
           </div>
         </div>
       </section>
 
       {/* Simulated running P&L */}
-      <ScannerPnlCard book={pnl.short} accent="red" heading="Simulated P&L — Shorts" />
+      <ScannerPnlCard book={pnl.short} accent="red" heading="Simulated P&L â€” Shorts" />
 
-      {/* Pricing — directly after the proof (stats + P&L), not buried at the
+      {/* Pricing â€” directly after the proof (stats + P&L), not buried at the
           bottom: a visitor who has just seen the record should be able to act
           on it without scrolling past features, newsletter and the outro. */}
       <section id="pricing" className="border-t border-border bg-zinc-950">
-        <div className="mx-auto max-w-5xl px-4 py-20 lg:px-6">
+        <div className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
           <div className="text-center mb-10">
             <Badge variant="outline" className="mb-3 text-primary border-primary/30">
               Pricing
             </Badge>
             <h2 className="text-2xl font-bold text-foreground">Simple, Crypto-Native Pricing</h2>
             <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
-              Pay in USDT or ETH. Cancel any time — no auto-renewal.
+              Pay in USDT or ETH. Cancel any time â€” no auto-renewal.
             </p>
           </div>
 
@@ -327,7 +357,7 @@ export default async function ScannerPage() {
               </ul>
               {automated && (
                 <Button asChild className="mt-auto w-full font-semibold">
-                  <Link href="/signup?next=/account">Subscribe — ${monthlyUsd} / month</Link>
+                  <Link href="/signup?next=/account">Subscribe â€” ${monthlyUsd} / month</Link>
                 </Button>
               )}
             </div>
@@ -351,7 +381,7 @@ export default async function ScannerPage() {
               </ul>
               {automated && (
                 <Button asChild className="mt-auto w-full font-semibold">
-                  <Link href="/signup?next=/account">Subscribe — ${quarterlyUsd} / {quarterlyMonths} months</Link>
+                  <Link href="/signup?next=/account">Subscribe â€” ${quarterlyUsd} / {quarterlyMonths} months</Link>
                 </Button>
               )}
             </div>
@@ -364,7 +394,7 @@ export default async function ScannerPage() {
               <ol className="mt-5 space-y-4 text-sm">
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">1</span>
-                  <p className="text-muted-foreground">Create a free account, or sign in — your membership is attached to it, not to a chat handle.</p>
+                  <p className="text-muted-foreground">Create a free account, or sign in â€” your membership is attached to it, not to a chat handle.</p>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">2</span>
@@ -372,7 +402,7 @@ export default async function ScannerPage() {
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">3</span>
-                  <p className="text-muted-foreground">Access unlocks on your account the moment the payment confirms, for your full term. Telegram is optional — join the channel from your account page.</p>
+                  <p className="text-muted-foreground">Access unlocks on your account the moment the payment confirms, for your full term. Telegram is optional â€” join the channel from your account page.</p>
                 </li>
               </ol>
               <p className="mt-6 text-xs text-muted-foreground/80">
@@ -413,61 +443,15 @@ export default async function ScannerPage() {
         </div>
       </section>
 
-      {/* Recent wins */}
-      {recentWins.length > 0 && (
-        <section className="border-b border-border bg-zinc-950">
-          <div className="mx-auto max-w-5xl px-4 py-10 lg:px-6">
-            <div className="mb-5 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-foreground">
-                  Recent Wins
-                </h2>
-                <Badge variant="outline" className="gap-1.5 border-emerald-500/40 text-emerald-400">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  </span>
-                  Live
-                </Badge>
-              </div>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-                Confirmed shorts · last 30 days
-              </span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {recentWins.map((w, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] px-4 py-3"
-                >
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-foreground">${w.symbol.replace("USDT", "")}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {exchangeLabel[w.exchange] ?? w.exchange} · {fmtAgo(w.scannedAt)}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <span className="font-bold tabular-nums text-emerald-400">{w.pctChange.toFixed(1)}%</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/80">
-                      TP{w.tp} ✓
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* Feature cards */}
-      <section className="mx-auto max-w-5xl px-4 py-20 lg:px-6">
+      <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
         <div className="text-center mb-12">
           <Badge variant="outline" className="mb-3 text-primary border-primary/30">
             How It Works
           </Badge>
           <h2 className="text-2xl font-bold text-foreground">Built for Serious Shorts</h2>
           <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
-            Every signal is the output of a multi-factor scoring model — not a single indicator.
+            Every signal is the output of a multi-factor scoring model â€” not a single indicator.
           </p>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
@@ -493,28 +477,6 @@ export default async function ScannerPage() {
       {/* Newsletter capture */}
       <ScannerNewsletter accent="red" utmCampaign="short-scanner" />
 
-      {/* Bottom CTA */}
-      <section className="border-t border-border bg-zinc-900">
-        <div className="mx-auto max-w-4xl px-4 py-20 lg:px-6 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Zap className="h-6 w-6 text-primary" />
-          </div>
-          <h2 className="text-2xl font-bold text-foreground">Ready to Trade Smarter?</h2>
-          <p className="mt-3 text-sm text-muted-foreground max-w-md mx-auto">
-            Get real-time short signals delivered directly to your Telegram. No noise, no lag.
-          </p>
-          <div className="mt-8">
-            <Button size="lg" className="font-semibold gap-2 text-base" asChild>
-              {/* Signup, not Telegram — the hero comment above explains why the
-                  primary CTA must never punt the most engaged visitor off-site. */}
-              <Link href="/signup?next=/account">
-                Get Access
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </section>
     </div>
   )
 }

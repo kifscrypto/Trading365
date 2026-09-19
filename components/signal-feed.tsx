@@ -2,13 +2,18 @@ import Link from 'next/link'
 import { displayPair, sideLabel, fmtPct, fmtUtc, type Receipt } from '@/lib/signals/public'
 
 /**
- * The latest resolved receipts, newest first.
+ * The uncurated results feed. Shared by the homepage and /scanner.
  *
- * The caller passes one page of getArchivePage — the same rows, the same query,
- * the same ordering the public archive uses — simply sliced to six. There is no
- * filter on outcome here and there must never be one: "nothing deleted" is the
- * claim this whole page makes, so a stopped-out signal appears in this list
- * exactly like a winner does, in the order it closed.
+ * The caller passes rows from getArchivePage — the same rows, the same query,
+ * the same ordering the public archive uses — sliced to whatever length it
+ * wants. There is no filter on outcome here and there must never be one:
+ * "nothing deleted" is the claim the whole site makes, so a stopped-out signal
+ * appears in this list exactly like a winner does, in the order it closed.
+ *
+ * This lives outside components/home/ on purpose. It was built for the homepage,
+ * but /scanner now renders the identical feed — a page that showed only TP hits
+ * while the homepage showed losses was the single clearest contradiction of the
+ * brand claim on the whole site.
  */
 function resultText(r: Receipt): string {
   const move = r.move_pct != null ? fmtPct(r.move_pct) : '—'
@@ -17,7 +22,7 @@ function resultText(r: Receipt): string {
   return 'EXPIRED'
 }
 
-export function LiveFeed({ rows }: { rows: Receipt[] }) {
+export function SignalFeed({ rows }: { rows: Receipt[] }) {
   if (rows.length === 0) {
     return (
       <p className="t-panel rounded-[10px] border t-line p-6 text-center font-mono text-xs t-dim">
