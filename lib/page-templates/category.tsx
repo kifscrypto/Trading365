@@ -33,7 +33,7 @@ const BASE_URL = 'https://trading365.org'
 
 // Expanded descriptions (130–155 chars) for categories with previously short descriptions
 const DESCRIPTION_OVERRIDES: Record<string, string> = {
-  reviews: 'In-depth crypto exchange reviews covering fees, leverage, KYC requirements, bonuses, and security. Find the best platform for your trading style.',
+  reviews: 'In-depth crypto exchange reviews covering fees, leverage, KYC requirements, bonuses and security, so you can find the best platform for your trading style.',
   comparisons: 'Side-by-side crypto exchange comparisons to find your best fit. We compare fees, leverage, KYC rules, and bonuses so you don\'t have to.',
   'no-kyc': 'Find the best no-KYC crypto exchanges in 2026. Trade crypto without ID verification — compare fees, leverage, and bonuses on platforms that respect your privacy.',
 }

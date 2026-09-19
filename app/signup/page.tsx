@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   // disallowed URL can never be crawled to see this noindex, which is the
   // standard way sites accidentally leave sign-in pages indexed.
   robots: { index: false, follow: false },
+  // Self-canonical, so this page stops declaring the homepage as its canonical.
+  alternates: { canonical: 'https://trading365.org/signup' },
 }
 
 const BENEFITS = [

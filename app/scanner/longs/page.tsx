@@ -14,7 +14,7 @@ import { ScannerPnlCard } from "@/components/scanner-pnl-card"
 const BASE_URL = "https://trading365.org"
 
 const META_DESCRIPTION =
-  "Automated altcoin long scanner with real-time Telegram alerts. Covers 100+ perpetual futures across major exchanges. Only fires during confirmed bullish conditions. Live performance tracking."
+  "Altcoin long scanner covering 100+ perpetual futures, firing only in confirmed uptrends. Every signal and its verified result is published at fire time."
 
 const WALLET_ADDRESS = "0x2338748664bfdb1fce28a9ad63ce79d65b54eb2d"
 const TELEGRAM_SUB_HANDLE = "@Trading365Sub"

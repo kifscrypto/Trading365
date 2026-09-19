@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export interface StatItem {
   label: string
@@ -27,50 +27,20 @@ function formatValue(n: number, format: 'pct' | 'int', signed: boolean): string 
   return `${signed && n > 0 ? '+' : ''}${n.toFixed(1)}%`
 }
 
-const COUNT_MS = 900
-
 function StatCard({ item }: { item: StatItem }) {
-  // The server renders the FINAL number. The count-up only rewinds it to zero
-  // once the card is in view, which means the first client render is identical
-  // to the server HTML — no hydration mismatch — and a visitor who never
-  // scrolls here still sees the true figure.
-  const [shown, setShown] = useState<number | null>(item.value)
-  const ref = useRef<HTMLDivElement>(null)
-  const started = useRef(false)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el || item.value === null || started.current) return
-    // Respect the OS setting: show the final figure and skip the animation.
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0]?.isIntersecting || started.current) return
-        started.current = true
-        io.disconnect()
-        const target = item.value as number
-        const t0 = performance.now()
-        const step = (t: number) => {
-          const p = Math.min(1, (t - t0) / COUNT_MS)
-          const eased = 1 - Math.pow(1 - p, 3)
-          setShown(target * eased)
-          if (p < 1) requestAnimationFrame(step)
-          else setShown(target)
-        }
-        requestAnimationFrame(step)
-      },
-      { threshold: 0.35 },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [item.value])
-
-  const body = shown === null ? '—' : formatValue(shown, item.format, item.signed ?? false)
+  // NO COUNT-UP. These cards used to animate from 0 to the real value on first
+  // view, and that animation was itself the bug report: a screenshot taken
+  // mid-flight showed "40.5%" beside the caption "691 of 1089 resolved", which
+  // reads as a wrong denominator rather than as an animation frame. The tell was
+  // the ratio — 40.5/63.5 and 1447/2265 are both 0.639, the same frame.
+  //
+  // The whole claim of this site is that its numbers are checkable, so a number
+  // that is briefly WRONG on screen is worse than no animation at all. The value
+  // now renders at its true figure on the server and never moves.
+  const body = item.value === null ? '—' : formatValue(item.value, item.format, item.signed ?? false)
 
   return (
     <div
-      ref={ref}
       className="t-panel rounded-[10px] border t-line p-5"
       style={
         item.primary

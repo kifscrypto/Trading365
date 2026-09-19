@@ -11,6 +11,11 @@ export const metadata: Metadata = {
   title: 'Sign in',
   description: 'Sign in to your Trading365 account.',
   robots: { index: false, follow: false },
+  // Self-canonical. Without it the page inherits the layout's canonical and so
+  // declares the HOMEPAGE as its canonical URL — wrong even on a noindex page,
+  // and it was doing that on /signup, /login and /admin alike.
+  // noindex + self-canonical is the standard pairing.
+  alternates: { canonical: 'https://trading365.org/login' },
 }
 
 export default async function LoginPage() {

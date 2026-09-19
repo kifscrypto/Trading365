@@ -22,7 +22,7 @@ const OG_IMAGE = `${BASE_URL}/trading365-crypto-exchange-reviews.jpg`
 export const metadata: Metadata = {
   title: "Best Crypto Exchange Sign-Up Bonuses (2026)",
   description:
-    "Maximize your starting capital with verified crypto exchange sign-up bonuses. Exclusive referral codes and promotions updated monthly.",
+    "Compare verified crypto exchange sign-up bonuses side by side: exclusive referral codes, deposit-match offers and fee discounts, checked and updated monthly.",
   alternates: {
     canonical: `${BASE_URL}/bonuses`,
   },
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     type: "website",
     title: "Best Crypto Exchange Sign-Up Bonuses (2026) | Trading365",
     description:
-      "Maximize your starting capital with verified crypto exchange sign-up bonuses. Exclusive referral codes and promotions updated monthly.",
+      "Compare verified crypto exchange sign-up bonuses side by side: exclusive referral codes, deposit-match offers and fee discounts, checked and updated monthly.",
     url: `${BASE_URL}/bonuses`,
     images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "Best Crypto Exchange Bonuses 2026" }],
     siteName: "Trading365",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Best Crypto Exchange Sign-Up Bonuses (2026) | Trading365",
     description:
-      "Maximize your starting capital with verified crypto exchange sign-up bonuses. Exclusive referral codes and promotions updated monthly.",
+      "Compare verified crypto exchange sign-up bonuses side by side: exclusive referral codes, deposit-match offers and fee discounts, checked and updated monthly.",
     images: [OG_IMAGE],
   },
 }

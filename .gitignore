@@ -21,6 +21,10 @@ scripts/_*-backup-*.json
 # TypeScript build cache
 *.tsbuildinfo
 
+# Build / scratch logs. Two of these were committed by mistake once — the
+# .gitignore had no rule for them and they were caught by `git add -A`.
+*.log
+
 # Local tools (nested repos / exports)
 /trading365-ops/
 /trading365-ops.zip
