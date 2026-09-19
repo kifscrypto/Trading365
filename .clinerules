@@ -53,6 +53,29 @@ The `editor` tool caps a single write at ~6000 characters. Estimate length BEFOR
 writing and split into chunks up front. Do not discover the limit by failing — every
 failed write is a full wasted round-trip.
 
+## PowerShell and file encoding (this bit me — read before editing files via shell)
+
+`Get-Content` and `Out-File` in Windows PowerShell 5.1 default to the **ANSI
+codepage, not UTF-8**. Reading a UTF-8 source file with `Get-Content` and writing
+it back with `Out-File -Encoding utf8` silently converts every non-ASCII
+character to mojibake. An em-dash became `â€"` in `app/scanner/page.tsx` and
+shipped to production before anyone noticed.
+
+- **NEVER** use `Get-Content` / `Out-File` / `Set-Content` to rewrite a source
+  file that may contain non-ASCII. Use:
+  ```powershell
+  $c = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)
+  [System.IO.File]::WriteAllText($p, $c, (New-Object System.Text.UTF8Encoding($false)))
+  ```
+  `ReadAllText($p)` without an explicit encoding is also risky depending on the
+  host — always pass UTF8.
+- `Out-File -Encoding utf8` additionally writes a BOM, which source files should
+  not have.
+- Prefer the editor tool for anything containing `—`, `→`, `’`, `€` or accents.
+- **Mojibake check before committing** — any hit is a bug:
+  `Select-String -Path <files> -Pattern '\u00E2'`
+- Recognise the symptom on sight in rendered HTML: `â€"`, `â€™`, `â†'`, `Â·`.
+
 ## Writing style
 
 Write in plain English. The reader is the repo owner, not a compiler.

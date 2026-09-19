@@ -15,7 +15,7 @@ import { SignalFeed } from "@/components/signal-feed"
 const BASE_URL = "https://trading365.org"
 
 // The advertised hit rate and tracked-setup count are DERIVED in
-// generateMetadata below â€” never typed in. A hardcoded claim silently becomes a
+// generateMetadata below — never typed in. A hardcoded claim silently becomes a
 // false one as soon as the record moves (this read "65%" while the
 // fired-signal record was 60.4%), and /scanner now sits one click away from the
 // public archive that publishes the real number.
@@ -80,7 +80,7 @@ const schemaData = {
 export const revalidate = 300
 
 function fmtPct(n: number | null, digits = 0): string {
-  if (n === null) return "â€”"
+  if (n === null) return "—"
   return `${n.toFixed(digits)}%`
 }
 
@@ -95,13 +95,13 @@ const features = [
     icon: ShieldCheck,
     title: "BTC Sentiment Filter",
     description:
-      "Signals are completely suppressed during neutral and uptrend market conditions â€” the scanner only fires when the macro supports the trade.",
+      "Signals are completely suppressed during neutral and uptrend market conditions — the scanner only fires when the macro supports the trade.",
   },
   {
     icon: Bell,
     title: "Telegram Alerts",
     description:
-      "Entry signals fired instantly with price, stop level and full signal breakdown. No dashboard to check â€” the alert comes to you.",
+      "Entry signals fired instantly with price, stop level and full signal breakdown. No dashboard to check — the alert comes to you.",
   },
 ]
 
@@ -131,7 +131,7 @@ export default async function ScannerPage() {
   const feedRows = archivePage.rows.slice(0, 10)
   const { tp1WinRate, directionalAccuracy, totalSignals, signalsConfirmed, avgMove } = stats
   const automated = premiumEnabled()
-  // Prices and the savings badge are derived from PLANS â€” the same object
+  // Prices and the savings badge are derived from PLANS — the same object
   // /api/pay/create charges from. Typed into the markup they would silently
   // become a lie the moment a price changed, advertising a number the checkout
   // no longer honours.
@@ -162,7 +162,7 @@ export default async function ScannerPage() {
             <span className="text-primary">Signals in Real Time.</span>
           </h1>
           <p className="mt-6 max-w-2xl mx-auto text-lg leading-relaxed text-muted-foreground text-balance">
-            Automated crypto altcoin scanner covering 100+ perpetual futures across OKX, Hyperliquid and Bybit. Short signals with entry price and stop level â€” and every result published on the site, wins and losses alike.
+            Automated crypto altcoin scanner covering 100+ perpetual futures across OKX, Hyperliquid and Bybit. Short signals with entry price and stop level — and every result published on the site, wins and losses alike.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Button size="lg" className="font-semibold gap-2 text-base" asChild>
@@ -178,7 +178,7 @@ export default async function ScannerPage() {
 
           {/* Telegram is a SECONDARY link now. As the primary button it sent the most
               engaged visitor on the whole site off-site before they had seen a single
-              result â€” nothing to attribute, no account to follow up with, and no way
+              result — nothing to attribute, no account to follow up with, and no way
               to show them the record they were about to subscribe to. */}
           <p className="mt-4 text-sm text-muted-foreground">
             Free account, no card needed. Prefer Telegram?{' '}
@@ -202,10 +202,10 @@ export default async function ScannerPage() {
                 <TrendingUp className="h-5 w-5 text-emerald-400" />
               </div>
               <p className="text-sm text-muted-foreground">
-                <span className="font-semibold text-foreground">New â€” the Long Scanner is live.</span> When BTC turns bullish, catch the upside: the same engine, inverted for long setups. One subscription covers both.
+                <span className="font-semibold text-foreground">New — the Long Scanner is live.</span> When BTC turns bullish, catch the upside: the same engine, inverted for long setups. One subscription covers both.
               </p>
             </div>
-            <span className="text-sm font-semibold text-emerald-400 whitespace-nowrap">Open Long Scanner â†’</span>
+            <span className="text-sm font-semibold text-emerald-400 whitespace-nowrap">Open Long Scanner →</span>
           </Link>
         </div>
       </section>
@@ -317,9 +317,9 @@ export default async function ScannerPage() {
       </section>
 
       {/* Simulated running P&L */}
-      <ScannerPnlCard book={pnl.short} accent="red" heading="Simulated P&L â€” Shorts" />
+      <ScannerPnlCard book={pnl.short} accent="red" heading="Simulated P&L — Shorts" />
 
-      {/* Pricing â€” directly after the proof (stats + P&L), not buried at the
+      {/* Pricing — directly after the proof (stats + P&L), not buried at the
           bottom: a visitor who has just seen the record should be able to act
           on it without scrolling past features, newsletter and the outro. */}
       <section id="pricing" className="border-t border-border bg-zinc-950">
@@ -330,7 +330,7 @@ export default async function ScannerPage() {
             </Badge>
             <h2 className="text-2xl font-bold text-foreground">Simple, Crypto-Native Pricing</h2>
             <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
-              Pay in USDT or ETH. Cancel any time â€” no auto-renewal.
+              Pay in USDT or ETH. Cancel any time — no auto-renewal.
             </p>
           </div>
 
@@ -351,7 +351,7 @@ export default async function ScannerPage() {
               </ul>
               {automated && (
                 <Button asChild className="mt-auto w-full font-semibold">
-                  <Link href="/signup?next=/account">Subscribe â€” ${monthlyUsd} / month</Link>
+                  <Link href="/signup?next=/account">Subscribe — ${monthlyUsd} / month</Link>
                 </Button>
               )}
             </div>
@@ -375,7 +375,7 @@ export default async function ScannerPage() {
               </ul>
               {automated && (
                 <Button asChild className="mt-auto w-full font-semibold">
-                  <Link href="/signup?next=/account">Subscribe â€” ${quarterlyUsd} / {quarterlyMonths} months</Link>
+                  <Link href="/signup?next=/account">Subscribe — ${quarterlyUsd} / {quarterlyMonths} months</Link>
                 </Button>
               )}
             </div>
@@ -388,7 +388,7 @@ export default async function ScannerPage() {
               <ol className="mt-5 space-y-4 text-sm">
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">1</span>
-                  <p className="text-muted-foreground">Create a free account, or sign in â€” your membership is attached to it, not to a chat handle.</p>
+                  <p className="text-muted-foreground">Create a free account, or sign in — your membership is attached to it, not to a chat handle.</p>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">2</span>
@@ -396,7 +396,7 @@ export default async function ScannerPage() {
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">3</span>
-                  <p className="text-muted-foreground">Access unlocks on your account the moment the payment confirms, for your full term. Telegram is optional â€” join the channel from your account page.</p>
+                  <p className="text-muted-foreground">Access unlocks on your account the moment the payment confirms, for your full term. Telegram is optional — join the channel from your account page.</p>
                 </li>
               </ol>
               <p className="mt-6 text-xs text-muted-foreground/80">
@@ -445,7 +445,7 @@ export default async function ScannerPage() {
           </Badge>
           <h2 className="text-2xl font-bold text-foreground">Built for Serious Shorts</h2>
           <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
-            Every signal is the output of a multi-factor scoring model â€” not a single indicator.
+            Every signal is the output of a multi-factor scoring model — not a single indicator.
           </p>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
