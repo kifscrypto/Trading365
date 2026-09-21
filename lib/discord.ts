@@ -139,53 +139,10 @@ export interface DiscordSideStats {
 const pct = (n: number | null, digits = 1) => (n == null ? '—' : `${n.toFixed(digits)}%`)
 const signed = (n: number | null) => (n == null ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(1)}%`)
 
-export interface DiscordRecentWin {
-  side: 'short' | 'long'
-  symbol: string
-  pctChange: number
-}
-
-export interface DiscordDigest {
-  shortHitRate: number | null
-  shortFired: number
-  longHitRate: number | null
-  longFired: number
-  pnlReturnPct: number // combined book return %, e.g. +51.5
-  pnlBalance: number // combined book balance, e.g. 1515
-  pnlWins: number
-  pnlTrades: number
-  recentWins: DiscordRecentWin[]
-}
-
-// Gold daily digest — Signal Hit Rate + Simulated P&L + Recent Wins.
-export async function discordDigest(d: DiscordDigest): Promise<void> {
-  try {
-    const winsList =
-      d.recentWins.length > 0
-        ? d.recentWins
-            .slice(0, 8)
-            .map(
-              (w) =>
-                `${w.side === 'short' ? '🔴' : '🟢'} **$${w.symbol}** ${w.pctChange > 0 ? '+' : ''}${w.pctChange.toFixed(1)}%`,
-            )
-            .join('\n')
-        : '—'
-    const embed: Embed = {
-      color: COLORS.stats,
-      title: '📊 Daily Scanner Report',
-      fields: [
-        { name: '🎯 Signal Hit Rate', value: `🔴 Short **${pct(d.shortHitRate)}** (${d.shortFired})\n🟢 Long **${pct(d.longHitRate)}** (${d.longFired})`, inline: true },
-        { name: '💰 Simulated P&L', value: `**${signed(d.pnlReturnPct)}**\n$1,000 → $${Math.round(d.pnlBalance).toLocaleString()}\n${d.pnlWins}/${d.pnlTrades} wins`, inline: true },
-        { name: '🔥 Recent Wins', value: winsList, inline: false },
-      ],
-      footer: { text: 'Trading365 • trading365.org/scanner' },
-      timestamp: new Date().toISOString(),
-    }
-    await post([embed])
-  } catch (err) {
-    console.error('[discord] discordDigest failed:', err)
-  }
-}
+// DiscordDigest / DiscordRecentWin lived here. The daily post is now
+// lib/daily-update.ts, which renders Telegram, Discord and X from ONE aggregate —
+// see that module's header for why three parallel implementations was the problem.
+// DiscordSideStats below is kept: discordStats() still uses it.
 
 export interface DiscordArticle {
   title: string
@@ -221,36 +178,9 @@ export async function discordArticle(a: DiscordArticle): Promise<void> {
   }
 }
 
-// Plain-text version of the daily digest for Telegram (HTML parse_mode).
-export function digestTelegramText(d: DiscordDigest): string {
-  const wins =
-    d.recentWins.length > 0
-      ? d.recentWins
-          .slice(0, 8)
-          .map((w) => `${w.side === 'short' ? '🔴' : '🟢'} $${w.symbol} ${w.pctChange > 0 ? '+' : ''}${w.pctChange.toFixed(1)}%`)
-          .join('\n')
-      : '—'
-  return (
-    '<b>' +
-    [
-      '📊 DAILY SCANNER REPORT',
-      '',
-      '🎯 Signal Hit Rate:',
-      `   🔴 Short: ${pct(d.shortHitRate)} (${d.shortFired})`,
-      `   🟢 Long: ${pct(d.longHitRate)} (${d.longFired})`,
-      '',
-      '💰 Simulated P&L:',
-      `   ${signed(d.pnlReturnPct)}  ($1,000 → $${Math.round(d.pnlBalance).toLocaleString()})`,
-      `   ${d.pnlWins}/${d.pnlTrades} wins`,
-      '',
-      '🔥 Recent Wins:',
-      wins,
-      '',
-      '⚡ trading365.org/scanner',
-    ].join('\n') +
-    '</b>'
-  )
-}
+// digestTelegramText lived here — a Telegram formatter inside the Discord module,
+// which is part of why the daily post drifted. It is now renderTelegramDaily() in
+// lib/daily-update.ts.
 
 // Gold performance-digest embed — the same numbers shown on /live.
 export async function discordStats(short: DiscordSideStats, long: DiscordSideStats): Promise<void> {

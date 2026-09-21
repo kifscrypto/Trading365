@@ -34,8 +34,8 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/scanner/daily-digest?cron=true",
-      "schedule": "3 13 * * *"
+      "path": "/api/scanner/daily-update?cron=true",
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/admin/affiliate-earnings/sync?cron=true",
@@ -52,10 +52,6 @@
     {
       "path": "/api/scanner/shadow-patterns?cron=true",
       "schedule": "13,43 * * * *"
-    },
-    {
-      "path": "/api/scanner/discord-snapshot?cron=true",
-      "schedule": "5 0 * * *"
     }
   ]
 }

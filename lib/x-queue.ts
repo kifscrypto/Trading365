@@ -15,14 +15,16 @@
  */
 import { neon } from '@neondatabase/serverless'
 import {
-  SITE, displayPair, fmtPrice, receiptUrl,
+  SITE, displayPair, fmtPrice, getArchiveStatsForDay, getDayBest,
+  getPublishedCount, receiptUrl,
   type Receipt,
 } from '@/lib/signals/public'
 import {
-  buildDigestTweet, choosePosts, maxPostsPerDay, postTweet,
+  choosePosts, maxPostsPerDay, postTweet,
   postingMode, type PostCandidate,
 } from '@/lib/x'
 import { buildXTweet, type XSignalInput } from '@/lib/signal-messages'
+import { buildDailyUpdate, previousUtcDay, renderXDaily } from '@/lib/daily-update'
 
 const db = neon(process.env.DATABASE_URL!)
 
@@ -249,10 +251,15 @@ export async function drainReceiptQueue(): Promise<DrainResult> {
   return out
 }
 
-/** True once the configured UTC hour has passed (the digest is a once-a-day post). */
+/**
+ * True once the configured UTC hour has passed (the digest is a once-a-day post).
+ *
+ * Default 8 so the X digest lands with the Telegram and Discord daily update
+ * rather than three hours away from it. Override with X_DIGEST_HOUR_UTC.
+ */
 export function digestDue(now: Date = new Date()): boolean {
-  const hour = Number(process.env.X_DIGEST_HOUR_UTC ?? 20)
-  return now.getUTCHours() >= (Number.isFinite(hour) ? hour : 20)
+  const hour = Number(process.env.X_DIGEST_HOUR_UTC ?? 8)
+  return now.getUTCHours() >= (Number.isFinite(hour) ? hour : 8)
 }
 
 export interface DigestResult {
@@ -263,38 +270,47 @@ export interface DigestResult {
 
 /**
  * One aggregate post per UTC day. Idempotent on the date, so re-running the cron
- * cannot repeat it, and skipped entirely on days with no signals.
+ * cannot repeat it.
+ *
+ * THE NUMBERS COME FROM lib/daily-update.ts — the same module the Telegram and
+ * Discord daily update render from. This used to run its own COUNT over the
+ * IN-PROGRESS day, so the X digest could quote a different figure than the
+ * Discord snapshot for the same 24 hours, and its hit rate kept moving after
+ * publication. The day reported is now the one that ended.
+ *
+ * A quiet day still posts: renderXDaily reports the gate standing the book down
+ * as the fact it is. The old early return skipped it, which made the account look
+ * dead on exactly the days it had something honest to say.
  */
 export async function postDailyDigest(): Promise<DigestResult> {
   try {
     await setupXPostsTable()
-    const day = new Date().toISOString().slice(0, 10)
+    const day = previousUtcDay()
 
     const already = (await db`
       SELECT 1 FROM x_posts WHERE kind = 'digest' AND ref = ${day} LIMIT 1
     `) as unknown as unknown[]
     if (already.length > 0) return { posted: false, reason: 'already-posted-today' }
 
-    const [s] = (await db`
-      SELECT
-        COUNT(*) FILTER (WHERE fired_at >= (date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'))::int AS fired,
-        COUNT(*) FILTER (WHERE closed_at >= (date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC') AND status LIKE 'tp%')::int AS wins,
-        COUNT(*) FILTER (WHERE closed_at >= (date_trunc('day', NOW() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC') AND status = 'sl')::int AS losses,
-        (SELECT COUNT(*)::int FROM signal_receipts WHERE status <> 'fired') AS published
-      FROM signal_receipts
-    `) as unknown as { fired: number; wins: number; losses: number; published: number }[]
+    // The SAME module Telegram and Discord render from, over the day that ENDED.
+    const [stats, best, publishedTotal] = await Promise.all([
+      getArchiveStatsForDay(day),
+      getDayBest(day),
+      getPublishedCount(),
+    ])
 
-    if (!s || s.fired === 0) return { posted: false, reason: 'no-signals-today' }
-
-    const resolved = s.wins + s.losses
-    const text = buildDigestTweet({
-      fired: s.fired,
-      wins: s.wins,
-      losses: s.losses,
-      hitRate: resolved > 0 ? `${((s.wins / resolved) * 100).toFixed(1)}%` : null,
-      published: s.published,
-      url: `${SITE}/signals`,
-    })
+    // No zero-day early return: renderXDaily reports a stood-down gate as the
+    // fact it is. Skipping it silently made the account look dead on quiet days.
+    const text = renderXDaily(
+      buildDailyUpdate({
+        day,
+        stats,
+        best,
+        publishedTotal,
+        url: `${SITE}/signals`,
+        generatedAt: new Date().toISOString(),
+      }),
+    )
 
     // Manual mode: hand the digest over instead of posting it, and record it with
     // status 'manual' so the once-a-day idempotency still holds.

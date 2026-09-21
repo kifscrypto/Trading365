@@ -15,7 +15,10 @@ import {
   buildFiredTelegram, buildOutcomeTelegram, buildXTweet, buildWeeklyDigestTweet,
   isTelegramHtmlSafe, tierPct,
 } from '../lib/signal-messages.ts'
-import { buildDigestTweet, maxPostsPerDay, postingMode, tweetLength } from '../lib/x.ts'
+import { maxPostsPerDay, postingMode, tweetLength } from '../lib/x.ts'
+import {
+  buildDailyUpdate, renderXDaily, renderTelegramDaily, renderDiscordDaily,
+} from '../lib/daily-update.ts'
 
 const LIMIT = 280
 const URL = 'https://trading365.org/signals/btw-short-20260912-a1b2c3'
@@ -59,13 +62,45 @@ const OUTCOME = [
   ['Telegram · LOSS (long, no receipt)', buildOutcomeTelegram({ kind: 'loss', side: 'long', pair: 'LSK', timeframe: '4H', exchange: 'BITUNIX', entry: '12.4800', lossDistancePct: 4.0, receiptUrl: null })],
 ]
 
+// A synthetic complete UTC day, so every daily-update shape renders
+// deterministically with no database and no network. Same aggregate shape
+// getArchiveStatsForDay() returns.
+const SYNTH_DAY = {
+  day: '2026-09-20', days: 1, total: 61, fired: 61, open: 4, resolved: 57,
+  wins: 42, losses: 13, expired: 2, hitRate: 73.7, avgMove: 4.12,
+  expectancy: 1.02, netExpectancy: 0.86, netSamples: 57, netDerived: 0,
+  feeModelVersion: 'v1', netRoundTripPct: 0.16,
+  short: { resolved: 20, wins: 14, losses: 5, expired: 1, hitRate: 70.0, avgMove: 3.1, expectancy: 0.9, netExpectancy: 0.74 },
+  long: { resolved: 37, wins: 28, losses: 8, expired: 1, hitRate: 75.7, avgMove: 4.6, expectancy: 1.1, netExpectancy: 0.94 },
+  firedBySide: { long: 40, short: 21 },
+}
+const SYNTH_UPDATE = buildDailyUpdate({
+  day: '2026-09-20',
+  stats: SYNTH_DAY,
+  best: { symbol: 'CRVUSDT', side: 'long', status: 'tp5', movePct: 8.0 },
+  publishedTotal: 2349,
+  url: 'https://trading365.org/signals',
+  generatedAt: '2026-09-21T08:00:00.000Z',
+})
+
+// The gate standing both books down — a post, not silence.
+const QUIET_UPDATE = buildDailyUpdate({
+  day: '2026-09-19',
+  stats: { ...SYNTH_DAY, fired: 0, open: 0, resolved: 0, wins: 0, losses: 0, expired: 0, hitRate: null, netExpectancy: null, netSamples: 0, short: null, long: null, firedBySide: { long: 0, short: 0 } },
+  best: null,
+  publishedTotal: 2349,
+  url: 'https://trading365.org/signals',
+  generatedAt: '2026-09-20T08:00:00.000Z',
+})
+
 const XSHAPES = [
   ['X · WIN', buildXTweet({ kind: 'win', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', level: 1, receiptUrl: URL })],
   ['X · BIG WIN', buildXTweet({ kind: 'bigwin', side: 'short', pair: 'US', timeframe: '4H', exchange: 'OKX', entry: '0.0412', level: 4, receiptUrl: URL })],
   ['X · LOSS', buildXTweet({ kind: 'loss', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', lossDistancePct: 3.62, receiptUrl: URL })],
   ['X · FIRED', buildXTweet({ kind: 'fired', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', tp1: '0.6929', stop: '0.7284', receiptUrl: URL })],
   ['X · WEEKLY DIGEST', buildWeeklyDigestTweet({ signals: 39, tpCount: 21, avgNet: 0.83 })],
-  ['X · queue daily digest (unchanged)', buildDigestTweet({ fired: 39, wins: 26, losses: 8, hitRate: '76.5%', published: 2461, url: 'https://trading365.org/signals' })],
+  ['X · DAILY UPDATE', renderXDaily(SYNTH_UPDATE)],
+  ['X · DAILY UPDATE (quiet day)', renderXDaily(QUIET_UPDATE)],
 ]
 
 console.log(`posting mode: ${postingMode()}   max receipt posts/day: ${maxPostsPerDay()}`)
@@ -219,6 +254,40 @@ if (wantCompare) {
     }
   }
 }
+
+console.log('\n\n########## DAILY UPDATE — ALL THREE SURFACES ##########')
+const tgDaily = renderTelegramDaily(SYNTH_UPDATE)
+show('TELEGRAM · daily update (HTML parse_mode)', tgDaily)
+// The old shape wrapped the ENTIRE message in <b>, so nothing had hierarchy.
+check('daily: has bold headings', /<b>/.test(tgDaily))
+check('daily: has italic caveats', /<i>/.test(tgDaily))
+check('daily: NOT entirely bold', !tgDaily.trim().startsWith('<b>'))
+show('TELEGRAM · daily update (quiet day)', renderTelegramDaily(QUIET_UPDATE))
+
+console.log('\n\n--- DISCORD · daily update embed ---')
+console.log(JSON.stringify(renderDiscordDaily(SYNTH_UPDATE), null, 2))
+console.log('\n--- DISCORD · daily update embed (quiet day) ---')
+console.log(JSON.stringify(renderDiscordDaily(QUIET_UPDATE), null, 2))
+
+show('X · daily update', renderXDaily(SYNTH_UPDATE))
+check('x daily within 280', tweetLength(renderXDaily(SYNTH_UPDATE)) <= LIMIT, `${tweetLength(renderXDaily(SYNTH_UPDATE))}`)
+check('x daily quiet within 280', tweetLength(renderXDaily(QUIET_UPDATE)) <= LIMIT, `${tweetLength(renderXDaily(QUIET_UPDATE))}`)
+
+// GUARD FOR A WHOLE CLASS OF BUG. A bad destructuring or a missing aggregate
+// field renders as the literal string "undefined"/"NaN" and still passes a
+// length check — the X stamp shipped as "9 undefined" until this caught it. Every
+// surface is asserted on every shape.
+for (const [label, text] of [
+  ['telegram daily', renderTelegramDaily(SYNTH_UPDATE)],
+  ['telegram daily quiet', renderTelegramDaily(QUIET_UPDATE)],
+  ['discord daily', JSON.stringify(renderDiscordDaily(SYNTH_UPDATE))],
+  ['discord daily quiet', JSON.stringify(renderDiscordDaily(QUIET_UPDATE))],
+  ['x daily', renderXDaily(SYNTH_UPDATE)],
+  ['x daily quiet', renderXDaily(QUIET_UPDATE)],
+]) {
+  check(`${label}: no undefined/NaN`, !/undefined|NaN/.test(text))
+}
+check('x daily: real date stamp', /20 Sep/.test(renderXDaily(SYNTH_UPDATE)), renderXDaily(SYNTH_UPDATE).split('\n')[0])
 
 console.log(`\n\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`)
 process.exitCode = failures === 0 ? 0 : 1

@@ -210,33 +210,14 @@ export function choosePosts<T extends PostCandidate>(candidates: T[], limit: num
 
 // ── Digest ──────────────────────────────────────────────────────────────────
 /**
- * Daily aggregate post for the automated queue.
+ * The daily digest moved to renderXDaily() in lib/daily-update.ts.
  *
- * NOTE the distinction from buildWeeklyDigestTweet in lib/signal-messages.ts:
- * this is the DAILY digest the cron posts (fired/hit/stopped today, plus the
- * running published count), while the weekly one is the manual cross-post shape
- * that quotes net expectancy. They answer different questions and both exist on
- * purpose — do not collapse them.
+ * It was a fourth parallel implementation: its own COUNT query, over the
+ * IN-PROGRESS day, with wording and numbers that could differ from the Telegram
+ * and Discord posts describing the same 24 hours. All three now render from one
+ * aggregate, and the day reported is the one that ENDED.
+ *
+ * buildWeeklyDigestTweet in lib/signal-messages.ts is NOT affected — it is the
+ * manual weekly cross-post that quotes net expectancy, which is a different
+ * question and still exists on purpose.
  */
-export function buildDigestTweet(d: {
-  fired: number
-  wins: number
-  losses: number
-  hitRate: string | null
-  published: number
-  url: string
-}): string {
-  return [
-    '📊 Trading365 — today',
-    '',
-    `${d.fired} signal${d.fired === 1 ? '' : 's'} fired`,
-    `✅ ${d.wins} hit a target`,
-    `🛑 ${d.losses} stopped out`,
-    ...(d.hitRate ? [`Hit rate ${d.hitRate}`] : []),
-    '',
-    `${d.published.toLocaleString('en-US')} signals published and counted, never edited:`,
-    d.url,
-    '',
-    'Not financial advice.',
-  ].join('\n')
-}

@@ -1157,6 +1157,29 @@ export async function getArchivePage(f: ArchiveFilters): Promise<ArchivePage> {
   }
 }
 
+/**
+ * The all-time published count — the same figure /signals calls "signals
+ * published in total" and the homepage's "Receipts published" card shows.
+ *
+ * Extracted so the daily update can quote it WITHOUT fetching a page of rows:
+ * getArchivePage() carries the identical predicate but pulls 20 receipts to
+ * report one integer. The predicate is duplicated here rather than shared by
+ * string-building because the two callers need different projections, and a
+ * predicate this short is cheaper to keep in step than to parameterise. If the
+ * definition of "published" ever changes, both must change together.
+ */
+export async function getPublishedCount(): Promise<number> {
+  try {
+    const [row] = (await sql`
+      SELECT COUNT(*)::int AS n FROM signal_receipts WHERE status <> 'fired'
+    `) as unknown as { n: number }[]
+    return row?.n ?? 0
+  } catch (err) {
+    console.error('[signals/public] getPublishedCount failed:', err)
+    return 0
+  }
+}
+
 // ── Live (unresolved) signals — the members' view ───────────────────────────
 /**
  * How long the free tier waits before an unresolved signal becomes visible.
