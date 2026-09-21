@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
 import { runQueue } from '@/lib/x-queue'
-import { maxPostsPerDay, postingMode, xConfigured } from '@/lib/x'
+import {
+  dayResetHourUtc, maxPostsPerDay, minGapMinutes, postingDayStart, postingMode, xConfigured,
+} from '@/lib/x'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -34,6 +36,12 @@ export async function GET(request: Request) {
     mode: postingMode(),
     configured: xConfigured(),
     maxPostsPerDay: maxPostsPerDay(),
+    dayResetHourUtc: dayResetHourUtc(),
+    minGapMinutes: minGapMinutes(),
+    // When the current posting day began. Makes the cap window legible from the
+    // response instead of something the reader has to work out — the old window
+    // was an invisible midnight-UTC boundary that put every post at 3am local.
+    postingDayStart: postingDayStart(new Date()).toISOString(),
     ...out,
   })
 }

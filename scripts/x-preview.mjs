@@ -15,7 +15,9 @@ import {
   buildFiredTelegram, buildOutcomeTelegram, buildXTweet, buildWeeklyDigestTweet,
   isTelegramHtmlSafe, tierPct,
 } from '../lib/signal-messages.ts'
-import { maxPostsPerDay, postingMode, tweetLength } from '../lib/x.ts'
+import {
+  dayResetHourUtc, maxPostsPerDay, minGapMinutes, postingDayStart, postingMode, tweetLength,
+} from '../lib/x.ts'
 import {
   buildDailyUpdate, renderXDaily, renderTelegramDaily, renderDiscordDaily,
 } from '../lib/daily-update.ts'
@@ -288,6 +290,24 @@ for (const [label, text] of [
   check(`${label}: no undefined/NaN`, !/undefined|NaN/.test(text))
 }
 check('x daily: real date stamp', /20 Sep/.test(renderXDaily(SYNTH_UPDATE)), renderXDaily(SYNTH_UPDATE).split('\n')[0])
+
+console.log('\n\n########## POSTING WINDOW (the 3am-burst fix) ##########')
+const resetHour = dayResetHourUtc()
+console.log(`  reset hour ${resetHour}:00 UTC · min gap ${minGapMinutes()}m · cap ${maxPostsPerDay()}/day`)
+const beforeReset = postingDayStart(new Date('2026-09-21T07:59:00Z'), resetHour)
+const afterReset = postingDayStart(new Date('2026-09-21T08:01:00Z'), resetHour)
+console.log(`  2026-09-21T07:59Z -> window began ${beforeReset.toISOString()}`)
+console.log(`  2026-09-21T08:01Z -> window began ${afterReset.toISOString()}`)
+// The whole point of the offset: two minutes apart on the same calendar date must
+// fall in DIFFERENT windows. Under the old midnight-UTC rule they were the same
+// window, which is why the day's allowance refilled at 3am local and burst.
+check('window rolls at the reset hour, not at midnight', beforeReset.toISOString() !== afterReset.toISOString())
+check('before the reset hour, still in YESTERDAY window', beforeReset.toISOString() === '2026-09-20T08:00:00.000Z', beforeReset.toISOString())
+check('after the reset hour, in TODAY window', afterReset.toISOString() === '2026-09-21T08:00:00.000Z', afterReset.toISOString())
+// And a midnight reset must NOT have this property, or the test above proves nothing.
+const midBefore = postingDayStart(new Date('2026-09-21T07:59:00Z'), 0)
+const midAfter = postingDayStart(new Date('2026-09-21T08:01:00Z'), 0)
+check('a midnight reset WOULD collapse them (control)', midBefore.toISOString() === midAfter.toISOString())
 
 console.log(`\n\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`)
 process.exitCode = failures === 0 ? 0 : 1

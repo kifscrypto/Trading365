@@ -40,6 +40,52 @@ export function maxPostsPerDay(): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 6
 }
 
+/**
+ * The UTC hour the daily posting allowance resets. Default 8.
+ *
+ * THE CAP USED TO RESET AT 00:00 UTC, and that is why the owner saw six messages
+ * at 03:00 local time. The window was `date_trunc('day', NOW() AT TIME ZONE
+ * 'UTC')`, so the allowance refilled at midnight UTC — 3am in a UTC+3 locale —
+ * and all six posts fired in one burst the instant the cron next ran. The
+ * 30-minute cron was never the problem; the day boundary was.
+ *
+ * 08:00 UTC (11:00 local) puts the window in the morning and lines it up with the
+ * daily update, which fires at the same hour.
+ */
+export function dayResetHourUtc(): number {
+  const n = Number(process.env.X_DAY_RESET_HOUR_UTC ?? 8)
+  return Number.isFinite(n) && n >= 0 && n <= 23 ? Math.floor(n) : 8
+}
+
+/**
+ * Minimum minutes between receipt posts. Default 90.
+ *
+ * Without a floor the day's allowance is spent the moment it refills, so the
+ * account posts six tweets in one minute and then goes silent for 24 hours. The
+ * cron ticks every 30 minutes, so a 90-minute gap spreads the allowance across
+ * roughly nine hours and reads like an account rather than a cron job.
+ */
+export function minGapMinutes(): number {
+  const n = Number(process.env.X_MIN_GAP_MINUTES ?? 90)
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 90
+}
+
+/**
+ * Start of the current POSTING day — the window the daily cap counts over.
+ *
+ * Pure and clock-injected so the boundary can be asserted without waiting for it:
+ * scripts/x-preview.mjs checks that 07:59 and 08:01 UTC on the same calendar date
+ * land in DIFFERENT windows, which is the entire point of the offset.
+ */
+export function postingDayStart(now: Date, resetHourUtc: number = dayResetHourUtc()): Date {
+  const start = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), resetHourUtc, 0, 0, 0),
+  )
+  // Before the reset hour we are still inside YESTERDAY's window.
+  if (now.getTime() < start.getTime()) start.setUTCDate(start.getUTCDate() - 1)
+  return start
+}
+
 /** All four user-context credentials present? Missing = notifier is a no-op. */
 export function xConfigured(): boolean {
   return X_CRED_KEYS.every((k) => !!process.env[k])
@@ -112,6 +158,14 @@ export interface PostResult {
   id?: string
   error?: string
   dry?: boolean
+  /**
+   * X refused on BILLING grounds (HTTP 402 / credits-depleted), not because the
+   * request was wrong. Distinguishing this matters: the credentials and the write
+   * permission can both be perfect and the account can still be out of prepaid
+   * credits, which no code change can fix. Callers surface it as "add credits"
+   * rather than "posting failed", which is what sent the owner looking for a bug.
+   */
+  billingBlocked?: boolean
 }
 
 /**
@@ -149,8 +203,20 @@ export async function postTweet(text: string): Promise<PostResult> {
     const body = await res.json().catch(() => ({}))
     if (!res.ok) {
       const detail = JSON.stringify(body).slice(0, 300)
-      console.error(`[x] post failed HTTP ${res.status}: ${detail}`)
-      return { ok: false, error: `HTTP ${res.status}: ${detail}` }
+      // 402 / credits-depleted is a BILLING state. Valid credentials plus enabled
+      // write access still hit it when the prepaid balance is empty, so it must
+      // not be reported as an ordinary failure.
+      const billingBlocked =
+        res.status === 402 || /credits-depleted|payment required/i.test(detail)
+      if (billingBlocked) {
+        console.error(
+          `[x] BILLING BLOCKED (HTTP ${res.status}) — the X account has no API credits. ` +
+            `Credentials and write access are fine; add credits or a plan in the developer portal. ${detail}`,
+        )
+      } else {
+        console.error(`[x] post failed HTTP ${res.status}: ${detail}`)
+      }
+      return { ok: false, error: `HTTP ${res.status}: ${detail}`, billingBlocked }
     }
     const id = (body as { data?: { id?: string } })?.data?.id
     console.log(`[x] posted tweet ${id}`)

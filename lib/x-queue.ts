@@ -20,8 +20,8 @@ import {
   type Receipt,
 } from '@/lib/signals/public'
 import {
-  choosePosts, maxPostsPerDay, postTweet,
-  postingMode, type PostCandidate,
+  choosePosts, dayResetHourUtc, maxPostsPerDay, minGapMinutes, postingMode,
+  postingDayStart, postTweet, type PostCandidate,
 } from '@/lib/x'
 import { buildXTweet, type XSignalInput } from '@/lib/signal-messages'
 import { buildDailyUpdate, previousUtcDay, renderXDaily } from '@/lib/daily-update'
@@ -48,13 +48,37 @@ export async function setupXPostsTable(): Promise<void> {
   `
 }
 
-/** Receipt posts already made in the current UTC day, for the daily cap. */
+/**
+ * Receipt posts already made in the current POSTING day, for the daily cap.
+ *
+ * Counted from postingDayStart(), NOT from the UTC midnight. Counting from
+ * midnight meant the allowance refilled at 00:00 UTC — 3am for a UTC+3 owner —
+ * and the whole day's posts went out in one burst.
+ */
 export async function postsToday(): Promise<number> {
+  const start = postingDayStart(new Date())
   const rows = (await db`
     SELECT COUNT(*)::int AS n FROM x_posts
-    WHERE kind = 'receipt' AND created_at >= date_trunc('day', NOW() AT TIME ZONE 'UTC')
+    WHERE kind = 'receipt' AND created_at >= ${start.toISOString()}::timestamptz
   `) as unknown as { n: number }[]
   return rows[0]?.n ?? 0
+}
+
+/**
+ * When the last receipt post went out, or null if there has never been one.
+ *
+ * Manual handoffs count: the owner is still being asked to handle a post, so the
+ * pacing that keeps the channel readable has to apply to them too.
+ */
+export async function lastReceiptPostAt(): Promise<Date | null> {
+  const rows = (await db`
+    SELECT created_at FROM x_posts
+    WHERE kind = 'receipt'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `) as unknown as { created_at: string }[]
+  const at = rows[0]?.created_at
+  return at ? new Date(at) : null
 }
 
 /** Unposted, fresh, live-origin receipts worth considering. */
@@ -108,6 +132,18 @@ export interface DrainResult {
   manual: string[]
   failed: string[]
   allowance: number
+  /** Receipts already posted in the current posting day. */
+  usedToday: number
+  /** The configured daily cap, so a caller can report "3 of 6". */
+  cap: number
+  /**
+   * Why the run produced nothing. Without this a silent cron and a broken one
+   * look identical in the logs, which is how "nothing is posting" turns into a
+   * hunt for a code bug when the real answer is a spent cap or an empty balance.
+   */
+  blockedBy?: 'daily-cap' | 'min-gap' | 'billing' | 'no-candidates'
+  /** ISO time the next post is permitted, when blocked by the pacing gap. */
+  nextAllowedAt?: string
 }
 
 /**
@@ -201,15 +237,42 @@ async function recordManualHandoff(publicId: string, text: string): Promise<void
  * dry mode must not touch it.
  */
 export async function drainReceiptQueue(): Promise<DrainResult> {
-  const out: DrainResult = { mode: postingMode(), posted: [], wouldPost: [], manual: [], failed: [], allowance: 0 }
+  const cap = maxPostsPerDay()
+  const out: DrainResult = {
+    mode: postingMode(), posted: [], wouldPost: [], manual: [], failed: [],
+    allowance: 0, usedToday: 0, cap,
+  }
   try {
     await setupXPostsTable()
     const used = await postsToday()
-    const allowance = Math.max(0, maxPostsPerDay() - used)
+    const allowance = Math.max(0, cap - used)
     out.allowance = allowance
-    if (allowance === 0) return out
+    out.usedToday = used
+    if (allowance === 0) {
+      out.blockedBy = 'daily-cap'
+      return out
+    }
 
-    const chosen = choosePosts(await candidatePool(), allowance)
+    // PACE THE DAY. The allowance refills in one go, so without a floor the
+    // account spends all of it in a minute and then goes quiet for 24 hours.
+    const gap = minGapMinutes()
+    const last = await lastReceiptPostAt()
+    if (gap > 0 && last) {
+      const nextAt = new Date(last.getTime() + gap * 60_000)
+      if (Date.now() < nextAt.getTime()) {
+        out.blockedBy = 'min-gap'
+        out.nextAllowedAt = nextAt.toISOString()
+        return out
+      }
+    }
+
+    const candidates = await candidatePool()
+    if (candidates.length === 0) {
+      out.blockedBy = 'no-candidates'
+      return out
+    }
+
+    const chosen = choosePosts(candidates, allowance)
     for (const r of chosen) {
       const text = buildXTweet(toXSignal(r))
       // Manual mode: hand it over and stop. Everything above this line — the
@@ -227,6 +290,13 @@ export async function drainReceiptQueue(): Promise<DrainResult> {
       const res = await postTweet(text)
       if (!res.ok) {
         out.failed.push(r.public_id)
+        if (res.billingBlocked) {
+          // A billing block fails EVERY candidate identically, so stop instead of
+          // walking the pool logging the same 402 six times. The receipts stay
+          // queued (nothing is recorded), so they post once credits are added.
+          out.blockedBy = 'billing'
+          break
+        }
         continue
       }
       if (res.dry) {
