@@ -17,7 +17,11 @@ const META_DESCRIPTION =
   "Altcoin long scanner covering 100+ perpetual futures, firing only in confirmed uptrends. Every signal and its verified result is published at fire time."
 
 const WALLET_ADDRESS = "0x2338748664bfdb1fce28a9ad63ce79d65b54eb2d"
-const TELEGRAM_SUB_HANDLE = "@Trading365Sub"
+// The manual-payment fallback used to say "Message @Trading365Sub on Telegram
+// with your tx hash". That handle was the FREE channel — and the channel is
+// private now, so a paying customer was being sent to a dead address. Email is
+// the channel that cannot go private, and it is already the site's contact.
+const SUPPORT_EMAIL = "contact@trading365.org"
 
 export const metadata: Metadata = {
   title: { absolute: "Altcoin Long Scanner — Real-Time Crypto Signals | Trading365" },
@@ -267,12 +271,16 @@ export default async function LongScannerPage() {
             </Button>
           </div>
 
-          {/* Telegram is a SECONDARY link now — see the note on /scanner. */}
+          {/* Telegram is a SECONDARY link now — see the note on /scanner. The old
+              public https://t.me/trading365Sub target is dead since the channel went
+              private, so this points at the account, which is where the invite now
+              lives. */}
           <p className="mt-4 text-sm text-muted-foreground">
-            Free account, no card needed. Prefer Telegram?{' '}
-            <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-              Follow the free channel
-            </a>
+            Free account, no card needed. Prefer Telegram? The free channel is private now, so the
+            invite lives in your account —{' '}
+            <Link href="/signup?next=/account" className="underline hover:text-foreground">
+              create a free account to get it
+            </Link>
             .
           </p>
         </div>
@@ -384,6 +392,20 @@ export default async function LongScannerPage() {
             </div>
           </div>
 
+          {/* Same dead end as /scanner: Subscribe goes to the create-account
+              form, so an existing member has to scroll to the bottom of a
+              signup form to find the way in. ISR page, so offer both doors
+              rather than branching on a session it cannot read. */}
+          {automated && (
+            <p className="mt-5 text-center text-sm text-muted-foreground">
+              Already have an account?{' '}
+              <Link href="/login?next=/account" className="text-emerald-400 underline hover:text-emerald-300">
+                Sign in to subscribe
+              </Link>
+              .
+            </p>
+          )}
+
           {/* Payment instructions */}
           {automated ? (
             <div className="mt-12 max-w-3xl mx-auto rounded-xl border border-border bg-zinc-900 p-6">
@@ -422,7 +444,7 @@ export default async function LongScannerPage() {
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-semibold">2</span>
                   <p className="text-muted-foreground">
-                    Message <span className="text-foreground font-medium">{TELEGRAM_SUB_HANDLE}</span> on Telegram with your tx hash.
+                    Email <span className="text-foreground font-medium">{SUPPORT_EMAIL}</span> with your tx hash and the email on your account.
                   </p>
                 </li>
                 <li className="flex gap-3">

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { ArrowRight, Gift, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Gift, Send, ShieldCheck } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Breadcrumbs } from '@/components/breadcrumbs'
@@ -10,6 +10,7 @@ import { siteConfig } from '@/lib/data/site-config'
 import { SESSION_COOKIE, getAccountFromToken, getReferralStats } from '@/lib/users'
 import { PLANS, getSubscriberAccess } from '@/lib/premium'
 import { FREE_TIER_DELAY_HOURS } from '@/lib/signals/public'
+import { FREE_CHANNEL_INVITE } from '@/lib/telegram'
 import { UpgradeButtons, type PlanOption } from '@/components/upgrade-buttons'
 
 // Session-scoped content: never prerendered, never cached.
@@ -127,6 +128,32 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <Link href="/signals">Verified results</Link>
           </Button>
         </div>
+      </section>
+
+      {/* ── Free channel ───────────────────────────────────────────────────── */}
+      {/* Shown to EVERY signed-in user, not just members: the free channel is
+          private now, so this is the only place its invite exists. It used to
+          be a public @username that anyone could follow. */}
+      <section className="mt-6 rounded-xl border border-border bg-card p-5">
+        <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <Send className="h-4 w-4" /> Telegram
+        </h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          The free channel is private, so the invite only lives here — there is no public link to
+          join. Same signals as the free tier on the site, just delivered to Telegram, which is
+          easier if you would rather monitor there.
+        </p>
+        <Button asChild variant="outline" className="mt-3">
+          <a href={FREE_CHANNEL_INVITE} target="_blank" rel="noopener noreferrer">
+            Join the free channel
+          </a>
+        </Button>
+        {isPaid && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            That is the free channel, which runs {FREE_TIER_DELAY_HOURS} hours behind. Your member
+            channel — every signal the moment it fires — is in the Membership panel above.
+          </p>
+        )}
       </section>
 
       {/* ── Referral ───────────────────────────────────────────────────────── */}

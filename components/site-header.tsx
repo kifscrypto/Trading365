@@ -146,6 +146,14 @@ export function SiteHeader() {
               <DiscordIcon className="h-[18px] w-[18px]" />
             </a>
           )}
+          {/* The header only ever offered "Create free account", so a returning
+              member had no way in: their options were to create a SECOND account
+              or to guess /login. Sign in is a ghost button so it stays visually
+              subordinate to the conversion CTA next to it — it exists for the
+              people who already converted. */}
+          <Button size="sm" variant="ghost" className="font-semibold text-muted-foreground hover:text-foreground" asChild>
+            <Link href="/login">Sign in</Link>
+          </Button>
           <Button size="sm" className="font-semibold" asChild>
             <Link href="/bonuses">Get Bonuses</Link>
           </Button>
@@ -182,9 +190,13 @@ export function SiteHeader() {
                   {link.label}
                 </Link>
               ))}
-              {/* Two CTAs in the mobile sheet: the account is the conversion
-                  path, bonuses is the affiliate one. Filled = account. */}
+              {/* Three CTAs in the mobile sheet: sign in leads for the returning
+                  member, the account is the conversion path, bonuses is the
+                  affiliate one. Filled = account. */}
               <div className="flex flex-col gap-2 pt-4">
+                <Button className="w-full font-semibold" size="sm" variant="ghost" asChild>
+                  <Link href="/login" onClick={() => setOpen(false)}>Sign in</Link>
+                </Button>
                 <Button className="w-full font-semibold" size="sm" asChild>
                   <Link href="/signup">Create free account</Link>
                 </Button>

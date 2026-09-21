@@ -21,7 +21,11 @@ const BASE_URL = "https://trading365.org"
 // public archive that publishes the real number.
 
 const WALLET_ADDRESS = "0x2338748664bfdb1fce28a9ad63ce79d65b54eb2d"
-const TELEGRAM_SUB_HANDLE = "@Trading365Sub"
+// The manual-payment fallback used to say "Message @Trading365Sub on Telegram
+// with your tx hash". That handle was the FREE channel — and the channel is
+// private now, so a paying customer was being sent to a dead address. Email is
+// the channel that cannot go private, and it is already the site's contact.
+const SUPPORT_EMAIL = "contact@trading365.org"
 
 export async function generateMetadata(): Promise<Metadata> {
   const TITLE = "Altcoin Short Scanner — Real-Time Crypto Signals | Trading365"
@@ -179,12 +183,18 @@ export default async function ScannerPage() {
           {/* Telegram is a SECONDARY link now. As the primary button it sent the most
               engaged visitor on the whole site off-site before they had seen a single
               result — nothing to attribute, no account to follow up with, and no way
-              to show them the record they were about to subscribe to. */}
+              to show them the record they were about to subscribe to.
+
+              The channel then went PRIVATE, which killed the old public
+              https://t.me/trading365Sub link this pointed at. A private invite cannot
+              live on a public page either, so this now advertises the account as the
+              way to get it — which is also the conversion this section wants. */}
           <p className="mt-4 text-sm text-muted-foreground">
-            Free account, no card needed. Prefer Telegram?{' '}
-            <a href="https://t.me/trading365Sub" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-              Follow the free channel
-            </a>
+            Free account, no card needed. Prefer Telegram? The free channel is private now, so the
+            invite lives in your account —{' '}
+            <Link href="/signup?next=/account" className="underline hover:text-foreground">
+              create a free account to get it
+            </Link>
             .
           </p>
         </div>
@@ -381,6 +391,22 @@ export default async function ScannerPage() {
             </div>
           </div>
 
+          {/* The returning member's dead end. Both Subscribe buttons go to the
+              create-account form, and the only sign-in link lives at the BOTTOM
+              of that form — so an existing member is asked to sign up before
+              anyone offers them a way in. This page is ISR (revalidate = 300),
+              so it cannot read the session and branch; the honest fix is to put
+              both doors at the point of choosing a tier. */}
+          {automated && (
+            <p className="mt-5 text-center text-sm text-muted-foreground">
+              Already have an account?{' '}
+              <Link href="/login?next=/account" className="text-primary underline hover:text-primary/80">
+                Sign in to subscribe
+              </Link>
+              .
+            </p>
+          )}
+
           {/* Payment instructions */}
           {automated ? (
             <div className="mt-12 max-w-3xl mx-auto rounded-xl border border-border bg-zinc-900 p-6">
@@ -419,7 +445,7 @@ export default async function ScannerPage() {
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold">2</span>
                   <p className="text-muted-foreground">
-                    Message <span className="text-foreground font-medium">{TELEGRAM_SUB_HANDLE}</span> on Telegram with your tx hash.
+                    Email <span className="text-foreground font-medium">{SUPPORT_EMAIL}</span> with your tx hash and the email on your account.
                   </p>
                 </li>
                 <li className="flex gap-3">

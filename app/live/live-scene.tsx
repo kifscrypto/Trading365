@@ -11,11 +11,12 @@ const MIN_SAMPLE = 20
 // Destinations are env-configurable (no hardcoded literals). The website is the
 // primary hub; the QR encodes NEXT_PUBLIC_QR_TARGET_URL (defaults to the site).
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.trading365.org"
-const SUB_URL = process.env.NEXT_PUBLIC_SUB_URL || "https://t.me/trading365Sub"
 const QR_URL = process.env.NEXT_PUBLIC_QR_TARGET_URL || SITE_URL
 const host = (u: string) => u.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/+$/, "")
 const SITE_HOST = host(SITE_URL)
-const SUB_HANDLE = host(SUB_URL)
+// No SUB_HANDLE: the Telegram channel is private now and its invite is delivered
+// behind sign-in, so a public overlay cannot advertise it. The CTA points at the
+// site, which is where the invite is actually handed out.
 const QR_HOST = host(QR_URL)
 
 // Preferred-partner slot in the bottom band. Hard-coded for now — edit `name`
@@ -26,7 +27,7 @@ const PARTNER = { name: "OKX", msg: "Click the link in the description" }
 const CTA_MSGS = [
   `Independent exchange reviews, fees &amp; sign-up bonuses → <b>${SITE_HOST}</b>`,
   `Find the right exchange for your strategy → <b>${SITE_HOST}</b>`,
-  `Live signal alerts in the premium group → <b>${SUB_HANDLE}</b>`,
+  `Free signal alerts on Telegram — invite inside your account → <b>${SITE_HOST}</b>`,
   `Long or short, every fire hits the premium group in real time`,
 ]
 
