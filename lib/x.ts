@@ -10,6 +10,8 @@
  *   X_ACCESS_TOKEN / X_ACCESS_SECRET    user-context token for the posting account
  *   X_POSTING_MODE                      'dry' (default) | 'live' | 'manual'
  *   X_MAX_POSTS_PER_DAY                 default 3 (receipts; the daily digest is separate)
+ *   X_MIN_GAP_MINUTES                   default 300, between receipt posts
+ *   X_FIRST_POST_DELAY_MINUTES          default 120, before the day's first receipt
  *   X_MANUAL_TELEGRAM_CHAT_ID           'manual' mode destination (see lib/x-queue.ts)
  *
  * 'manual' exists because X now bills API usage with prepaid credits: the account
@@ -68,16 +70,36 @@ export function dayResetHourUtc(): number {
 }
 
 /**
- * Minimum minutes between receipt posts. Default 90.
+ * Minimum minutes between receipt posts. Default 300.
  *
  * Without a floor the day's allowance is spent the moment it refills, so the
- * account posts six tweets in one minute and then goes silent for 24 hours. The
- * cron ticks every 30 minutes, so a 90-minute gap spreads the allowance across
- * roughly nine hours and reads like an account rather than a cron job.
+ * account posted six tweets inside five seconds and then went silent for 24 hours.
+ *
+ * 300 against the default 3-post allowance spreads the day across three windows —
+ * 10:00, 15:00 and 20:00 UTC — instead of clustering everything into the morning
+ * and leaving 21 quiet hours. The cron ticks every 30 minutes, so posts land on the
+ * nearest half-hour.
  */
 export function minGapMinutes(): number {
-  const n = Number(process.env.X_MIN_GAP_MINUTES ?? 90)
-  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 90
+  const n = Number(process.env.X_MIN_GAP_MINUTES ?? 300)
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 300
+}
+
+/**
+ * Minutes after the posting-day start before the FIRST receipt may go out.
+ * Default 120.
+ *
+ * The daily update fires at the posting-day start and is the account's most
+ * important post. Without this hold the first receipt landed a second later and
+ * competed with it for the same moment; two hours gives the digest the 08:00 slot
+ * to itself, after which the day's signals follow.
+ *
+ * It applies only while no receipt has gone out in the current posting day, so it
+ * gates the first post of the day and nothing else.
+ */
+export function firstPostDelayMinutes(): number {
+  const n = Number(process.env.X_FIRST_POST_DELAY_MINUTES ?? 120)
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 120
 }
 
 /**

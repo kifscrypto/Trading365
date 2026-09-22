@@ -20,8 +20,8 @@ import {
   type Receipt,
 } from '@/lib/signals/public'
 import {
-  choosePosts, dayResetHourUtc, maxPostsPerDay, minGapMinutes, postingMode,
-  postingDayStart, postTweet, type PostCandidate,
+  choosePosts, dayResetHourUtc, firstPostDelayMinutes, maxPostsPerDay, minGapMinutes,
+  postingMode, postingDayStart, postTweet, type PostCandidate,
 } from '@/lib/x'
 import { buildXTweet, type XSignalInput } from '@/lib/signal-messages'
 import { buildDailyUpdate, previousUtcDay, renderXDaily } from '@/lib/daily-update'
@@ -204,7 +204,7 @@ export interface DrainResult {
    * look identical in the logs, which is how "nothing is posting" turns into a
    * hunt for a code bug when the real answer is a spent cap or an empty balance.
    */
-  blockedBy?: 'daily-cap' | 'min-gap' | 'billing' | 'no-candidates'
+  blockedBy?: 'daily-cap' | 'min-gap' | 'first-post-delay' | 'billing' | 'no-candidates'
   /** ISO time the next post is permitted, when blocked by the pacing gap. */
   nextAllowedAt?: string
 }
@@ -314,6 +314,23 @@ export async function drainReceiptQueue(): Promise<DrainResult> {
     if (allowance === 0) {
       out.blockedBy = 'daily-cap'
       return out
+    }
+
+    // HOLD THE DAY'S FIRST RECEIPT. The daily update posts at the posting-day start
+    // and is the account's most important post; without this hold the first receipt
+    // landed one second behind it and competed for the same moment. Two hours gives
+    // the digest the 08:00 slot to itself, after which the signals follow.
+    //
+    // `used === 0` means no receipt has gone out in this posting day, so this gates
+    // the FIRST post only. Every later post is paced by the gap below.
+    if (used === 0) {
+      const hold = firstPostDelayMinutes()
+      const earliest = new Date(postingDayStart(new Date()).getTime() + hold * 60_000)
+      if (hold > 0 && Date.now() < earliest.getTime()) {
+        out.blockedBy = 'first-post-delay'
+        out.nextAllowedAt = earliest.toISOString()
+        return out
+      }
     }
 
     // PACE THE DAY. The allowance refills in one go, so without a floor the
