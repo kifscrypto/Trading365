@@ -108,6 +108,15 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 Everything is published here on the site — you don&apos;t need Telegram to use your membership.
               </p>
             )}
+            {/* Renewal. Only for a FINITE term: a lifetime grant has nothing to add
+                to, and buying one would set paid_until to a date — making a
+                permanent membership look like it expires. */}
+            {account.paid_until && (
+              <div className="mt-5 border-t border-border pt-4">
+                <p className="text-sm font-medium">Extend your membership</p>
+                <UpgradeButtons plans={plans} signedIn renewing />
+              </div>
+            )}
           </>
         ) : (
           <>

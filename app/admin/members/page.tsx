@@ -339,15 +339,19 @@ export default function MembersPage() {
                           {busy === `revoke-${m.id}` ? 'Revoking…' : 'Revoke'}
                         </button>
                       ) : m.tier === 'paid' ? (
-                        // The revoke call needs (source, externalId); this entitlement
-                        // carries no external id, so there is no button to offer —
-                        // sending an empty one would just fail.
+                        // The revoke call needs (source, externalId) and this row has
+                        // no external id, so there is no button to offer — sending an
+                        // empty one would just fail.
+                        //
+                        // NEW manual grants do get one (`manual:<userId>`, set by the
+                        // entitlements route), so they are revocable and re-granting
+                        // updates the term instead of adding a row. This label is now
+                        // only reached by comps made before that change, and by
+                        // genuine lifetime grants.
                         //
                         // The old label called every such row "lifetime grant", which
-                        // is wrong for the common case: a manual comp from the Grant
-                        // control has an EXPIRY, visible in "Paid until". Only a grant
-                        // made with days = null is genuinely permanent, and the Paid
-                        // until column is what says so.
+                        // was wrong for the common case: a manual comp has an EXPIRY,
+                        // visible in "Paid until". Only days = null is permanent.
                         <span
                           title="No external id on this entitlement, so the revoke endpoint would be sent an empty one and fail. Its expiry is in the 'Paid until' column."
                           style={{ fontSize: '0.75rem', color: '#64748b' }}

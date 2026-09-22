@@ -17,8 +17,13 @@ export interface PlanOption {
  * POSTs to /api/pay/create and redirects to the NOWPayments invoice. The account
  * is the identity that receives the entitlement, so an anonymous visitor is sent
  * to sign in first rather than being shown a dead end.
+ *
+ * `renewing` is set for someone who is ALREADY a member. The buttons are identical
+ * — grantEntitlement adds the new term to whatever they have left — but the copy
+ * has to say so, because a member's first question on seeing a price is whether
+ * buying now throws away the time they have already paid for. It does not.
  */
-export function UpgradeButtons({ plans, signedIn }: { plans: PlanOption[]; signedIn: boolean }) {
+export function UpgradeButtons({ plans, signedIn, renewing }: { plans: PlanOption[]; signedIn: boolean; renewing?: boolean }) {
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -69,8 +74,9 @@ export function UpgradeButtons({ plans, signedIn }: { plans: PlanOption[]; signe
         ))}
       </div>
       <p className="mt-3 text-xs text-muted-foreground">
-        Paid in crypto (USDT, ETH and others) via NOWPayments at checkout. Access runs to the end of your term — there is
-        no auto-renewal and nothing to cancel.
+        {renewing
+          ? 'Adds to the end of your current term rather than replacing it — buy today and you keep every day you have left. Paid in crypto via NOWPayments. No auto-renewal, nothing to cancel.'
+          : 'Paid in crypto (USDT, ETH and others) via NOWPayments at checkout. Access runs to the end of your term — there is no auto-renewal and nothing to cancel.'}
       </p>
     </div>
   )

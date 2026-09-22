@@ -77,7 +77,18 @@ export async function POST(request: Request) {
     }
 
     const source = String(body?.source ?? 'manual')
-    await grantEntitlement(user.id, { source, days })
+    // Manual grants get a synthetic external id. Without one they are neither
+    // idempotent nor revocable: an external_id of NULL never collides with itself
+    // in the unique constraint, so every grant INSERTed another row, and the
+    // revoke endpoint requires a non-empty id — which is why /admin/members could
+    // not offer a Revoke button for them and said "not revocable" instead.
+    //
+    // One id per user per source means re-granting UPDATES the term rather than
+    // adding a row, and the Revoke button appears and works.
+    const externalId = typeof body?.externalId === 'string' && body.externalId
+      ? body.externalId
+      : source === 'manual' ? `manual:${user.id}` : null
+    await grantEntitlement(user.id, { source, days, externalId })
     const account = await getAccount(user.id)
 
     // Tell the member. Default ON, because a grant nobody knows about is barely a

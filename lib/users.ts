@@ -566,6 +566,37 @@ export interface GrantOptions {
   externalId?: string | null
 }
 
+/**
+ * Grant (or re-assert) access. The new term is ADDED to whatever the account
+ * already has, rather than starting from today.
+ *
+ * WHY THIS STACKS — the renewal bug this fixes
+ * `expires_at` used to be `NOW() + days`. For a first purchase that is correct.
+ * For a RENEWAL it is a trap: a member with 300 days left who bought another year
+ * was given `NOW() + 365`, which REPLACED their remaining 300 days. They paid full
+ * price and lost ten months. The referral reward already worked around this by
+ * placing its expiry at the end of the existing term; this generalises that so
+ * every grant behaves the same way, and a purchase can safely be sold to someone
+ * who is already a member.
+ *
+ * WHY THE SUBQUERY EXCLUDES ITS OWN ROW
+ * This is the part that is easy to get wrong. The upsert is DO UPDATE, on purpose,
+ * so a processor retry re-asserts the same access rather than adding a second
+ * grant. But a naive `MAX(expires_at) + days` would count the row being updated,
+ * so every retry would push the expiry out by another term — three retried
+ * webhooks would hand out three years. Excluding the row identified by
+ * (source, externalId) makes the base term depend only on the OTHER entitlements,
+ * so a retry recomputes exactly the same expiry. Idempotent, and still additive
+ * against everything else.
+ *
+ * `IS NOT DISTINCT FROM` rather than `=` because external_id is NULL for manual
+ * grants, and `NULL = NULL` is NULL, not TRUE — plain equality would fail to
+ * exclude the row it was meant to, reintroducing the retry-stacking bug for the
+ * one source that has no processor id.
+ *
+ * `days: null` still means open-ended and is left alone: lifetime is not a term
+ * you can add to.
+ */
 export async function grantEntitlement(userId: number, opts: GrantOptions): Promise<void> {
   await setupUserTables()
   const days = opts.days ?? null
@@ -574,7 +605,22 @@ export async function grantEntitlement(userId: number, opts: GrantOptions): Prom
     INSERT INTO entitlements (user_id, source, status, external_id, expires_at)
     VALUES (
       ${userId}, ${opts.source}, 'active', ${externalId},
-      CASE WHEN ${days}::int IS NULL THEN NULL ELSE NOW() + (${days}::int * INTERVAL '1 day') END
+      CASE
+        WHEN ${days}::int IS NULL THEN NULL
+        ELSE GREATEST(
+          NOW(),
+          COALESCE((
+            SELECT MAX(e.expires_at) FROM entitlements e
+            WHERE e.user_id = ${userId}
+              AND e.status = 'active'
+              AND e.expires_at IS NOT NULL
+              AND NOT (
+                e.source = ${opts.source}
+                AND e.external_id IS NOT DISTINCT FROM ${externalId}
+              )
+          ), NOW())
+        ) + (${days}::int * INTERVAL '1 day')
+      END
     )
     ON CONFLICT ON CONSTRAINT entitlements_external_uniq DO UPDATE SET
       user_id    = EXCLUDED.user_id,
