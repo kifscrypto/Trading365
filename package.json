@@ -13,6 +13,7 @@
     "plans:check": "node --env-file=.env.local scripts/check-plans.mjs",
     "x:selection": "node scripts/check-x-selection.mjs",
     "x:schedule": "node --env-file=.env.local scripts/x-schedule.mjs",
+    "email:check": "node --env-file=.env.local scripts/check-email.mjs",
     "og:preview": "node scripts/og-preview.mjs"
   },
   "dependencies": {

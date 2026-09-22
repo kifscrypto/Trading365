@@ -148,6 +148,11 @@ function AuthFormInner({ mode, firedRecently, delayHours }: AuthFormProps) {
           onChange={(e) => setPassword(e.target.value)}
         />
         {isSignup && <p className="text-xs text-muted-foreground">At least 8 characters.</p>}
+        {!isSignup && (
+          <p className="text-xs text-muted-foreground">
+            <Link href="/forgot-password" className="underline hover:text-foreground">Forgot your password?</Link>
+          </p>
+        )}
       </div>
       <Button type="submit" className="w-full" disabled={busy}>
         {busy ? 'Please wait…' : isSignup ? 'Create account' : 'Sign in'}

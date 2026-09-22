@@ -173,11 +173,22 @@ export async function setupUserTables(): Promise<void> {
       attempted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `
+  await sql`
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id         BIGSERIAL PRIMARY KEY,
+      user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      used_at    TIMESTAMPTZ
+    )
+  `
   await sql`CREATE INDEX IF NOT EXISTS user_sessions_token_idx ON user_sessions (token_hash)`
   await sql`CREATE INDEX IF NOT EXISTS user_sessions_expiry_idx ON user_sessions (expires_at)`
   await sql`CREATE INDEX IF NOT EXISTS entitlements_user_idx ON entitlements (user_id)`
   await sql`CREATE INDEX IF NOT EXISTS auth_attempts_recent_idx ON auth_attempts (email, attempted_at DESC)`
   await sql`CREATE INDEX IF NOT EXISTS auth_attempts_ip_idx ON auth_attempts (ip_hash, attempted_at DESC)`
+  await sql`CREATE INDEX IF NOT EXISTS password_resets_token_idx ON password_resets (token_hash)`
   tablesReady = true
 }
 
@@ -311,6 +322,149 @@ export async function createSession(
   return { token, maxAge: SESSION_DAYS * 24 * 60 * 60 }
 }
 
+// ── Password reset ──────────────────────────────────────────────────────────
+/**
+ * Until this existed, a forgotten password was unrecoverable. There was no reset
+ * route, no token table and — because a reset needs a delivery channel — no email
+ * transport to send a link with. A member who forgot their password, including one
+ * who had paid, was locked out for good and could only be restored by hand-written
+ * SQL against `users`.
+ *
+ * The token handling deliberately mirrors sessions: a 32-byte random value is
+ * returned once to the caller, and only its SHA-256 is stored. A database leak
+ * therefore does not hand anyone a working reset link, exactly as it does not hand
+ * anyone a working session.
+ */
+
+/** How long a reset link stays valid. */
+export const RESET_TTL_MINUTES = Number(process.env.PASSWORD_RESET_TTL_MINUTES ?? 60)
+
+/**
+ * Minimum minutes between reset emails for one account.
+ *
+ * Without it this endpoint is an inbox-flooding tool: anyone who knows an address
+ * can trigger unlimited mail to it. Deliberately NOT the auth_attempts limiter —
+ * recording reset requests as failed logins would let an attacker lock the victim
+ * out of signing in by spamming "forgot password", turning a nuisance into a
+ * denial of service.
+ */
+export const RESET_COOLDOWN_MINUTES = Number(process.env.PASSWORD_RESET_COOLDOWN_MINUTES ?? 5)
+
+export interface ResetRequestResult {
+  /** True only when the address has an account AND a token was written. */
+  created: boolean
+  /** The raw token. Returned once, never stored — only its hash is. */
+  token?: string
+  userId?: number
+  /** Why nothing was created, when `created` is false. */
+  reason?: 'no-account' | 'cooldown' | 'error'
+}
+
+/**
+ * Begin a reset for an address. Never throws.
+ *
+ * Returns `{ created: false }` for an unknown address rather than an error. The
+ * route turns that into the SAME response it gives for a known one, so this cannot
+ * be used to enumerate which emails are registered — the same reasoning as the
+ * single error message on the login route.
+ */
+export async function requestPasswordReset(email: string): Promise<ResetRequestResult> {
+  try {
+    await setupUserTables()
+    const user = await findUserByEmail(email)
+    if (!user) return { created: false, reason: 'no-account' }
+
+    // Cooldown before anything is written: a second request inside the window
+    // leaves the FIRST link valid and sends no second email. The caller returns
+    // the same generic success either way, so the difference is not observable.
+    const recent = (await sql`
+      SELECT 1 AS present FROM password_resets
+      WHERE user_id = ${user.id}
+        AND created_at > NOW() - (${RESET_COOLDOWN_MINUTES}::int * INTERVAL '1 minute')
+      LIMIT 1
+    `) as unknown as { present: number }[]
+    if (recent.length) return { created: false, reason: 'cooldown' }
+
+    // One live link at a time. Without this, every request mints another valid
+    // token and they all stay usable until they expire, so a mailbox full of old
+    // reset emails is a mailbox full of working credentials.
+    await sql`
+      UPDATE password_resets SET used_at = NOW()
+      WHERE user_id = ${user.id} AND used_at IS NULL
+    `
+
+    const token = newSessionToken()
+    await sql`
+      INSERT INTO password_resets (user_id, token_hash, expires_at)
+      VALUES (
+        ${user.id}, ${hashToken(token)},
+        NOW() + (${RESET_TTL_MINUTES}::int * INTERVAL '1 minute')
+      )
+    `
+    return { created: true, token, userId: Number(user.id) }
+  } catch (err) {
+    console.error('[users] requestPasswordReset failed:', err)
+    return { created: false, reason: 'error' }
+  }
+}
+
+export type ResetConsumeResult = 'ok' | 'invalid' | 'expired' | 'used' | 'weak-password'
+
+export interface ResetConsumeOutcome {
+  status: ResetConsumeResult
+  /** Present only on 'ok' — the confirm route signs this user in. */
+  userId?: number
+}
+
+/**
+ * Redeem a reset token and set a new password. Never throws.
+ *
+ * The claim is a single UPDATE that both validates and consumes, so two
+ * concurrent submissions of the same link cannot both succeed — a check-then-write
+ * pair would let a double-click through.
+ *
+ * On success every existing session for that user is deleted. If the reset was
+ * prompted by someone else having access to the account, leaving their session
+ * alive would make the reset theatre.
+ */
+export async function consumePasswordReset(token: string, newPassword: string): Promise<ResetConsumeOutcome> {
+  const problem = passwordProblem(newPassword)
+  if (problem) return { status: 'weak-password' }
+  if (!token) return { status: 'invalid' }
+
+  try {
+    await setupUserTables()
+    const hash = hashToken(token)
+
+    const claimed = (await sql`
+      UPDATE password_resets SET used_at = NOW()
+      WHERE token_hash = ${hash} AND used_at IS NULL AND expires_at > NOW()
+      RETURNING user_id
+    `) as unknown as { user_id: number }[]
+
+    const userId = claimed[0]?.user_id
+    if (!userId) {
+      // Distinguish "expired" and "already used" from "never existed" so the page
+      // can tell the user something true instead of a generic failure.
+      const [row] = (await sql`
+        SELECT used_at, expires_at FROM password_resets WHERE token_hash = ${hash} LIMIT 1
+      `) as unknown as { used_at: string | null; expires_at: string }[]
+      if (!row) return { status: 'invalid' }
+      return { status: row.used_at ? 'used' : 'expired' }
+    }
+
+    await sql`
+      UPDATE users SET password_hash = ${await hashPassword(newPassword)}, updated_at = NOW()
+      WHERE id = ${userId}
+    `
+    await sql`DELETE FROM user_sessions WHERE user_id = ${userId}`
+    return { status: 'ok', userId: Number(userId) }
+  } catch (err) {
+    console.error('[users] consumePasswordReset failed:', err)
+    return { status: 'invalid' }
+  }
+}
+
 /**
  * The signed-in account for a raw session token, or null. Never throws.
  *
@@ -436,6 +590,51 @@ export async function revokeEntitlement(source: string, externalId: string): Pro
     UPDATE entitlements SET status = 'revoked'
     WHERE source = ${source} AND external_id = ${externalId}
   `
+}
+
+// ── Signup offer ────────────────────────────────────────────────────────────
+/**
+ * Days of member access granted automatically at signup. 0 disables the offer.
+ *
+ * Defaults to OFF, and that default is the point. This is the only thing in the
+ * module that hands out paid access without a payment or a human deciding to, so
+ * it must not switch itself on: a deploy that silently started giving away a
+ * month would be discovered from the members table, weeks later, with no record
+ * of why. Turning it on is one env var, deliberately.
+ *
+ * It is NOT a discount on a purchase — nothing here changes what a plan costs.
+ * PLANS in lib/premium.ts is the only thing that prices anything, and it is flat.
+ * This is a free trial of the member tier, which is the mechanism the site
+ * actually has; a true percentage-off would need a coupon concept that does not
+ * exist yet.
+ */
+export const SIGNUP_OFFER_DAYS = Number(process.env.SIGNUP_OFFER_DAYS ?? 0)
+
+/**
+ * Grant the signup offer to a brand-new account. Returns the days granted, or
+ * null when the offer is off.
+ *
+ * Idempotent per user via `externalId: signup:<id>`, which hits the
+ * entitlements_external_uniq constraint. A retried request therefore re-asserts
+ * the same access rather than stacking a second month — the same DO UPDATE
+ * behaviour grantEntitlement already relies on for processor retries.
+ *
+ * Never throws: it runs inside signup, and failing to give away free access must
+ * never be the reason someone cannot create an account.
+ */
+export async function grantSignupOffer(userId: number): Promise<number | null> {
+  if (!(SIGNUP_OFFER_DAYS > 0)) return null
+  try {
+    await grantEntitlement(userId, {
+      source: 'signup-offer',
+      externalId: `signup:${userId}`,
+      days: SIGNUP_OFFER_DAYS,
+    })
+    return SIGNUP_OFFER_DAYS
+  } catch (err) {
+    console.error('[users] grantSignupOffer failed:', err)
+    return null
+  }
 }
 
 // ── Referral rewards ────────────────────────────────────────────────────────

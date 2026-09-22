@@ -167,7 +167,11 @@ export default function MembersPage() {
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) { setNote(json?.error ?? 'Action failed'); return }
-      setNote(okMsg)
+      // The grant route reports whether the member was actually emailed. An admin
+      // comping a customer needs to know if the customer was told — otherwise this
+      // screen would be back to reporting a silent grant as a success.
+      const emailed = typeof json?.email === 'string' ? json.email : null
+      setNote(emailed && emailed !== 'not-sent' ? `${okMsg} — notification: ${emailed}` : okMsg)
       await load()
     } catch {
       setNote('Network error')
@@ -327,6 +331,7 @@ export default function MembersPage() {
                         <button
                           disabled={busy !== null}
                           onClick={() => mutate({ email: m.email, days: 30, source: 'manual' }, `grant-${m.id}`, `Granted 30 days to ${m.email}`)}
+                            title="Grants 30 days and emails them to say so"
                           style={{ background: '#14532d', color: '#bbf7d0', border: 0, borderRadius: 5, padding: '0.3rem 0.6rem', fontSize: '0.75rem', cursor: 'pointer' }}
                         >
                           {busy === `grant-${m.id}` ? 'Granting…' : 'Grant 30d'}

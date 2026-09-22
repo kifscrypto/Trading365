@@ -3,7 +3,8 @@ import {
   PLANS, isPlanKey, PAID_STATUSES, verifyIpnSignature,
   createPremiumInvite, setupSubscribersTable, sql,
 } from '@/lib/premium'
-import { grantEntitlement, grantReferralReward } from '@/lib/users'
+import { grantEntitlement, grantReferralReward, getAccount } from '@/lib/users'
+import { accessGrantedEmail, emailConfigured, sendEmail } from '@/lib/email'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -74,6 +75,31 @@ export async function POST(request: Request) {
           invite_link = ${invite}
       WHERE order_id = ${orderId}
     `
+
+    // Confirmation email, AFTER the row is marked paid so we only ever confirm a
+    // purchase that actually completed. Same reasoning as the comp grant, only
+    // more so: money changed hands, and silence here is indistinguishable from
+    // the purchase having failed.
+    //
+    // Non-fatal by construction — sendEmail() never throws, so a provider outage
+    // cannot turn this into a 500 and make NOWPayments retry a block that already
+    // succeeded. The buyer keeps their access either way.
+    if (rows[0].user_id && emailConfigured()) {
+      try {
+        const buyer = await getAccount(Number(rows[0].user_id))
+        if (buyer) {
+          const sent = await sendEmail(
+            accessGrantedEmail({ email: buyer.email, days, source: 'nowpayments' }),
+          )
+          if (!sent.ok) {
+            console.error(`[pay/webhook] confirmation email failed (${sent.status}) for order ${orderId}`)
+          }
+        }
+      } catch (err) {
+        console.error(`[pay/webhook] confirmation email threw for order ${orderId}:`, err)
+      }
+    }
+
     return NextResponse.json({ ok: true, activated: true, siteAccess: !!rows[0].user_id, referral })
   } catch (err) {
     console.error('[pay/webhook]', err)
