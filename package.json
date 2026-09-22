@@ -11,6 +11,7 @@
     "review:dry": "node scripts/kimi-review.mjs --dry-run",
     "x:check": "node --env-file=.env.local scripts/x-check.mjs",
     "plans:check": "node --env-file=.env.local scripts/check-plans.mjs",
+    "x:selection": "node scripts/check-x-selection.mjs",
     "og:preview": "node scripts/og-preview.mjs"
   },
   "dependencies": {

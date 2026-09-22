@@ -32,6 +32,8 @@ const db = neon(process.env.DATABASE_URL!)
 const MAX_AGE_HOURS = 24
 /** Candidates pulled before the policy trims them. */
 const CANDIDATE_POOL = 60
+/** Biggest losses pulled SEPARATELY — see candidatePool. */
+const LOSS_POOL = 10
 
 export async function setupXPostsTable(): Promise<void> {
   await db`
@@ -81,18 +83,43 @@ export async function lastReceiptPostAt(): Promise<Date | null> {
   return at ? new Date(at) : null
 }
 
-/** Unposted, fresh, live-origin receipts worth considering. */
+/**
+ * Unposted, fresh, live-origin receipts worth considering.
+ *
+ * TWO pools, UNIONed, and the second one is the important part.
+ *
+ * Ordering by `abs_move` alone cannot surface a loss. A stop sits wherever the
+ * setup put it (−2% to −4%) while every TP hit records its TARGET distance
+ * (+1.5% to +8%), so on a busy day the top 60 by |move| are ALL winners and the
+ * reserved loss slot would have nothing to fill — the account would quietly become
+ * the highlight reel that reservation exists to prevent. Pulling the biggest
+ * losses separately guarantees that slot always has candidates.
+ *
+ * `hours_to_close` and `mfe_pct` are what choosePosts actually ranks on; abs_move
+ * cannot tell two winners apart, because every TP5 is exactly 8.0.
+ */
 export async function candidatePool(): Promise<(Receipt & PostCandidate)[]> {
   return (await db`
-    SELECT *, ABS(COALESCE(move_pct, 0))::float AS abs_move
-    FROM signal_receipts
-    WHERE posted_to_x = FALSE
-      AND origin = 'live'
-      AND status <> 'fired'
-      AND closed_at IS NOT NULL
-      AND closed_at > NOW() - (${MAX_AGE_HOURS}::int * INTERVAL '1 hour')
-    ORDER BY ABS(COALESCE(move_pct, 0)) DESC, closed_at DESC
-    LIMIT ${CANDIDATE_POOL}
+    WITH pool AS (
+      SELECT *,
+             ABS(COALESCE(move_pct, 0))::float AS abs_move,
+             (EXTRACT(EPOCH FROM (closed_at - fired_at)) / 3600.0)::float AS hours_to_close
+      FROM signal_receipts
+      WHERE posted_to_x = FALSE
+        AND origin = 'live'
+        AND status <> 'fired'
+        AND closed_at IS NOT NULL
+        AND closed_at > NOW() - (${MAX_AGE_HOURS}::int * INTERVAL '1 hour')
+    ),
+    notable AS (
+      SELECT * FROM pool ORDER BY abs_move DESC, closed_at DESC LIMIT ${CANDIDATE_POOL}
+    ),
+    biggest_losses AS (
+      SELECT * FROM pool WHERE status = 'sl' ORDER BY abs_move DESC LIMIT ${LOSS_POOL}
+    )
+    SELECT * FROM notable
+    UNION
+    SELECT * FROM biggest_losses
   `) as unknown as (Receipt & PostCandidate)[]
 }
 
@@ -273,7 +300,24 @@ export async function drainReceiptQueue(): Promise<DrainResult> {
     }
 
     const chosen = choosePosts(candidates, allowance)
+
+    // PACE WITHIN THE RUN TOO. The check above compares only against the PREVIOUS
+    // run's last post, so a single run would spend the whole allowance back to back.
+    // Because the allowance refills in one step at the window boundary, the first run
+    // after 08:00 published every post within five seconds — x_posts shows
+    // 2026-09-21 08:00:05.864 through 08:00:10.943, six of them. That was the exact
+    // burst the window move was meant to fix; it had only been shifted from 00:00 to
+    // 08:00. Tracking the clock as we go makes the gap mean what it says: with a
+    // 30-minute cron and a 90-minute gap this settles at roughly one post every 90
+    // minutes, which is the pacing the account actually wants.
+    let lastAt = last ? last.getTime() : 0
+
     for (const r of chosen) {
+      if (gap > 0 && lastAt > 0 && Date.now() < lastAt + gap * 60_000) {
+        out.blockedBy = 'min-gap'
+        out.nextAllowedAt = new Date(lastAt + gap * 60_000).toISOString()
+        break
+      }
       const text = buildXTweet(toXSignal(r))
       // Manual mode: hand it over and stop. Everything above this line — the
       // selection policy, the window, the cap — already ran, so a handoff is as
@@ -285,6 +329,7 @@ export async function drainReceiptQueue(): Promise<DrainResult> {
         }
         await recordManualHandoff(r.public_id, text)
         out.manual.push(r.public_id)
+        lastAt = Date.now()
         continue
       }
       const res = await postTweet(text)
@@ -313,6 +358,7 @@ export async function drainReceiptQueue(): Promise<DrainResult> {
       } catch (err) {
         console.error('[x-queue] could not record post:', err)
       }
+      lastAt = Date.now()
       out.posted.push(r.public_id)
     }
   } catch (err) {

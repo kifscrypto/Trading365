@@ -9,7 +9,7 @@
  *   X_API_KEY / X_API_SECRET            consumer key + secret
  *   X_ACCESS_TOKEN / X_ACCESS_SECRET    user-context token for the posting account
  *   X_POSTING_MODE                      'dry' (default) | 'live' | 'manual'
- *   X_MAX_POSTS_PER_DAY                 default 6
+ *   X_MAX_POSTS_PER_DAY                 default 3 (receipts; the daily digest is separate)
  *   X_MANUAL_TELEGRAM_CHAT_ID           'manual' mode destination (see lib/x-queue.ts)
  *
  * 'manual' exists because X now bills API usage with prepaid credits: the account
@@ -35,9 +35,19 @@ export function postingMode(): PostingMode {
   return 'dry'
 }
 
+/**
+ * Receipts posted per posting day. Default 3.
+ *
+ * Was 6, which produced up to 7 tweets a day once the daily digest is counted
+ * (the digest is NOT capped by this — it has its own once-a-day idempotency), and
+ * read as too much for the account. Three receipts plus the digest is 4.
+ *
+ * Note this is the whole day's allowance, not per run — see the pacing in
+ * lib/x-queue.ts.
+ */
 export function maxPostsPerDay(): number {
-  const n = Number(process.env.X_MAX_POSTS_PER_DAY ?? 6)
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 6
+  const n = Number(process.env.X_MAX_POSTS_PER_DAY ?? 3)
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 3
 }
 
 /**
@@ -241,36 +251,137 @@ export interface PostCandidate {
   public_id: string
   /** 'tp1'..'tp5' | 'sl' | 'expired' */
   status: string
-  /** Absolute move %, used to rank by notability. */
+  /**
+   * Absolute move %.
+   *
+   * CAREFUL: for a TP hit this records the TARGET distance, not the move achieved
+   * — every TP5 is exactly 8.0, so this CANNOT rank two winners against each
+   * other. Only losses vary (a stop sits wherever the setup put it). Kept for
+   * ranking losses and as a deterministic last-resort tiebreak.
+   */
   abs_move: number
+  /**
+   * Peak favourable excursion %. The only metric that varies WITHIN a TP tier, so
+   * it is what actually distinguishes one winner from another.
+   */
+  mfe_pct: number | null
+  /**
+   * Hours from fire to close. The "speed" dimension: the same target hit in 90
+   * minutes is a far better post than one ground out over 31 hours.
+   */
+  hours_to_close: number | null
 }
+
+/** Tiers big enough to carry a "fired and hit it fast" post. */
+const FAST_WIN_MIN_TIER = 4
+
+const tierOf = (status: string): number =>
+  status.startsWith('tp') ? Number(status.slice(2)) || 0 : 0
+
+/** Peak MFE, with a missing value ranked below every real one. */
+const peakOf = (c: PostCandidate): number =>
+  typeof c.mfe_pct === 'number' && Number.isFinite(c.mfe_pct) ? c.mfe_pct : Number.NEGATIVE_INFINITY
+
+/** Hours to close, with a missing value ranked below every real one. */
+const speedOf = (c: PostCandidate): number =>
+  typeof c.hours_to_close === 'number' && Number.isFinite(c.hours_to_close)
+    ? c.hours_to_close
+    : Number.POSITIVE_INFINITY
+
+// Explicit comparisons rather than subtraction: two missing values would subtract
+// to NaN, and a NaN comparator makes Array.sort silently return an arbitrary order.
+//
+// EVERY ranking ends with byId. Without a final tiebreak a tie is resolved by input
+// order — and input order is whatever the SQL happened to return — so a tie made the
+// pick non-deterministic between runs. Caught by check-x-selection.mjs, which found
+// two losses both at exactly -4.00 (ake and g) and the chosen one flipping when the
+// pool was reversed. That is the same class of bug as the one this policy exists to
+// fix, so it is worth being pedantic about it here.
+const byId = (a: PostCandidate, b: PostCandidate): number =>
+  a.public_id < b.public_id ? -1 : a.public_id > b.public_id ? 1 : 0
+
+const byPeak = (a: PostCandidate, b: PostCandidate): number => {
+  const pa = peakOf(a), pb = peakOf(b)
+  return pa === pb ? byId(a, b) : pb > pa ? 1 : -1
+}
+const bySpeed = (a: PostCandidate, b: PostCandidate): number => {
+  const sa = speedOf(a), sb = speedOf(b)
+  return sa === sb ? byId(a, b) : sa < sb ? -1 : 1
+}
+const byAbsMove = (a: PostCandidate, b: PostCandidate): number =>
+  b.abs_move - a.abs_move || byId(a, b)
 
 /**
  * Pick at most `limit` receipts to post.
  *
- * Ordered by the largest absolute move (a −4% stop is as notable as a +4%
- * target), BUT when there is more than one slot to fill, one of them is reserved
- * for a stopped-out signal if one exists. Without that reservation a good day
- * fills every slot with winners and the account becomes a highlight reel — the
- * one thing a track-record account cannot afford to look like. With a single
- * slot, the most notable signal wins outright: posting a loss because it happens
- * to be the only stop is not "honest", it is just arbitrary.
+ * THE RANKING THAT USED TO BE HERE DID NOT RANK ANYTHING. It sorted by `abs_move`,
+ * but for a TP hit `move_pct` holds the TARGET distance rather than the move
+ * achieved — so on 2026-09-21 all 30 TP5s were exactly 8.0 and the sort was a
+ * 30-way tie. The tie was then broken by recency (candidatePool's `closed_at
+ * DESC`), and because a signal that closed LATER is one that took LONGER, the
+ * account systematically published its SLOWEST wins: it posted two +8% signals
+ * that had taken 31.2 and 27.9 hours, while the same day held one that did +8% in
+ * 1.4 hours. "Most notable" was picking the worst of the best. Nothing caught it,
+ * because a plausible-looking post still came out the other end.
+ *
+ * The three slots, in order:
+ *   1. the biggest LOSS — credibility, and losses are the one status whose
+ *      magnitude genuinely varies.
+ *   2. the FASTEST big win — highest tier reached, shortest time to close. This is
+ *      the story a subscriber actually buys: how quickly the thing pays.
+ *   3. the highest PEAK win — the largest excursion, the only number that tells one
+ *      TP5 from another.
+ *
+ * With a single slot the most notable WIN takes it outright. Reserving that slot
+ * for a loss would not be honest, just arbitrary — a loss is only worth posting
+ * because it sits beside the wins.
+ *
+ * Any further slots fill by peak, then by abs_move so the result stays
+ * deterministic. Never returns the same receipt twice.
  */
 export function choosePosts<T extends PostCandidate>(candidates: T[], limit: number): T[] {
   if (limit <= 0 || candidates.length === 0) return []
-  const ranked = [...candidates].sort((a, b) => b.abs_move - a.abs_move)
+
   const chosen: T[] = []
-
-  if (limit > 1) {
-    const loss = ranked.find((c) => c.status === 'sl')
-    if (loss) chosen.push(loss)
-  }
-
-  for (const c of ranked) {
-    if (chosen.length >= limit) break
-    if (chosen.some((x) => x.public_id === c.public_id)) continue
+  const taken = new Set<string>()
+  const take = (c: T | undefined): boolean => {
+    if (!c || taken.has(c.public_id)) return false
+    taken.add(c.public_id)
     chosen.push(c)
+    return true
   }
+
+  const wins = candidates.filter((c) => c.status.startsWith('tp'))
+  const losses = candidates.filter((c) => c.status === 'sl')
+
+  if (limit === 1) {
+    take([...wins].sort(byPeak)[0])
+    if (chosen.length === 0) take([...losses].sort(byAbsMove)[0])
+    if (chosen.length === 0) take([...candidates].sort(byAbsMove)[0])
+    return chosen
+  }
+
+  // Slot 1 — the biggest loss.
+  take([...losses].sort(byAbsMove)[0])
+
+  // Slot 2 — the fastest win worth posting. Falls back to any win when the day
+  // never reached the fast tier, so a quiet day still posts a winner.
+  if (chosen.length < limit) {
+    const big = wins.filter((c) => tierOf(c.status) >= FAST_WIN_MIN_TIER)
+    take([...(big.length > 0 ? big : wins)].sort(bySpeed)[0])
+  }
+
+  // Slot 3 — the highest peak.
+  if (chosen.length < limit) take([...wins].sort(byPeak)[0])
+
+  // Remaining slots, and the whole path for a day with no winners at all (which
+  // posts its next-biggest losses rather than nothing).
+  const rest = [...candidates].sort((a, b) => byPeak(a, b) || byAbsMove(a, b))
+  for (const c of rest) {
+    if (chosen.length >= limit) break
+    take(c)
+  }
+
   return chosen.slice(0, limit)
 }
 
