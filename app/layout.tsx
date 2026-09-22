@@ -9,7 +9,6 @@ import { GoogleAnalytics } from '@/components/google-analytics'
 import { PageTracker } from '@/components/page-tracker'
 import { AffiliateClickTracker } from '@/components/affiliate-click-tracker'
 import { generateOrganizationStandaloneSchema } from '@/lib/schema'
-import { ExitIntentPopup } from '@/components/exit-intent-popup'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -96,7 +95,6 @@ export default function RootLayout({
           <SiteHeader />
           <main className="flex-1">{children}</main>
           <SiteFooter />
-          <ExitIntentPopup />
         </ThemeProvider>
         <Analytics />
       </body>
