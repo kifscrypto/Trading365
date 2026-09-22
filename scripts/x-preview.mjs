@@ -96,10 +96,19 @@ const QUIET_UPDATE = buildDailyUpdate({
 })
 
 const XSHAPES = [
-  ['X · WIN', buildXTweet({ kind: 'win', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', level: 1, receiptUrl: URL })],
-  ['X · BIG WIN', buildXTweet({ kind: 'bigwin', side: 'short', pair: 'US', timeframe: '4H', exchange: 'OKX', entry: '0.0412', level: 4, receiptUrl: URL })],
-  ['X · LOSS', buildXTweet({ kind: 'loss', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', lossDistancePct: 3.62, receiptUrl: URL })],
-  ['X · FIRED', buildXTweet({ kind: 'fired', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', tp1: '0.6929', stop: '0.7284', receiptUrl: URL })],
+  // Receipts with NO link — the DEFAULT, and what actually goes out. X charges
+  // materially more for a post containing a URL; the digest below carries the
+  // archive link instead. If these grow a URL, the cost goes back up silently.
+  ['X · WIN (no link)', buildXTweet({ kind: 'win', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', level: 1, receiptUrl: null })],
+  ['X · BIG WIN (no link)', buildXTweet({ kind: 'bigwin', side: 'short', pair: 'US', timeframe: '4H', exchange: 'OKX', entry: '0.0412', level: 4, receiptUrl: null })],
+  ['X · LOSS (no link)', buildXTweet({ kind: 'loss', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', lossDistancePct: 3.62, receiptUrl: null })],
+  ['X · FIRED (no link)', buildXTweet({ kind: 'fired', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', tp1: '0.6929', stop: '0.7284', receiptUrl: null })],
+  // The linked variants, so X_RECEIPT_LINKS=on is previewed too and the original
+  // formatting stays exercised rather than rotting.
+  ['X · WIN (linked)', buildXTweet({ kind: 'win', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', level: 1, receiptUrl: URL })],
+  ['X · BIG WIN (linked)', buildXTweet({ kind: 'bigwin', side: 'short', pair: 'US', timeframe: '4H', exchange: 'OKX', entry: '0.0412', level: 4, receiptUrl: URL })],
+  ['X · LOSS (linked)', buildXTweet({ kind: 'loss', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', lossDistancePct: 3.62, receiptUrl: URL })],
+  ['X · FIRED (linked)', buildXTweet({ kind: 'fired', side: 'short', pair: 'BTW', timeframe: '4H', exchange: 'MEXC', entry: '0.7029', tp1: '0.6929', stop: '0.7284', receiptUrl: URL })],
   ['X · WEEKLY DIGEST', buildWeeklyDigestTweet({ signals: 39, tpCount: 21, avgNet: 0.83 })],
   ['X · DAILY UPDATE', renderXDaily(SYNTH_UPDATE)],
   ['X · DAILY UPDATE (quiet day)', renderXDaily(QUIET_UPDATE)],
@@ -124,6 +133,21 @@ for (const [label, text] of XSHAPES) {
   const n = tweetLength(text)
   show(`${label} — ${n}/${LIMIT}`, text)
   check('fits 280', n <= LIMIT, `(${n})`)
+}
+
+// ── Link guard ──────────────────────────────────────────────────────────────
+// The point of X_RECEIPT_LINKS=off is that receipts carry no URL, because X
+// charges materially more for a post containing one. This asserts it on the
+// RENDERED TEXT rather than trusting the flag, so a template edit that
+// reintroduces a link fails here instead of quietly raising the bill.
+//
+// The daily update is the shape that MUST carry one — it is the only post trying
+// to bring someone to the site, and it is one post a day rather than three.
+const HAS_URL = /https?:\/\/\S+|trading365\.org/i
+for (const [label, text] of XSHAPES) {
+  if (label.includes('(no link)')) check(`${label} carries NO link`, !HAS_URL.test(text))
+  else if (label.includes('(linked)')) check(`${label} carries a link`, HAS_URL.test(text))
+  else if (label.includes('DAILY UPDATE')) check(`${label} carries a link`, HAS_URL.test(text))
 }
 
 console.log('\n\n########## GUARDS ##########')

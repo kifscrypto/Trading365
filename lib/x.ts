@@ -12,6 +12,9 @@
  *   X_MAX_POSTS_PER_DAY                 default 3 (receipts; the daily digest is separate)
  *   X_MIN_GAP_MINUTES                   default 300, between receipt posts
  *   X_FIRST_POST_DELAY_MINUTES          default 120, before the day's first receipt
+ *   X_RECEIPT_LINKS                     'on' to put a site link on receipts; default
+ *                                       'off', because X charges more for link posts
+ *                                       and the digest carries the link instead
  *   X_MANUAL_TELEGRAM_CHAT_ID           'manual' mode destination (see lib/x-queue.ts)
  *
  * 'manual' exists because X now bills API usage with prepaid credits: the account
@@ -100,6 +103,28 @@ export function minGapMinutes(): number {
 export function firstPostDelayMinutes(): number {
   const n = Number(process.env.X_FIRST_POST_DELAY_MINUTES ?? 120)
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 120
+}
+
+/**
+ * Whether RECEIPT posts may carry a link to the site. Default 'off'.
+ *
+ * X charges materially more for a post containing a URL, and receipts are the bulk
+ * of what goes out — up to three a day against one digest. A receipt does not need
+ * a link: it already states the result, and the archive link rides on the daily
+ * digest, which is the post that is actually trying to bring someone to the site.
+ *
+ * So this defaults OFF and the digest keeps its link unconditionally (see
+ * renderXDaily in lib/daily-update.ts, which is not affected by this flag).
+ *
+ * Set X_RECEIPT_LINKS=on to put links back on receipts once the revenue justifies
+ * the extra cost. No code change needed, and the linked text is byte-for-byte what
+ * the site posted before this flag existed.
+ *
+ * Anything other than the exact string 'on' means off, so a typo in the env var
+ * fails towards the cheap option rather than the expensive one.
+ */
+export function receiptLinks(): 'off' | 'on' {
+  return process.env.X_RECEIPT_LINKS === 'on' ? 'on' : 'off'
 }
 
 /**

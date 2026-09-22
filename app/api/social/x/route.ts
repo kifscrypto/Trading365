@@ -3,7 +3,7 @@ import { verifyAdmin } from '@/lib/auth'
 import { runQueue } from '@/lib/x-queue'
 import {
   dayResetHourUtc, firstPostDelayMinutes, maxPostsPerDay, minGapMinutes, postingDayStart,
-  postingMode, xConfigured,
+  postingMode, receiptLinks, xConfigured,
 } from '@/lib/x'
 
 export const runtime = 'nodejs'
@@ -40,6 +40,7 @@ export async function GET(request: Request) {
     dayResetHourUtc: dayResetHourUtc(),
     minGapMinutes: minGapMinutes(),
     firstPostDelayMinutes: firstPostDelayMinutes(),
+    receiptLinks: receiptLinks(),
     // When the current posting day began. Makes the cap window legible from the
     // response instead of something the reader has to work out — the old window
     // was an invisible midnight-UTC boundary that put every post at 3am local.

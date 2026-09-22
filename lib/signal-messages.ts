@@ -164,14 +164,25 @@ export interface XSignalInput {
 const ARCHIVE = 'trading365.org/signals'
 
 export function buildXTweet(i: XSignalInput): string {
-  const url = i.receiptUrl ?? ARCHIVE
+  // NO LINK BY DEFAULT — see receiptLinks() in lib/x.ts.
+  //
+  // X charges materially more for a post containing a URL, and a receipt does not
+  // need one: the post already states the result, and the archive link is carried
+  // by the daily digest, which is the post actually trying to bring someone to
+  // the site. This used to fall back to a bare `trading365.org/signals` whenever
+  // the receipt URL was missing, so EVERY receipt was a link post regardless.
+  //
+  // Each lead-in that would otherwise dangle after a colon is reworded. And every
+  // line break of the linked version is preserved, so turning the flag back on
+  // reproduces today's posts byte for byte rather than silently reformatting them.
+  const url = i.receiptUrl
 
   if (i.kind === 'loss') {
     return [
       'We post these too.',
       `${i.pair} ${sideUpper(i.side)} stopped ${lossPct(i.lossDistancePct ?? 0)}. Wins and losses,`,
-      'timestamped at fire time. No curation:',
-      url,
+      url ? 'timestamped at fire time. No curation:' : 'published at fire time. No curation.',
+      ...(url ? [url] : []),
     ].join('\n')
   }
 
@@ -179,8 +190,8 @@ export function buildXTweet(i: XSignalInput): string {
     const level = i.level ?? 4
     return [
       `🏆 TP${level} — ${tierPct(level)} on ${i.pair} ${sideUpper(i.side)}.`,
-      `Called at ${i.entry}. Full receipt:`,
-      url,
+      url ? `Called at ${i.entry}. Full receipt:` : `Called at ${i.entry}. Full receipt in the archive.`,
+      ...(url ? [url] : []),
     ].join('\n')
   }
 
@@ -188,7 +199,7 @@ export function buildXTweet(i: XSignalInput): string {
     return [
       `⚡ ${sideUpper(i.side)} fired: ${i.pair} · ${i.timeframe} · entry ${i.entry}`,
       `TP1 ${i.tp1 ?? '—'} / SL ${i.stop ?? '—'}. Result lands in the`,
-      `archive either way: ${url}`,
+      url ? `archive either way: ${url}` : 'archive either way.',
     ].join('\n')
   }
 
@@ -196,8 +207,8 @@ export function buildXTweet(i: XSignalInput): string {
   return [
     `✅ ${i.pair} ${sideUpper(i.side)} — TP${level} ${tierPct(level)}`,
     `Entry ${i.entry} · ${i.timeframe} · ${i.exchange}`,
-    'Timestamped before it happened:',
-    url,
+    url ? 'Timestamped before it happened:' : 'Timestamped before it happened.',
+    ...(url ? [url] : []),
   ].join('\n')
 }
 

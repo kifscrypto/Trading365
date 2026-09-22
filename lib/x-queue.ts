@@ -21,7 +21,7 @@ import {
 } from '@/lib/signals/public'
 import {
   choosePosts, dayResetHourUtc, firstPostDelayMinutes, maxPostsPerDay, minGapMinutes,
-  postingMode, postingDayStart, postTweet, type PostCandidate,
+  postingMode, postingDayStart, postTweet, receiptLinks, type PostCandidate,
 } from '@/lib/x'
 import { buildXTweet, type XSignalInput } from '@/lib/signal-messages'
 import { buildDailyUpdate, previousUtcDay, renderXDaily } from '@/lib/daily-update'
@@ -181,7 +181,14 @@ function toXSignal(r: Receipt): XSignalInput {
     entry: fmtPrice(r.entry_price),
     level: level || 1,
     lossDistancePct,
-    receiptUrl: receiptUrl(r.public_id),
+    // NULL unless X_RECEIPT_LINKS=on. A receipt already states the result and does
+    // not need a link, and X charges materially more for a post containing one. The
+    // digest carries the archive URL instead — see receiptLinks() in lib/x.ts.
+    //
+    // Note this feeds buildXTweet, which previously fell back to a bare
+    // `trading365.org/signals` whenever this was null, so every receipt was a link
+    // post no matter what. Passing null now means no link at all.
+    receiptUrl: receiptLinks() === 'on' ? receiptUrl(r.public_id) : null,
   }
 }
 
