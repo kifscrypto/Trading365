@@ -84,6 +84,42 @@ export async function lastReceiptPostAt(): Promise<Date | null> {
 }
 
 /**
+ * Has a loss already been published in the current posting day?
+ *
+ * The policy reserves one slot for a loss, but the batch is recomputed on EVERY
+ * cron run from a pool that still holds losses, while the pacing releases only one
+ * post per run — and slot 1 is always the loss. So the reserved slot got refilled by
+ * a different loss each run and a 3-post day published loss, loss, win: two losses
+ * and one winner, the exact opposite of the intent.
+ *
+ * Knowing whether one has already gone out is what holds the day's composition at
+ * one loss + two winners no matter how many runs it is spread across.
+ *
+ * 'manual' handoffs count as published: in manual mode the owner is still being
+ * asked to put a loss out, and a second one would arrive as a second draft.
+ */
+export async function lossPostedToday(): Promise<boolean> {
+  try {
+    const start = postingDayStart(new Date())
+    const rows = (await db`
+      SELECT 1 FROM x_posts p
+      JOIN signal_receipts r ON r.public_id = p.ref
+      WHERE p.kind = 'receipt'
+        AND r.status = 'sl'
+        AND p.created_at >= ${start.toISOString()}::timestamptz
+      LIMIT 1
+    `) as unknown as unknown[]
+    return rows.length > 0
+  } catch (err) {
+    console.error('[x-queue] lossPostedToday failed:', err)
+    // Fail towards "a loss has already gone out". A transient error then costs the
+    // day its loss, which is a missing post; failing the other way risks publishing
+    // a second one, which is the bug this exists to prevent.
+    return true
+  }
+}
+
+/**
  * Unposted, fresh, live-origin receipts worth considering.
  *
  * TWO pools, UNIONed, and the second one is the important part.
@@ -299,7 +335,11 @@ export async function drainReceiptQueue(): Promise<DrainResult> {
       return out
     }
 
-    const chosen = choosePosts(candidates, allowance)
+    // The loss slot is reserved only until one has actually gone out today — see
+    // lossPostedToday(). Without this the recomputed batch refilled the slot on
+    // every run and the day published two losses and one winner.
+    const needLoss = !(await lossPostedToday())
+    const chosen = choosePosts(candidates, allowance, { needLoss })
 
     // PACE WITHIN THE RUN TOO. The check above compares only against the PREVIOUS
     // run's last post, so a single run would spend the whole allowance back to back.

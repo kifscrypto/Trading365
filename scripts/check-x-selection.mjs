@@ -54,32 +54,49 @@ const day = [
   c('pendle', 'sl', 2.00, 0.20, 2.00),
 ]
 
-const pick = (n) => choosePosts(day, n)
+// Fixed random so the loss pick is assertable. Randomness itself is tested in §2.
+const R0 = { random: () => 0 }
+const pick = (n, opts = R0) => choosePosts(day, n, opts)
 
 // ── 1. The three slots, in order ────────────────────────────────────────────
-console.log('1. three slots: biggest loss, fastest big win, highest peak')
+console.log('1. three slots: a loss, the fastest big win, the highest peak')
 const three = pick(3)
 eq(three.length, 3, 'slots filled')
-eq(three[0]?.public_id, 'ake', 'slot 1 (biggest loss, -4.00)')
+eq(three[0]?.status, 'sl', 'slot 1 is a loss')
 eq(three[1]?.public_id, 'uai', 'slot 2 (fastest big win, 1.4h)')
 eq(three[2]?.public_id, 'pengu', 'slot 3 (highest peak, 10.59)')
 
-// ── 2. The regression: never prefer a slow grind over a fast move ───────────
-console.log('\n2. the 2026-09-21 regression — speed must beat recency')
+// ── 2. The loss is RANDOM, not the biggest ──────────────────────────────────
+console.log('\n2. the loss is drawn at random, not the worst of the day')
+const draws = [0, 0.25, 0.5, 0.75, 0.999].map((r) => pick(3, { random: () => r })[0])
+if (draws.some((d) => d.status !== 'sl')) fail('a draw returned a non-loss')
+else ok(`all 5 draws returned a loss (${draws.map((d) => d.public_id).join(', ')})`)
+const distinct = new Set(draws.map((d) => d.public_id))
+if (distinct.size < 3) fail(`only ${distinct.size} distinct losses across 5 draws — not random`)
+else ok(`${distinct.size} distinct losses across 5 draws`)
+const nonBiggest = draws.filter((d) => d.abs_move < 4.0).length
+if (nonBiggest === 0) fail('every draw returned the biggest loss — that is not random')
+else ok(`${nonBiggest}/5 draws avoided the biggest loss`)
+const edge = pick(3, { random: () => 1 })[0]
+if (!edge || edge.status !== 'sl') fail('random()=1 fell off the end of the losses array')
+else ok(`random()=1 clamps to ${edge.public_id}`)
+
+// ── 3. The regression: never prefer a slow grind over a fast move ───────────
+console.log('\n3. the 2026-09-21 regression — speed must beat recency')
 const ids = three.map((p) => p.public_id)
 if (ids.includes('crv')) fail('picked CRV (+8% in 31.2h) — the slow grind the old code chose')
 else ok('did not pick CRV (+8% in 31.2h)')
 if (ids.includes('uai')) ok('picked UAI (+8% in 1.4h) — the fast one')
 else fail('missed UAI (+8% in 1.4h)')
 
-// ── 3. abs_move alone cannot discriminate two winners ───────────────────────
-console.log('\n3. a 30-way tie at 8.0 must not fall back to input order')
-const reversed = choosePosts([...day].reverse(), 3).map((p) => p.public_id)
+// ── 4. abs_move alone cannot discriminate two winners ───────────────────────
+console.log('\n4. a 30-way tie at 8.0 must not fall back to input order')
+const reversed = choosePosts([...day].reverse(), 3, R0).map((p) => p.public_id)
 if (JSON.stringify(reversed) === JSON.stringify(ids)) ok('same three regardless of input order')
 else fail(`input order changed the result: ${ids.join(',')} vs ${reversed.join(',')}`)
 
-// ── 4. No duplicates, ever ──────────────────────────────────────────────────
-console.log('\n4. never returns the same receipt twice')
+// ── 5. No duplicates, ever ──────────────────────────────────────────────────
+console.log('\n5. never returns the same receipt twice')
 for (const n of [1, 2, 3, 5, 10, 19]) {
   const got = pick(n).map((p) => p.public_id)
   if (new Set(got).size !== got.length) fail(`limit=${n} returned a duplicate: ${got.join(',')}`)
@@ -87,38 +104,58 @@ for (const n of [1, 2, 3, 5, 10, 19]) {
   else ok(`limit=${n} -> ${got.length} unique`)
 }
 
-// ── 5. A single slot posts a WIN, not a loss ────────────────────────────────
-console.log('\n5. one slot posts the most notable win, never a lone loss')
+// ── 6. A single slot posts a WIN, not a loss ────────────────────────────────
+console.log('\n6. one slot posts the most notable win, never a lone loss')
 const one = pick(1)
 eq(one.length, 1, 'slots filled')
 if (one[0]?.status === 'sl') fail('posted a loss in a single-slot day — arbitrary, not honest')
 else ok(`posted ${one[0]?.public_id} (${one[0]?.status})`)
 
-// ── 6. Degenerate days must not crash or return junk ────────────────────────
-console.log('\n6. degenerate inputs')
-eq(choosePosts([], 3).length, 0, 'empty pool')
-eq(choosePosts(day, 0).length, 0, 'limit 0')
-const lossesOnly = day.filter((p) => p.status === 'sl')
-eq(choosePosts(lossesOnly, 3).length, 3, 'losses-only day still posts 3')
-const noTp4 = day.filter((p) => p.status !== 'tp5' && p.status !== 'tp4')
-eq(choosePosts(noTp4, 3).length, 3, 'day with no TP4/TP5 still posts 3 (falls back to any win)')
+// ── 7. THE DAY COMPOSITION ──────────────────────────────────────────────────
+// A 3-cap day spread across three runs, one post each, with the pool shrinking as
+// receipts are marked posted. needLoss must flip once the loss goes out, or slot 1
+// refills with a DIFFERENT loss every run and the day publishes loss, loss, win —
+// which is exactly what the first cut of this policy did.
+console.log('\n7. a 3-cap day spread over 3 runs publishes exactly ONE loss')
+let pool = [...day]
+let needLoss = true
+const postedIds = []
+for (let run = 1; run <= 3; run++) {
+  const batch = choosePosts(pool, 3 - postedIds.length, { needLoss, random: () => run * 0.1 })
+  const first = batch[0]
+  postedIds.push(first.public_id)
+  pool = pool.filter((p) => p.public_id !== first.public_id)
+  if (first.status === 'sl') needLoss = false
+}
+const lossCount = postedIds.filter((id) => day.find((d) => d.public_id === id)?.status === 'sl').length
+eq(lossCount, 1, `losses across the day (posted: ${postedIds.join(', ')})`)
 
-// ── 7. Missing metrics must not make the sort arbitrary ─────────────────────
-console.log('\n7. null mfe / null hours_to_close')
+// ── 8. Degenerate days must not crash or return junk ────────────────────────
+console.log('\n8. degenerate inputs')
+eq(choosePosts([], 3, R0).length, 0, 'empty pool')
+eq(choosePosts(day, 0, R0).length, 0, 'limit 0')
+const lossesOnly = day.filter((p) => p.status === 'sl')
+eq(choosePosts(lossesOnly, 3, R0).length, 3, 'losses-only day still posts 3')
+const noTp4 = day.filter((p) => p.status !== 'tp5' && p.status !== 'tp4')
+eq(choosePosts(noTp4, 3, R0).length, 3, 'day with no TP4/TP5 still posts 3 (falls back to any win)')
+eq(choosePosts(day, 3, { needLoss: false, random: () => 0 })[0]?.status !== 'sl', true, 'needLoss:false posts no loss')
+
+// ── 9. Missing metrics must not make the sort arbitrary ─────────────────────
+console.log('\n9. null mfe / null hours_to_close')
 const nulls = [
   c('n1', 'tp5', 8.0, null, null),
   c('n2', 'tp5', 8.0, 9.0, 5.0),
   c('n3', 'sl', 4.0, null, null),
   c('n4', 'tp5', 8.0, 7.0, null),
 ]
-const got = choosePosts(nulls, 3).map((p) => p.public_id)
+const got = choosePosts(nulls, 3, R0).map((p) => p.public_id)
 if (new Set(got).size !== got.length) fail(`duplicate with nulls: ${got.join(',')}`)
 else ok(`no duplicates with nulls: ${got.join(',')}`)
 if (!got.includes('n2')) fail('a real peak (9.0) lost to a null peak — nulls must rank last')
 else ok('real peak outranks null peak')
 // Two nulls compared with each other must not produce NaN and scramble the order.
 const allNull = [c('a', 'tp5', 8.0, null, null), c('b', 'tp5', 8.0, null, null)]
-eq(choosePosts(allNull, 2).length, 2, 'all-null peaks still return 2 (no NaN sort)')
+eq(choosePosts(allNull, 2, R0).length, 2, 'all-null peaks still return 2 (no NaN sort)')
 
 console.log(`\n${failures === 0 ? 'PASS' : `FAIL — ${failures} problem(s)`}`)
 process.exit(failures === 0 ? 0 : 1)

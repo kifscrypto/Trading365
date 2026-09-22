@@ -312,6 +312,30 @@ const byAbsMove = (a: PostCandidate, b: PostCandidate): number =>
   b.abs_move - a.abs_move || byId(a, b)
 
 /**
+ * One loss, chosen AT RANDOM.
+ *
+ * Deliberately not the biggest. The day's worst loss is the single most damaging
+ * thing the account could publish, and posting it every day would make the feed a
+ * worst-case highlight reel — the mirror image of the winners-only feed this
+ * reservation exists to prevent. A random draw is an unbiased sample of the day's
+ * losses, which is what "here is one that didn't work" is actually claiming.
+ *
+ * `random` is injectable so the behaviour can be asserted without a flaky test.
+ */
+const pickLoss = <T extends PostCandidate>(losses: T[], random: () => number): T | undefined => {
+  if (losses.length === 0) return undefined
+  // Sorted by id BEFORE drawing, so the draw is uniform over the SET of losses rather
+  // than over whatever order the SQL happened to return rows in. Without this the same
+  // random value picks a different receipt when the row order changes, which makes the
+  // choice depend on the database's convenience — the same class of accident that made
+  // the old ranking pick the slowest signal.
+  const ordered = [...losses].sort(byId)
+  // Clamped: a custom random() returning exactly 1 would otherwise index past the end.
+  const i = Math.min(ordered.length - 1, Math.floor(random() * ordered.length))
+  return ordered[i]
+}
+
+/**
  * Pick at most `limit` receipts to post.
  *
  * THE RANKING THAT USED TO BE HERE DID NOT RANK ANYTHING. It sorted by `abs_move`,
@@ -325,12 +349,19 @@ const byAbsMove = (a: PostCandidate, b: PostCandidate): number =>
  * because a plausible-looking post still came out the other end.
  *
  * The three slots, in order:
- *   1. the biggest LOSS — credibility, and losses are the one status whose
- *      magnitude genuinely varies.
+ *   1. one LOSS, picked at random — credibility. Random rather than biggest on
+ *      purpose: see pickLoss.
  *   2. the FASTEST big win — highest tier reached, shortest time to close. This is
  *      the story a subscriber actually buys: how quickly the thing pays.
  *   3. the highest PEAK win — the largest excursion, the only number that tells one
  *      TP5 from another.
+ *
+ * `needLoss` exists because the batch is recomputed on EVERY run, from a pool that
+ * still contains losses. Pacing releases one post per run, and slot 1 is always the
+ * loss, so a 3-cap day published loss, loss, win — two losses, one winner, the
+ * exact opposite of the intent. The caller passes needLoss: false once a loss has
+ * gone out today, which makes the day's composition stable no matter how many runs
+ * it is spread across. Verified by scripts/check-x-selection.mjs.
  *
  * With a single slot the most notable WIN takes it outright. Reserving that slot
  * for a loss would not be honest, just arbitrary — a loss is only worth posting
@@ -339,8 +370,16 @@ const byAbsMove = (a: PostCandidate, b: PostCandidate): number =>
  * Any further slots fill by peak, then by abs_move so the result stays
  * deterministic. Never returns the same receipt twice.
  */
-export function choosePosts<T extends PostCandidate>(candidates: T[], limit: number): T[] {
+export function choosePosts<T extends PostCandidate>(
+  candidates: T[],
+  limit: number,
+  opts: { needLoss?: boolean; random?: () => number } = {},
+): T[] {
   if (limit <= 0 || candidates.length === 0) return []
+
+  // Defaults preserve the reserved-loss policy for any caller that does not say.
+  const needLoss = opts.needLoss ?? true
+  const random = opts.random ?? Math.random
 
   const chosen: T[] = []
   const taken = new Set<string>()
@@ -356,13 +395,17 @@ export function choosePosts<T extends PostCandidate>(candidates: T[], limit: num
 
   if (limit === 1) {
     take([...wins].sort(byPeak)[0])
-    if (chosen.length === 0) take([...losses].sort(byAbsMove)[0])
+    if (chosen.length === 0) take(pickLoss(losses, random))
     if (chosen.length === 0) take([...candidates].sort(byAbsMove)[0])
     return chosen
   }
 
-  // Slot 1 — the biggest loss.
-  take([...losses].sort(byAbsMove)[0])
+  // Slot 1 — one loss, at random, and ONLY IF the day has not already published
+  // one. `needLoss` is what makes the day's composition correct: the batch is
+  // recomputed on every run from a pool that still contains losses, so without
+  // this flag a 3-cap day published loss, loss, win — because the pacing now
+  // releases one post per run and slot 1 is always the loss.
+  if (needLoss) take(pickLoss(losses, random))
 
   // Slot 2 — the fastest win worth posting. Falls back to any win when the day
   // never reached the fast tier, so a quiet day still posts a winner.
