@@ -10,6 +10,7 @@ import { usePathname, useRouter } from 'next/navigation'
 // login screen.
 const LINKS: { label: string; href: string; color: string }[] = [
   { label: 'Dashboard', href: '/admin', color: 'text-zinc-200 hover:text-white' },
+  { label: 'Members', href: '/admin/members', color: 'text-rose-400 hover:text-rose-300' },
   { label: 'Analytics', href: '/admin/analytics', color: 'text-blue-400 hover:text-blue-300' },
   { label: 'Scanner', href: '/admin/scanner', color: 'text-green-400 hover:text-green-300' },
   { label: 'Performance', href: '/admin/scanner/performance', color: 'text-green-400 hover:text-green-300' },

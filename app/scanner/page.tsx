@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingUp } from "lucide-react"
-import { PLANS, premiumEnabled } from "@/lib/premium"
+import { PLANS, planMonths, planPerMonth, planSavingsPct, premiumEnabled } from "@/lib/premium"
 import { ScannerNewsletter } from "@/components/scanner-newsletter"
 import { computePnl } from "@/lib/scanner-pnl"
 import { getScannerStats } from "@/lib/scanner-stats"
@@ -118,6 +118,11 @@ const monthlyFeatures = [
 
 const quarterlyFeatures = ["Same features as monthly", "Priority support"]
 
+// Yearly is presented as the top of a three-tier ladder, so its feature list
+// stacks on quarterly rather than repeating monthly — "same as monthly" two
+// tiers down reads like a downgrade.
+const yearlyFeatures = ["Same features as quarterly", "Priority support"]
+
 export default async function ScannerPage() {
   // Two datasets, deliberately kept apart:
   //   stats        - the TP1-within-24h proxy on the scored candidate pool
@@ -141,8 +146,11 @@ export default async function ScannerPage() {
   // no longer honours.
   const monthlyUsd = PLANS.monthly.amount
   const quarterlyUsd = PLANS.quarterly.amount
-  const quarterlyMonths = Math.round(PLANS.quarterly.days / PLANS.monthly.days)
-  const savingsPct = Math.round((1 - quarterlyUsd / (monthlyUsd * quarterlyMonths)) * 100)
+  const quarterlyMonths = planMonths('quarterly')
+  const savingsPct = planSavingsPct('quarterly')
+  const yearlyUsd = PLANS.yearly.amount
+  const yearlyMonths = planMonths('yearly')
+  const yearlySavingsPct = planSavingsPct('yearly')
 
   return (
     <div className="t-theme">
@@ -344,7 +352,7 @@ export default async function ScannerPage() {
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 max-w-3xl mx-auto">
+          <div className="grid gap-6 md:grid-cols-3 max-w-5xl mx-auto">
             {/* Monthly */}
             <div className="flex flex-col rounded-xl border border-border bg-zinc-900 p-6">
               <p className="text-xs uppercase tracking-widest text-muted-foreground">Monthly</p>
@@ -386,6 +394,36 @@ export default async function ScannerPage() {
               {automated && (
                 <Button asChild className="mt-auto w-full font-semibold">
                   <Link href="/signup?next=/account">Subscribe — ${quarterlyUsd} / {quarterlyMonths} months</Link>
+                </Button>
+              )}
+            </div>
+
+            {/* Yearly — the top of the ladder. Priced so that per-month it is
+                cheaper than quarterly, which check-plans.mjs asserts: a longer
+                commitment that is not cheaper per month gives no reason to
+                commit, and the "Save N%" badge would be a lie. */}
+            <div className="relative flex flex-col rounded-xl border border-primary/40 bg-zinc-900 p-6">
+              <Badge className="absolute -top-2.5 right-4 bg-primary text-primary-foreground hover:bg-primary">
+                Best value — save {yearlySavingsPct}%
+              </Badge>
+              <p className="text-xs uppercase tracking-widest text-primary">Yearly</p>
+              <p className="mt-3 text-4xl font-bold text-foreground tabular-nums">
+                ${yearlyUsd} <span className="text-base font-medium text-muted-foreground">USDT / {yearlyMonths} months</span>
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                ≈ ${planPerMonth('yearly').toFixed(2)} / month
+              </p>
+              <ul className="mt-6 space-y-3 text-sm">
+                {yearlyFeatures.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-muted-foreground">
+                    <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+              {automated && (
+                <Button asChild className="mt-auto w-full font-semibold">
+                  <Link href="/signup?next=/account">Subscribe — ${yearlyUsd} / {yearlyMonths} months</Link>
                 </Button>
               )}
             </div>

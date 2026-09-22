@@ -5,11 +5,42 @@ import crypto from 'node:crypto'
 export const SITE = 'https://trading365.org'
 
 export const PLANS = {
-  monthly:   { key: 'monthly',   label: 'Monthly',   amount: 29, days: 30 },
-  quarterly: { key: 'quarterly', label: 'Quarterly', amount: 69, days: 90 },
+  monthly:   { key: 'monthly',   label: 'Monthly',   amount: 29,  days: 30 },
+  quarterly: { key: 'quarterly', label: 'Quarterly', amount: 69,  days: 90 },
+  yearly:    { key: 'yearly',    label: 'Yearly',    amount: 249, days: 365 },
 } as const
 export type PlanKey = keyof typeof PLANS
-export const isPlanKey = (v: string): v is PlanKey => v === 'monthly' || v === 'quarterly'
+
+/**
+ * Derived from PLANS, never retyped.
+ *
+ * This used to be `v === 'monthly' || v === 'quarterly'`. The payment webhook
+ * does `const days = isPlanKey(plan) ? PLANS[plan].days : 30`, so a tier added
+ * to PLANS but forgotten here would be charged at its own price and then granted
+ * 30 days — a silent under-grant with no error, no log, and no symptom until the
+ * buyer complains months later. Deriving it makes that unrepresentable, which is
+ * why adding `yearly` above is a one-line change.
+ *
+ * hasOwnProperty rather than `in`: `'constructor' in PLANS` is TRUE, so `in`
+ * would let a crafted plan string through to `PLANS[plan].days` on a function.
+ */
+export const isPlanKey = (v: string): v is PlanKey =>
+  Object.prototype.hasOwnProperty.call(PLANS, v)
+
+/** Months a plan covers, using the site's existing 30-day-month convention. */
+export function planMonths(plan: PlanKey): number {
+  return Math.round(PLANS[plan].days / PLANS.monthly.days)
+}
+
+/** Effective monthly price — what a comparison table should quote. */
+export function planPerMonth(plan: PlanKey): number {
+  return PLANS[plan].amount / planMonths(plan)
+}
+
+/** Saving against paying monthly, as a whole percentage. */
+export function planSavingsPct(plan: PlanKey): number {
+  return Math.round((1 - planPerMonth(plan) / PLANS.monthly.amount) * 100)
+}
 
 // There is ONE Telegram channel (the premium channel, @ShortsScanner =
 // TELEGRAM_CHAT_ID). The membership flow targets it directly.
@@ -177,4 +208,68 @@ export async function removeMember(userId: number): Promise<void> {
   const chatId = PREMIUM_CHANNEL_ID()
   await tg('banChatMember', { chat_id: chatId, user_id: userId })
   await tg('unbanChatMember', { chat_id: chatId, user_id: userId, only_if_banned: true })
+}
+
+// ── Admin: orders ───────────────────────────────────────────────────────────
+export interface OrderRow {
+  order_id: string
+  plan: string
+  status: string
+  /** NUMERIC comes back from the driver as a STRING — format it, don't add to it. */
+  amount_usd: string | null
+  user_id: number | null
+  /** NULL for legacy Telegram-only orders made before accounts existed. */
+  email: string | null
+  paid_at: string | null
+  expires_at: string | null
+  created_at: string
+}
+
+/**
+ * Recent orders, newest first.
+ *
+ * `includePending` defaults to FALSE, and that default is the important part.
+ * The table currently holds 164 `pending` rows spanning 15 Jun → 16 Sep, and
+ * they are NOT one thing:
+ *
+ *   163 have user_id IS NULL. Those are the crawler era — the old
+ *       `GET /api/pay/create` created an order (and minted a NOWPayments invoice)
+ *       as a side effect of being fetched, so anything that followed a link
+ *       produced one. Not demand: no human clicked them.
+ *    1  has a user_id, from a signed-in account. That IS demand-adjacent — a
+ *       real person reached a hosted checkout and did not complete it.
+ *
+ * So the rule to keep in mind: a pending row with NO account is noise, and a
+ * pending row WITH an account is an abandoned checkout worth looking at. That
+ * distinction only became meaningful once orders could be attributed, which is
+ * the same fix that stopped the crawlers.
+ *
+ * Pass includePending: true to see all of them; a cleanup should scope itself to
+ * the user_id IS NULL rows rather than sweeping both kinds away.
+ *
+ * Reads `users` directly rather than importing it, to keep lib/premium.ts free of
+ * a circular dependency (lib/users.ts does not import this module, and adding the
+ * edge here would be the first step towards one).
+ */
+export async function listOrders(
+  opts: { limit?: number; includePending?: boolean } = {},
+): Promise<OrderRow[]> {
+  const limit = opts.limit ?? 100
+  const includePending = opts.includePending ?? false
+  try {
+    await setupSubscribersTable()
+    const rows = (await sql`
+      SELECT s.order_id, s.plan, s.status, s.amount_usd, s.user_id,
+             u.email, s.paid_at, s.expires_at, s.created_at
+      FROM subscribers s
+      LEFT JOIN users u ON u.id = s.user_id
+      WHERE (${includePending} OR s.status <> 'pending')
+      ORDER BY COALESCE(s.paid_at, s.created_at) DESC
+      LIMIT ${limit}
+    `) as unknown as OrderRow[]
+    return rows
+  } catch (err) {
+    console.error('[premium] listOrders failed:', err)
+    return []
+  }
 }

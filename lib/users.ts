@@ -568,3 +568,155 @@ export async function getReferralStats(userId: number, myCode: string): Promise<
     return empty
   }
 }
+
+// ── Admin: member list ──────────────────────────────────────────────────────
+export interface MemberRow {
+  id: number
+  email: string
+  referral_code: string
+  referred_by: string | null
+  created_at: string
+  last_login_at: string | null
+  tier: Tier
+  paid_until: string | null
+  /** Which integration granted the live entitlement — 'nowpayments', 'manual', 'referral'. */
+  grant_source: string | null
+  /** The matching external id — together with grant_source this is what revokeEntitlement needs. */
+  grant_external_id: string | null
+  /** Converted orders for this account, excluding the abandoned/crawl junk. */
+  paid_orders: number
+  last_plan: string | null
+}
+
+export interface MemberSummary {
+  total: number
+  paid: number
+  free: number
+  signups7d: number
+  signups30d: number
+  expiring30d: number
+  /** Orders that actually converted, across all plans. */
+  paidOrders: number
+  /** Orders that never converted — mostly the crawl junk from the old GET bug. */
+  pendingOrders: number
+  /**
+   * Of pendingOrders, those WITH an account attached. Those are real abandoned
+   * checkouts by a signed-in person — the opposite of noise — so they are the
+   * only pending rows worth showing an operator by default.
+   */
+  pendingAttributed: number
+}
+
+/**
+ * Every account, newest first, with the tier derived the SAME way getAccount
+ * derives it (EXISTS over active, unexpired entitlements).
+ *
+ * WHY THIS EXISTS
+ * Until now there was no query in this module that could return more than one
+ * user — every lookup was `WHERE email = …` or `WHERE id = …` — and the only
+ * admin affordance was /api/admin/entitlements, which takes a single email and,
+ * it turned out, had no UI calling it at all. So "who signed up?" and "did anyone
+ * buy?" were answerable only by hand-written SQL.
+ *
+ * Two deliberate choices:
+ *   - MAX(expires_at) over ACTIVE entitlements, mirroring getAccount. A lifetime
+ *     grant (expires_at IS NULL) therefore shows paid_until = NULL while tier is
+ *     'paid' — the same asymmetry /account already displays, kept consistent on
+ *     purpose rather than quietly diverging between the two screens.
+ *   - Degrades to [] rather than throwing. An admin dashboard that 500s because
+ *     one subquery failed is worse than one that renders an empty table.
+ */
+export async function listMembers(limit = 200, search = ''): Promise<MemberRow[]> {
+  try {
+    await setupUserTables()
+    const term = `%${(search ?? '').trim()}%`
+    const rows = (await sql`
+      SELECT u.id, u.email, u.referral_code, u.referred_by, u.created_at, u.last_login_at,
+             EXISTS (
+               SELECT 1 FROM entitlements e
+               WHERE e.user_id = u.id AND e.status = 'active'
+                 AND (e.expires_at IS NULL OR e.expires_at > NOW())
+             ) AS is_paid,
+             (SELECT MAX(e.expires_at) FROM entitlements e
+               WHERE e.user_id = u.id AND e.status = 'active') AS paid_until,
+             (SELECT e.source FROM entitlements e
+               WHERE e.user_id = u.id AND e.status = 'active'
+               ORDER BY e.granted_at DESC LIMIT 1) AS grant_source,
+             (SELECT e.external_id FROM entitlements e
+               WHERE e.user_id = u.id AND e.status = 'active'
+               ORDER BY e.granted_at DESC LIMIT 1) AS grant_external_id,
+             (SELECT COUNT(*)::int FROM subscribers s
+               WHERE s.user_id = u.id AND s.status IN ('paid', 'active')) AS paid_orders,
+             (SELECT s.plan FROM subscribers s
+               WHERE s.user_id = u.id AND s.status IN ('paid', 'active')
+               ORDER BY s.paid_at DESC NULLS LAST LIMIT 1) AS last_plan
+      FROM users u
+      WHERE (${search ?? ''} = '' OR u.email ILIKE ${term})
+      ORDER BY u.created_at DESC
+      LIMIT ${limit}
+    `) as unknown as Array<Record<string, unknown>>
+
+    return rows.map((r) => {
+      const { is_paid, ...rest } = r
+      return {
+        ...(rest as unknown as Omit<MemberRow, 'tier'>),
+        tier: is_paid ? 'paid' : 'free',
+      }
+    })
+  } catch (err) {
+    console.error('[users] listMembers failed:', err)
+    return []
+  }
+}
+
+/**
+ * Headline counts for the members dashboard. Zeros on failure, never throws.
+ *
+ * NOTE the quoted camelCase aliases. Postgres folds unquoted identifiers to
+ * lower case, so `AS paidOrders` arrives as `paidorders`, the property lookup
+ * misses, and `?? 0` renders a confident, wrong zero. That is the exact
+ * silent-zero failure this dashboard was built to remove, so it is worth the
+ * two sets of quotes. (The camelCase-free aliases — total, paid, signups7d —
+ * need no quoting and are left bare.)
+ */
+export async function getMemberSummary(): Promise<MemberSummary> {
+  const empty: MemberSummary = {
+    total: 0, paid: 0, free: 0, signups7d: 0, signups30d: 0, expiring30d: 0, paidOrders: 0, pendingOrders: 0, pendingAttributed: 0,
+  }
+  try {
+    await setupUserTables()
+    const [row] = (await sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM users) AS total,
+        (SELECT COUNT(*)::int FROM users u WHERE EXISTS (
+           SELECT 1 FROM entitlements e
+           WHERE e.user_id = u.id AND e.status = 'active'
+             AND (e.expires_at IS NULL OR e.expires_at > NOW())
+        )) AS paid,
+        (SELECT COUNT(*)::int FROM users WHERE created_at > NOW() - INTERVAL '7 days')  AS signups7d,
+        (SELECT COUNT(*)::int FROM users WHERE created_at > NOW() - INTERVAL '30 days') AS signups30d,
+        (SELECT COUNT(*)::int FROM entitlements
+           WHERE status = 'active' AND expires_at IS NOT NULL
+             AND expires_at > NOW() AND expires_at < NOW() + INTERVAL '30 days') AS expiring30d,
+        (SELECT COUNT(*)::int FROM subscribers WHERE status IN ('paid', 'active')) AS "paidOrders",
+        (SELECT COUNT(*)::int FROM subscribers WHERE status = 'pending')          AS "pendingOrders",
+        (SELECT COUNT(*)::int FROM subscribers
+           WHERE status = 'pending' AND user_id IS NOT NULL)                      AS "pendingAttributed"
+    `) as unknown as Array<Record<string, number>>
+
+    const total = row?.total ?? 0
+    const paid = row?.paid ?? 0
+    return {
+      total, paid, free: total - paid,
+      signups7d: row?.signups7d ?? 0,
+      signups30d: row?.signups30d ?? 0,
+      expiring30d: row?.expiring30d ?? 0,
+      paidOrders: row?.paidOrders ?? 0,
+      pendingOrders: row?.pendingOrders ?? 0,
+      pendingAttributed: row?.pendingAttributed ?? 0,
+    }
+  } catch (err) {
+    console.error('[users] getMemberSummary failed:', err)
+    return empty
+  }
+}

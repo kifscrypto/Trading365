@@ -10,6 +10,7 @@
     "review": "node --env-file=.env.local scripts/kimi-review.mjs",
     "review:dry": "node scripts/kimi-review.mjs --dry-run",
     "x:check": "node --env-file=.env.local scripts/x-check.mjs",
+    "plans:check": "node --env-file=.env.local scripts/check-plans.mjs",
     "og:preview": "node scripts/og-preview.mjs"
   },
   "dependencies": {

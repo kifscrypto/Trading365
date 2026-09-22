@@ -76,6 +76,14 @@ const scannerSchema = {
       availability: 'https://schema.org/InStock',
       url: `${BASE_URL}/scanner`,
     },
+    {
+      '@type': 'Offer',
+      name: `Pro — ${PLANS.yearly.label}`,
+      price: String(PLANS.yearly.amount),
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+      url: `${BASE_URL}/scanner`,
+    },
   ],
 }
 
