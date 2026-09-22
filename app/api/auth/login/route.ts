@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { randomBytes } from 'node:crypto'
 import {
   clientIp, createSession, findUserByEmail, hashIp, hashPassword, isRateLimited,
-  markLogin, normaliseEmail, recordAttempt, sessionCookie, verifyPassword,
+  markLogin, normaliseEmail, recordAttempt, sessionCookie, signedInCookie, verifyPassword,
 } from '@/lib/users'
 
 export const runtime = 'nodejs'
@@ -46,6 +46,9 @@ export async function POST(request: Request) {
     const { token, maxAge } = await createSession(user.id, request.headers.get('user-agent'))
     const cookieStore = await cookies()
     cookieStore.set(sessionCookie(token, maxAge))
+    // The client-readable companion, so the header offers "My account" rather
+    // than "Sign in". Authorises nothing — see SIGNED_IN_COOKIE in lib/users.ts.
+    cookieStore.set(signedInCookie(maxAge))
     await markLogin(user.id)
     await recordAttempt(email, ipHash, true)
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { consumePasswordReset, createSession, markLogin, sessionCookie } from '@/lib/users'
+import { consumePasswordReset, createSession, markLogin, sessionCookie, signedInCookie } from '@/lib/users'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -48,6 +48,8 @@ export async function POST(request: Request) {
     )
     const cookieStore = await cookies()
     cookieStore.set(sessionCookie(sessionToken, maxAge))
+    // Companion flag for the header — authorises nothing. See SIGNED_IN_COOKIE.
+    cookieStore.set(signedInCookie(maxAge))
     await markLogin(outcome.userId)
 
     return NextResponse.json({ ok: true })

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import {
   createSession, createUser, clientIp, grantSignupOffer, hashIp, isRateLimited, markLogin,
-  normaliseEmail, passwordProblem, recordAttempt, sessionCookie, validEmail,
+  normaliseEmail, passwordProblem, recordAttempt, sessionCookie, signedInCookie, validEmail,
 } from '@/lib/users'
 import { emailConfigured, sendEmail, welcomeEmail } from '@/lib/email'
 import { FREE_TIER_DELAY_HOURS } from '@/lib/signals/public'
@@ -61,6 +61,8 @@ export async function POST(request: Request) {
     const { token, maxAge } = await createSession(created.user.id, request.headers.get('user-agent'))
     const cookieStore = await cookies()
     cookieStore.set(sessionCookie(token, maxAge))
+    // Companion flag for the header — authorises nothing. See SIGNED_IN_COOKIE.
+    cookieStore.set(signedInCookie(maxAge))
     await markLogin(created.user.id)
     await recordAttempt(email, ipHash, true)
 

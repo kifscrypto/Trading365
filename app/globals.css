@@ -323,3 +323,22 @@
   --ring: var(--t-green);
 }
 
+/* ── Signed-in header swap ───────────────────────────────────────────────────
+   The header renders BOTH affordances and lets CSS pick, because the server
+   cannot know which to send: reading the session cookie in the root layout would
+   make all 21 ISR routes render dynamically and lose their CDN cache. An inline
+   script in app/layout.tsx sets data-auth="in" before first paint, so the right
+   one is visible from the first frame — no flash of the wrong button.
+
+   Note the asymmetry. The signed-in elements are hidden by `html:not([data-auth])`
+   rather than by a rule the "in" state has to undo. That means when signed in, NO
+   rule touches them and they keep whatever display their own classes give them
+   (inline-flex for a Button, block for a nav item) — no `!important`, and no need
+   to restate a display value the component already knows.
+
+   With the attribute absent — signed out, JS disabled, or a crawler — the
+   signed-out affordances show. That is the correct default: most visitors are not
+   signed in, and a crawler never is. */
+html:not([data-auth="in"]) .auth-when-in { display: none; }
+html[data-auth="in"] .auth-when-out { display: none; }
+

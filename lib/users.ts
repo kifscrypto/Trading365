@@ -24,6 +24,12 @@
 import { neon } from '@neondatabase/serverless'
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
+// WITH the explicit .ts extension, deliberately: this module is also executed
+// directly by node from scripts/*.mjs, and node's ESM resolver requires an
+// extension on relative specifiers — `'./auth-cookies'` fails with
+// ERR_MODULE_NOT_FOUND. tsconfig sets allowImportingTsExtensions to permit the
+// extension, which is only legal because noEmit is already true there.
+import { SESSION_COOKIE, SIGNED_IN_COOKIE } from './auth-cookies.ts'
 
 const scryptAsync = promisify(scrypt) as (
   password: string,
@@ -34,8 +40,13 @@ const scryptAsync = promisify(scrypt) as (
 
 export const sql = neon(process.env.DATABASE_URL!)
 
-export const SESSION_COOKIE = 't365_session'
 export const SESSION_DAYS = 30
+
+// Re-exported so every existing `import { SESSION_COOKIE } from '@/lib/users'`
+// keeps working. The declarations live in lib/auth-cookies.ts because the root
+// layout and the client header both need SIGNED_IN_COOKIE and neither can import
+// this module — see that file for why.
+export { SESSION_COOKIE, SIGNED_IN_COOKIE }
 
 // Cost parameters. N=16384 keeps a login at roughly 50-100ms on a serverless
 // function — slow enough to be expensive to attack, fast enough not to time out.
@@ -297,6 +308,26 @@ export function sessionCookie(token: string, maxAge: number) {
     sameSite: 'lax' as const,
     // Default cookie path would be /api/auth (the request's directory), so the
     // browser would never send it to /account or any page that reads it.
+    path: '/',
+    maxAge,
+  }
+}
+
+/**
+ * The client-readable companion flag. Set alongside the session cookie on every
+ * sign-in path and cleared on sign-out — see SIGNED_IN_COOKIE for why it exists.
+ *
+ * `httpOnly: false` is the entire point and is safe here only because the value
+ * is a constant '1' that authorises nothing. The same lifetime as the session so
+ * the header cannot outlive the session it describes.
+ */
+export function signedInCookie(maxAge: number) {
+  return {
+    name: SIGNED_IN_COOKIE,
+    value: '1',
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
     path: '/',
     maxAge,
   }

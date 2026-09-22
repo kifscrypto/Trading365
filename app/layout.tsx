@@ -9,6 +9,10 @@ import { GoogleAnalytics } from '@/components/google-analytics'
 import { PageTracker } from '@/components/page-tracker'
 import { AffiliateClickTracker } from '@/components/affiliate-click-tracker'
 import { generateOrganizationStandaloneSchema } from '@/lib/schema'
+// Safe to import from the root layout: lib/auth-cookies.ts has no imports at all,
+// so this does not pull a database client into every page the way lib/users.ts
+// would. See that file for why the header needs it.
+import { SIGNED_IN_COOKIE } from '@/lib/auth-cookies'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -78,6 +82,25 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <meta name="naver-site-verification" content="1790ce3ad7df54aff5e6fd5ac1c784a6c5da2264" />
+        {/* Marks <html> as signed-in BEFORE the browser paints, so the header can
+            show "My account" on the first frame instead of flashing "Sign in"
+            first. This is the same trick next-themes uses for the theme, and it
+            has to be inline and synchronous — a useEffect in the header would run
+            after paint, which is exactly the flash we are avoiding.
+
+            It reads SIGNED_IN_COOKIE, a non-httpOnly flag whose value is '1' and
+            which authorises nothing; the session itself is httpOnly and verified
+            server-side. All this decides is which of two buttons is visible.
+
+            Wrapped in try/catch because a blocked-cookies browser would otherwise
+            throw here and take the rest of the document down with it. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              `try{if(document.cookie.indexOf('${SIGNED_IN_COOKIE}=')>-1)` +
+              `document.documentElement.setAttribute('data-auth','in')}catch(e){}`,
+          }}
+        />
         {/* Sitewide Organization schema */}
         <script
           type="application/ld+json"

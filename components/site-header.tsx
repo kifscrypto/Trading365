@@ -88,7 +88,15 @@ export function SiteHeader() {
             <Link
               key={link.href}
               href={link.href}
-              className="rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary whitespace-nowrap"
+              className={cn(
+                "rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary whitespace-nowrap",
+                // "Join free" is an invitation to sign up, and it sat directly
+                // beside a "Sign in" button — so a member was being invited to do
+                // both at once. Hidden once signed in, where "My account" is the
+                // useful offer instead. Toggled by the pre-paint script in
+                // app/layout.tsx; the rules live in app/globals.css.
+                link.href === "/signup" && "auth-when-out",
+              )}
             >
               {link.label}
             </Link>
@@ -150,9 +158,27 @@ export function SiteHeader() {
               member had no way in: their options were to create a SECOND account
               or to guess /login. Sign in is a ghost button so it stays visually
               subordinate to the conversion CTA next to it — it exists for the
-              people who already converted. */}
-          <Button size="sm" variant="ghost" className="font-semibold text-muted-foreground hover:text-foreground" asChild>
+              people who already converted.
+
+              BOTH states are rendered and CSS picks one, so a signed-in member
+              sees "My account" on the very first frame rather than watching
+              "Sign in" swap out. The rules are in app/globals.css and the flag is
+              set by the pre-paint script in app/layout.tsx. */}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="auth-when-out font-semibold text-muted-foreground hover:text-foreground"
+            asChild
+          >
             <Link href="/login">Sign in</Link>
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="auth-when-in font-semibold text-muted-foreground hover:text-foreground"
+            asChild
+          >
+            <Link href="/account">My account</Link>
           </Button>
           <Button size="sm" className="font-semibold" asChild>
             <Link href="/bonuses">Get Bonuses</Link>
@@ -190,14 +216,21 @@ export function SiteHeader() {
                   {link.label}
                 </Link>
               ))}
-              {/* Three CTAs in the mobile sheet: sign in leads for the returning
-                  member, the account is the conversion path, bonuses is the
-                  affiliate one. Filled = account. */}
+              {/* CTAs in the mobile sheet. Sign in leads for the returning member,
+                  the account is the conversion path, bonuses is the affiliate one.
+                  Filled = account.
+
+                  Same CSS swap as the desktop header: both states are rendered and
+                  app/globals.css picks one, so a member never sees "Sign in" and
+                  "Create free account" in a drawer they have already completed. */}
               <div className="flex flex-col gap-2 pt-4">
-                <Button className="w-full font-semibold" size="sm" variant="ghost" asChild>
+                <Button className="auth-when-out w-full font-semibold" size="sm" variant="ghost" asChild>
                   <Link href="/login" onClick={() => setOpen(false)}>Sign in</Link>
                 </Button>
-                <Button className="w-full font-semibold" size="sm" asChild>
+                <Button className="auth-when-in w-full font-semibold" size="sm" variant="ghost" asChild>
+                  <Link href="/account" onClick={() => setOpen(false)}>My account</Link>
+                </Button>
+                <Button className="auth-when-out w-full font-semibold" size="sm" asChild>
                   <Link href="/signup">Create free account</Link>
                 </Button>
                 <Button className="w-full font-semibold" size="sm" variant="outline" asChild>
