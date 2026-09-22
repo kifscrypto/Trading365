@@ -56,6 +56,20 @@ type Summary = {
   pendingAttributed: number
 }
 
+/**
+ * Durations the Grant control offers, and the one it starts on.
+ *
+ * 14 is the ordinary comp. 30 is kept for occasions that warrant a full month,
+ * which is why it is a deliberate second choice rather than the default — the old
+ * button only did 30, so every casual grant was a month.
+ *
+ * This decides what the UI OFFERS, not what the API accepts: the endpoint still
+ * takes any positive number, or null for lifetime, so a one-off of another length
+ * is a curl away rather than a code change.
+ */
+const GRANT_DAYS_OPTIONS = [14, 30] as const
+const GRANT_DAYS_DEFAULT = 14
+
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -123,6 +137,9 @@ export default function MembersPage() {
   const [includePending, setIncludePending] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [note, setNote] = useState('')
+  // Per-row, not one shared value: a single selection would mean setting 30 for
+  // one member and silently granting 30 to whoever you clicked next.
+  const [grantDays, setGrantDays] = useState<Record<number, number>>({})
 
   useEffect(() => {
     fetch('/api/admin/check-session').then((r) => { if (!r.ok) router.push('/admin') })
@@ -322,20 +339,47 @@ export default function MembersPage() {
                           {busy === `revoke-${m.id}` ? 'Revoking…' : 'Revoke'}
                         </button>
                       ) : m.tier === 'paid' ? (
-                        // A lifetime grant legitimately has no external id, and a
-                        // paid row whose entitlement carries none cannot be revoked
-                        // by this endpoint. Say so rather than offering a button
-                        // that would send an empty externalId and fail.
-                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>lifetime grant</span>
+                        // The revoke call needs (source, externalId); this entitlement
+                        // carries no external id, so there is no button to offer —
+                        // sending an empty one would just fail.
+                        //
+                        // The old label called every such row "lifetime grant", which
+                        // is wrong for the common case: a manual comp from the Grant
+                        // control has an EXPIRY, visible in "Paid until". Only a grant
+                        // made with days = null is genuinely permanent, and the Paid
+                        // until column is what says so.
+                        <span
+                          title="No external id on this entitlement, so the revoke endpoint would be sent an empty one and fail. Its expiry is in the 'Paid until' column."
+                          style={{ fontSize: '0.75rem', color: '#64748b' }}
+                        >
+                          not revocable
+                        </span>
                       ) : (
+                        <>
+                        <select
+                          value={grantDays[m.id] ?? GRANT_DAYS_DEFAULT}
+                          onChange={(e) => setGrantDays((s) => ({ ...s, [m.id]: Number(e.target.value) }))}
+                          disabled={busy !== null}
+                          aria-label={`Days to grant ${m.email}`}
+                          title="How long to grant for"
+                          style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 5, padding: '0.3rem 0.45rem', color: '#e2e8f0', fontSize: '0.75rem', marginRight: '0.35rem' }}
+                        >
+                          {GRANT_DAYS_OPTIONS.map((d) => (
+                            <option key={d} value={d}>{d} days</option>
+                          ))}
+                        </select>
                         <button
                           disabled={busy !== null}
-                          onClick={() => mutate({ email: m.email, days: 30, source: 'manual' }, `grant-${m.id}`, `Granted 30 days to ${m.email}`)}
-                            title="Grants 30 days and emails them to say so"
+                          onClick={() => {
+                            const days = grantDays[m.id] ?? GRANT_DAYS_DEFAULT
+                            mutate({ email: m.email, days, source: 'manual' }, `grant-${m.id}`, `Granted ${days} days to ${m.email}`)
+                          }}
+                          title="Grants the selected duration and emails them to say so"
                           style={{ background: '#14532d', color: '#bbf7d0', border: 0, borderRadius: 5, padding: '0.3rem 0.6rem', fontSize: '0.75rem', cursor: 'pointer' }}
                         >
-                          {busy === `grant-${m.id}` ? 'Granting…' : 'Grant 30d'}
+                          {busy === `grant-${m.id}` ? 'Granting…' : 'Grant'}
                         </button>
+                        </>
                       )}
                     </td>
                   </tr>

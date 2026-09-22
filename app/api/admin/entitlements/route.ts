@@ -11,9 +11,15 @@ export const dynamic = 'force-dynamic'
 // real payment — the same code path the payment webhook uses.
 //
 //   GET  /api/admin/entitlements?email=someone@example.com
-//   POST /api/admin/entitlements  { email, days?: 30|null, source?: 'manual' }
+//   POST /api/admin/entitlements  { email, days?: 14|null, source?: 'manual' }
 //   POST /api/admin/entitlements  { email, days, notify: false }   ← silent comp
 //   POST /api/admin/entitlements  { revoke: true, source: 'nowpayments', externalId: 't365-...' }
+//
+// `days` omitted now means 14, not 30. 14 is the ordinary comp and 30 is kept for
+// occasions that warrant a month, so an omitted parameter should land on the
+// everyday value rather than the special one — forgetting the argument should not
+// quietly double the grant. The UI always sends an explicit value; this default
+// only decides what a bare curl does.
 //
 // A grant now EMAILS the member. Before that, granting 30 days changed the
 // database and told nobody: the recipient had no way to learn they had been given
@@ -65,7 +71,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No account with that email — they need to sign up first.' }, { status: 404 })
     }
 
-    const days = body?.days === null ? null : Number(body?.days ?? 30)
+    const days = body?.days === null ? null : Number(body?.days ?? 14)
     if (days !== null && (!Number.isFinite(days) || days <= 0)) {
       return NextResponse.json({ error: 'days must be a positive number, or null for lifetime' }, { status: 400 })
     }
