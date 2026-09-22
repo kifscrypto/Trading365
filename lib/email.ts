@@ -27,7 +27,7 @@
  *
  * ENV
  *   RESEND_API_KEY      unset = email disabled entirely (the no-op path)
- *   EMAIL_FROM          default 'Trading365 <hello@trading365.org>'; the domain
+ *   EMAIL_FROM          default 'Trading365 <contact@trading365.org>'; the domain
  *                       must be verified in Resend or every send is rejected
  *   EMAIL_REPLY_TO      optional; unset omits the header
  *   EMAIL_MODE          'dry' suppresses sending and logs instead — for testing
@@ -52,7 +52,17 @@ const MUTED = '#71717a'
 const DIM = '#a1a1aa'
 const LINE = '#e4e4e7'
 
-const FROM = () => process.env.EMAIL_FROM ?? 'Trading365 <hello@trading365.org>'
+/**
+ * The default sender. `contact@` because that is the address the site already
+ * publishes on /about, /scanner and /scanner/longs — so a member who hits reply
+ * reaches a mailbox that exists and is watched, with no configuration at all.
+ *
+ * This started as `hello@`, which was invented here and is not a real mailbox:
+ * every reply would have bounced, silently, to an address nobody had ever
+ * created. If you would rather send from a dedicated address, set EMAIL_FROM to
+ * something on the verified domain and point EMAIL_REPLY_TO at contact@.
+ */
+const FROM = () => process.env.EMAIL_FROM ?? 'Trading365 <contact@trading365.org>'
 
 /** True when a key is present. Unset means the whole module is a no-op. */
 export function emailConfigured(): boolean {

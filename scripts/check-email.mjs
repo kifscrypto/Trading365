@@ -26,7 +26,7 @@ function check(label, cond) {
 console.log('== configuration ==')
 console.log(`  RESEND_API_KEY   ${emailConfigured() ? 'set' : 'NOT SET — email is a no-op'}`)
 console.log(`  EMAIL_MODE       ${emailMode()}`)
-console.log(`  EMAIL_FROM       ${process.env.EMAIL_FROM ?? 'Trading365 <hello@trading365.org> (default)'}`)
+console.log(`  EMAIL_FROM       ${process.env.EMAIL_FROM ?? 'Trading365 <contact@trading365.org> (default)'}`)
 console.log(`  EMAIL_REPLY_TO   ${process.env.EMAIL_REPLY_TO ?? '(unset)'}`)
 
 const TEMPLATES = [
