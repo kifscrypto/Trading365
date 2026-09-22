@@ -95,6 +95,15 @@ check('zero offer falls back to the plain welcome', !zeroOffer.html.includes('me
 check('zero offer never renders "0 days"', !zeroOffer.html.includes('0 days'))
 check('both variants still carry the referral link', withOffer.html.includes('signup?ref=ABC123') && noOffer.html.includes('signup?ref=ABC123'))
 
+console.log('\n== CTA fallback link ==')
+// The reset URL is the longest link the site sends — 86 chars against 528px of
+// card width — and it rendered edge-to-edge, overflowing the padding, in the
+// first real Gmail send. The fallback is now labelled and explicitly wrappable.
+const resetHtml = TEMPLATES.find(([n]) => n === 'password reset')[1].html
+check('fallback link is labelled rather than bare', resetHtml.includes('paste this link into your browser'))
+check('fallback link cannot overflow (wrap rule present)', /overflow-wrap:anywhere/.test(resetHtml))
+check('the full reset URL is still present in the html', resetHtml.includes('https://trading365.org/reset-password?token=abc'))
+
 console.log('\n== summary ==')
 console.log(`  ${pass} passed, ${fail} failed`)
 

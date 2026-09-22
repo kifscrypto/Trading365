@@ -166,7 +166,8 @@ export function renderEmail(opts: {
                 </td>
               </tr>
             </table>
-            <p style="margin:12px 0 0;font-size:12px;line-height:1.5;color:${DIM};word-break:break-all;">${esc(cta.url)}</p>`
+            <p style="margin:18px 0 0;font-size:11px;line-height:1.6;color:${DIM};">If the button does not work, paste this link into your browser:</p>
+            <p style="margin:4px 0 0;font-size:11px;line-height:1.6;color:${DIM};word-break:break-all;overflow-wrap:anywhere;">${esc(cta.url)}</p>`
     : ''
 
   return `<!DOCTYPE html>
