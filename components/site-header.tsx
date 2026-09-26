@@ -163,7 +163,12 @@ export function SiteHeader() {
               BOTH states are rendered and CSS picks one, so a signed-in member
               sees "My account" on the very first frame rather than watching
               "Sign in" swap out. The rules are in app/globals.css and the flag is
-              set by the pre-paint script in app/layout.tsx. */}
+              set by the pre-paint script in app/layout.tsx.
+
+              "My account" is the filled primary button, not a ghost: for a
+              signed-in member the account IS the conversion-complete CTA, and
+              rendering it as quiet ghost text left the header with no clear
+              action at all. It matches "Get Bonuses" beside it. */}
           <Button
             size="sm"
             variant="ghost"
@@ -174,8 +179,7 @@ export function SiteHeader() {
           </Button>
           <Button
             size="sm"
-            variant="ghost"
-            className="auth-when-in font-semibold text-muted-foreground hover:text-foreground"
+            className="auth-when-in font-semibold"
             asChild
           >
             <Link href="/account">My account</Link>
@@ -227,7 +231,7 @@ export function SiteHeader() {
                 <Button className="auth-when-out w-full font-semibold" size="sm" variant="ghost" asChild>
                   <Link href="/login" onClick={() => setOpen(false)}>Sign in</Link>
                 </Button>
-                <Button className="auth-when-in w-full font-semibold" size="sm" variant="ghost" asChild>
+                <Button className="auth-when-in w-full font-semibold" size="sm" asChild>
                   <Link href="/account" onClick={() => setOpen(false)}>My account</Link>
                 </Button>
                 <Button className="auth-when-out w-full font-semibold" size="sm" asChild>
