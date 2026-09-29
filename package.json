@@ -14,7 +14,8 @@
     "x:selection": "node scripts/check-x-selection.mjs",
     "x:schedule": "node --env-file=.env.local scripts/x-schedule.mjs",
     "email:check": "node --env-file=.env.local scripts/check-email.mjs",
-    "og:preview": "node scripts/og-preview.mjs"
+    "og:preview": "node scripts/og-preview.mjs",
+    "cron": "node scripts/cron-runner.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -69,6 +70,7 @@
     "lucide-react": "^0.564.0",
     "next": "16.1.6",
     "next-themes": "^0.4.6",
+    "node-cron": "^4.6.0",
     "react": "19.2.4",
     "react-day-picker": "9.13.2",
     "react-dom": "19.2.4",
