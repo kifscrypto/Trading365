@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { jsonLd } from "@/lib/utils/json-ld"
 import Link from "next/link"
-import { neon } from "@neondatabase/serverless"
+import { neon } from '@/lib/sql'
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingDown } from "lucide-react"

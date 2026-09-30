@@ -1,4 +1,4 @@
-import { neon } from '@neondatabase/serverless'
+import { neon } from '@/lib/sql'
 
 // Self-audit for the scanner pipeline. Runs the checks we used to do by hand
 // every few days, so the system flags its own problems (stale crons, stuck

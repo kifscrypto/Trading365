@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyAdmin } from '@/lib/auth'
-import { neon } from '@neondatabase/serverless'
+import { neon } from '@/lib/sql'
 import {
   SIDES,
   previewReceipts,

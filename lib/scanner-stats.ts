@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless"
+import { neon } from '@/lib/sql'
 
 // Shared scanner stats + recent-wins, used by the homepage hero and the two
 // scanner pages so the advertised numbers can never diverge. The SQL is copied

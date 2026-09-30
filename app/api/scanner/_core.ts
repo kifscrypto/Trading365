@@ -2,7 +2,7 @@
  * Shared scanner logic — imported by all three scanner route files.
  * Not a route itself; Next.js only treats route.ts as an API endpoint.
  */
-import { neon } from '@neondatabase/serverless'
+import { neon } from '@/lib/sql'
 import { isExcludedSymbol, normalizeSymbolBase } from './_config'
 
 export type Kline = [string, string, string, string, string, string, ...string[]]

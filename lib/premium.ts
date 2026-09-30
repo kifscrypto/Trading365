@@ -1,4 +1,4 @@
-import { neon } from '@neondatabase/serverless'
+import { neon } from '@/lib/sql'
 import crypto from 'node:crypto'
 
 // ── Shared config ───────────────────────────────────────────────────────────

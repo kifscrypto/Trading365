@@ -1,4 +1,4 @@
-import { neon, types } from '@neondatabase/serverless'
+import { neon, types } from '@/lib/sql'
 import { randomBytes } from 'node:crypto'
 import { sanitizeInternalLinks } from '@/lib/seo/sanitize-internal-links'
 import { stripBodyFaqSection } from '@/lib/seo/strip-body-faq'

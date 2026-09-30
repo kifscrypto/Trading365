@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless"
+import { neon } from '@/lib/sql'
 import { NextResponse } from "next/server"
 import { HEADERS, EXCHANGE_LABEL, type SqlClient } from "@/app/api/scanner/_core"
 import { computePnl, type PnlBook } from "@/lib/scanner-pnl"

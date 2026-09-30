@@ -21,7 +21,7 @@
  * IMPORTANT: keep this module free of path aliases (@/…) — it is also executed
  * directly by node for verification, which cannot resolve them.
  */
-import { neon } from '@neondatabase/serverless'
+import { neon } from '@/lib/sql'
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
 // WITH the explicit .ts extension, deliberately: this module is also executed

@@ -1,4 +1,4 @@
-import { neon } from "@neondatabase/serverless"
+import { neon } from '@/lib/sql'
 import type { SqlClient } from "@/app/api/scanner/_core"
 
 /**

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { neon } from '@neondatabase/serverless'
+import { neon } from '@/lib/sql'
 import { verifyAdmin } from '@/lib/auth'
 import { getArchiveStatsForDay, getDayBest, getPublishedCount, SITE } from '@/lib/signals/public'
 import { post as discordPost } from '@/lib/discord'

@@ -13,7 +13,7 @@
  * The pure decisions live in lib/x.ts so they can be tested without a database;
  * this module is the thin SQL + adapter layer around them.
  */
-import { neon } from '@neondatabase/serverless'
+import { neon } from '@/lib/sql'
 import {
   SITE, displayPair, fmtPrice, getArchiveStatsForDay, getDayBest,
   getPublishedCount, receiptUrl,

@@ -26,7 +26,7 @@
  * directly by scripts/backfill via `node lib/signals/public.ts`, which cannot
  * resolve them.
  */
-import { neon } from '@neondatabase/serverless'
+import { neon } from '@/lib/sql'
 
 export const SITE = 'https://trading365.org'
 
