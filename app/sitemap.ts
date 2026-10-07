@@ -7,6 +7,12 @@ import type { MetadataRoute } from "next"
 
 const BASE_URL = "https://trading365.org"
 
+// Render at request time (hourly ISR), never at build: during the Railway build
+// the DB is unreachable and getAllArticlesFromDB silently falls back to the 24
+// static articles, freezing a truncated sitemap into the deploy. Matches the
+// signals-sitemap cadence.
+export const revalidate = 3600
+
 // Fixed lastmod for static pages — the last meaningful site-wide content change
 // (the 2026-07-24 localized-page repair). A per-request new Date() is ignored
 // by Google; bump this when static page content actually changes.
