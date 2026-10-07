@@ -7,11 +7,12 @@ import type { MetadataRoute } from "next"
 
 const BASE_URL = "https://trading365.org"
 
-// Render at request time (hourly ISR), never at build: during the Railway build
-// the DB is unreachable and getAllArticlesFromDB silently falls back to the 24
-// static articles, freezing a truncated sitemap into the deploy. Matches the
-// signals-sitemap cadence.
-export const revalidate = 3600
+// Render on every request, never at build: during the Railway build the DB is
+// unreachable and getAllArticlesFromDB silently falls back to the 24 static
+// articles, freezing a truncated sitemap into the deploy (this happened on the
+// Sep-30 Railway migration — 43 URLs served instead of 423). force-dynamic
+// means no build-time snapshot can ever be baked in.
+export const dynamic = "force-dynamic"
 
 // Fixed lastmod for static pages — the last meaningful site-wide content change
 // (the 2026-07-24 localized-page repair). A per-request new Date() is ignored
