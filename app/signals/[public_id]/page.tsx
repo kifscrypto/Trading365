@@ -9,7 +9,7 @@ import { jsonLd } from '@/lib/utils/json-ld'
 import { generateBreadcrumbSchema } from '@/lib/schema'
 import { ShareButton } from '@/components/share-button'
 import {
-  getReceipt, isIndexable, isRunning, displayPair, sideLabel, tiersFor, signalLabels,
+  getReceipt, isRunning, displayPair, sideLabel, tiersFor, signalLabels,
   STATUS_LABEL, fmtPrice, fmtPct, fmtUtc, hoursHeld, resultPhrase,
   receiptTitle, receiptDescription, receiptUrl, WATCH_WINDOW_HOURS,
   FEE_MODEL_VERSION, NET_ROUND_TRIP_PCT,
@@ -33,15 +33,16 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const title = receiptTitle(r)
   const description = receiptDescription(r)
   const url = receiptUrl(r.public_id)
-  // A RUNNING signal is public and shareable from fire time, but stays out of the
-  // index until it resolves — indexability is decided in isIndexable, which also
-  // covers reconstructed history.
-  const indexable = isIndexable(r)
+  // Receipts are proof-of-record pages reached by direct link (Telegram, the
+  // /signals hub), not search landing pages: thousands of near-identical
+  // numeric stubs dilute the site's overall quality signal and Google declines
+  // to index them anyway. They stay out of the index; the URL, sharing and OG
+  // cards are unaffected.
   return {
     title,
     description,
     alternates: { canonical: url },
-    robots: indexable ? { index: true, follow: true } : { index: false, follow: true },
+    robots: { index: false, follow: true },
     openGraph: { type: 'article', title, description, url, siteName: 'Trading365' },
     twitter: { card: 'summary_large_image', title, description },
   }

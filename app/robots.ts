@@ -15,9 +15,8 @@ export default function robots(): MetadataRoute.Robots {
     ],
     sitemap: [
       "https://trading365.org/sitemap.xml",
-      // Signal receipts are a separate sitemap so the article sitemap stays
-      // untouched and archive history can be switched on independently via
-      // SIGNALS_BACKFILL_INDEXABLE — this endpoint only ever lists indexable URLs.
+      // Hub-only: /signals is indexable; individual receipts are noindex
+      // proof-of-record pages and stay out of sitemaps.
       "https://trading365.org/signals-sitemap.xml",
     ],
   }
