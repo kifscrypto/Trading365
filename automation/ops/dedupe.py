@@ -37,7 +37,14 @@ def corpus_from_articles(articles: Iterable[dict[str, Any]]) -> list[CorpusEntry
 
 
 def corpus_from_calendar(items: Iterable[dict[str, Any]]) -> list[CorpusEntry]:
-    return [(str(i.get("title") or ""), _slugish(str(i.get("keyword") or ""))) for i in items]
+    # Keyword-less items (added by hand in the dashboard) fall back to the
+    # title slug — otherwise a "CoinW Review" with no keyword is invisible to
+    # coverage matching and gets planned again.
+    return [
+        (title, _slugish(str(i.get("keyword") or "") or title))
+        for i in items
+        if (title := str(i.get("title") or ""))
+    ]
 
 
 def _same_token(a: str, b: str) -> bool:

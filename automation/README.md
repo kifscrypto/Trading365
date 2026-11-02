@@ -65,9 +65,11 @@ Day boundaries use **local-time** `YYYY-MM-DD` strings throughout
 - **`OPS_API_URL` + `OPS_API_TOKEN` set** (e.g.
   `OPS_API_URL=https://trading365.org/api/ops`): every collection load/save,
   traffic snapshot, health snapshot and briefing reads/writes the site's
-  Postgres via the site's `/api/ops` routes, authenticated with
-  `Authorization: Bearer $OPS_API_TOKEN`. The dashboard then reads the same
-  data same-origin.
+  Postgres via the site's `/api/ops` routes. Auth is `Authorization: Bearer
+  $OPS_API_TOKEN` when the token is set; with the token empty the scripts log
+  in with `ADMIN_PASSWORD` and use the admin session cookie instead (the
+  `/api/ops` routes accept both). The dashboard then reads the same data
+  same-origin.
 
 `--dry-run` never uses the HTTP backend — no network, no writes, local files
 only, regardless of these variables.

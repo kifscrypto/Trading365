@@ -12,8 +12,10 @@ import random
 import time
 import urllib.error
 import urllib.request
+from http.cookiejar import CookieJar
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlsplit
 
 from . import config
 from .dates import shift_days, today_iso
@@ -26,6 +28,11 @@ HTTP_TIMEOUT = 30
 # --- Optional HTTP backend (shared data layer via the site's /api/ops) --------
 # Active only when OPS_API_URL is set AND dry-run is off; dry-run stays fully
 # local (no network, no writes) as before.
+#
+# Auth: Bearer OPS_API_TOKEN when set; otherwise falls back to the admin
+# session cookie obtained by logging in with ADMIN_PASSWORD (the site's
+# /api/ops routes accept both). Cookie sessions expire after 12h — a 401
+# triggers one re-login and retry.
 
 
 def _api_base() -> str | None:
@@ -37,7 +44,44 @@ def _http_enabled() -> bool:
     return _api_base() is not None and not config.DRY_RUN
 
 
-def _request(method: str, path: str, body: Any = None) -> tuple[int, Any]:
+_opener: urllib.request.OpenerDirector | None = None
+_cookie_jar: CookieJar | None = None
+
+
+def _reset_auth() -> None:
+    global _opener, _cookie_jar
+    _opener = None
+    _cookie_jar = None
+
+
+def _get_opener() -> urllib.request.OpenerDirector:
+    """Opener with auth prepared: bearer header if a token is configured,
+    otherwise an admin_auth cookie from POST /api/admin/login."""
+    global _opener, _cookie_jar
+    if _opener is not None:
+        return _opener
+    jar = CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    if not config.get("OPS_API_TOKEN"):
+        base = _api_base() or ""
+        parts = urlsplit(base)
+        req = urllib.request.Request(
+            f"{parts.scheme}://{parts.netloc}/api/admin/login",
+            data=json.dumps({"password": config.require("ADMIN_PASSWORD")}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with opener.open(req, timeout=HTTP_TIMEOUT) as resp:
+            if resp.status != 200:
+                raise RuntimeError(f"ops API admin login failed: HTTP {resp.status}")
+        if not any(c.name == "admin_auth" for c in jar):
+            raise RuntimeError("ops API admin login did not set an admin_auth cookie")
+    _opener = opener
+    _cookie_jar = jar
+    return opener
+
+
+def _request(method: str, path: str, body: Any = None, _retried: bool = False) -> tuple[int, Any]:
     """Call the ops API. Returns (status, parsed JSON). Raises on any HTTP or
     network error other than 404, which returns (404, None)."""
     url = f"{_api_base()}/{path}"
@@ -51,11 +95,15 @@ def _request(method: str, path: str, body: Any = None) -> tuple[int, Any]:
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+        with _get_opener().open(req, timeout=HTTP_TIMEOUT) as resp:
             return resp.status, json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code == 404:
             return 404, None
+        if e.code == 401 and not _retried and not token:
+            # Cookie session expired — re-login once and retry.
+            _reset_auth()
+            return _request(method, path, body, _retried=True)
         raise RuntimeError(f"ops API {method} {url} failed: HTTP {e.code} {e.read()[:200]!r}") from e
     except urllib.error.URLError as e:
         raise RuntimeError(f"ops API {method} {url} failed: {e.reason}") from e

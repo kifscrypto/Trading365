@@ -73,25 +73,39 @@ def _comparison_candidate(a: str, b: str) -> tuple[str, str, str]:
     )
 
 
+def _interleave(*pools: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    """Round-robin the pools so consecutive slots alternate topic types instead
+    of draining one pool (the all-comparisons calendar)."""
+    pools = [list(p) for p in pools]
+    out: list[tuple[str, str, str]] = []
+    while any(pools):
+        for pool in pools:
+            if pool:
+                out.append(pool.pop(0))
+    return out
+
+
 def build_candidates(affiliate_names: list[str]) -> list[tuple[str, str, str]]:
-    candidates: list[tuple[str, str, str]] = []
+    # Reviews keep absolute priority (money pages); the remaining three pools
+    # are interleaved so a week's slots mix formats.
+    reviews: list[tuple[str, str, str]] = []
     for name in affiliate_names:
         if name.lower() in EXCLUDED_EXCHANGES:
             continue
-        candidates.append(_review_candidate(name))
+        reviews.append(_review_candidate(name))
+    comparisons: list[tuple[str, str, str]] = []
     for i, a in enumerate(PRIORITY_EXCHANGES):
         if a.lower() in EXCLUDED_EXCHANGES:
             continue
         for b in PRIORITY_EXCHANGES[i + 1:]:
             if b.lower() in EXCLUDED_EXCHANGES:
                 continue
-            candidates.append(_comparison_candidate(a, b))
-    for region, keyword in COUNTRY_SERIES:
-        candidates.append(
-            (f"Best Crypto Exchanges for {region} Residents in 2026", keyword, "listicle")
-        )
-    candidates.extend(EVERGREEN)
-    return candidates
+            comparisons.append(_comparison_candidate(a, b))
+    countries: list[tuple[str, str, str]] = [
+        (f"Best Crypto Exchanges for {region} Residents in 2026", keyword, "listicle")
+        for region, keyword in COUNTRY_SERIES
+    ]
+    return reviews + _interleave(comparisons, countries, list(EVERGREEN))
 
 
 def next_slots(items: list[dict[str, Any]], count: int) -> list[str]:
