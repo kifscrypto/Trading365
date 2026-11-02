@@ -1,6 +1,6 @@
 {
   "name": "t365-desk",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "Local-first T365 crypto market workstation",
   "main": "dist/main/main.js",
