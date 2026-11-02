@@ -56,6 +56,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
     { url: `${BASE_URL}/scanner`, lastModified: STATIC_LAST_MODIFIED, changeFrequency: "daily", priority: 0.8 },
     { url: `${BASE_URL}/scanner/longs`, lastModified: STATIC_LAST_MODIFIED, changeFrequency: "daily", priority: 0.8 },
+    { url: `${BASE_URL}/desk`, lastModified: "2026-11-02T00:00:00.000Z", changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/about`, lastModified: STATIC_LAST_MODIFIED, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE_URL}/compare`, lastModified: STATIC_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.8 },
     { url: `${BASE_URL}/bonuses`, lastModified: STATIC_LAST_MODIFIED, changeFrequency: "weekly", priority: 0.8 },

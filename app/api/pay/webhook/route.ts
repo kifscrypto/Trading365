@@ -4,7 +4,8 @@ import {
   createPremiumInvite, setupSubscribersTable, sql,
 } from '@/lib/premium'
 import { grantEntitlement, grantReferralReward, getAccount } from '@/lib/users'
-import { accessGrantedEmail, emailConfigured, sendEmail } from '@/lib/email'
+import { accessGrantedEmail, deskLicenseEmail, emailConfigured, sendEmail } from '@/lib/email'
+import { signDesktopLicense } from '@/lib/desktop-license'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,10 +31,33 @@ export async function POST(request: Request) {
   try {
     await setupSubscribersTable()
     const rows = (await sql`
-      SELECT plan, status, user_id FROM subscribers WHERE order_id = ${orderId} LIMIT 1
-    `) as Array<{ plan: string; status: string; user_id: number | null }>
+      SELECT plan, status, user_id, product FROM subscribers WHERE order_id = ${orderId} LIMIT 1
+    `) as Array<{ plan: string; status: string; user_id: number | null; product: string | null }>
     if (!rows.length) return NextResponse.json({ ok: true }) // unknown order — ignore
     if (rows[0].status !== 'pending') return NextResponse.json({ ok: true, already: rows[0].status }) // idempotent
+
+    if (rows[0].product === 't365-desk') {
+      const { key, payload } = signDesktopLicense(orderId)
+      await sql`
+        UPDATE subscribers
+        SET status = 'paid', payment_id = ${String(body.payment_id ?? '')}, paid_at = NOW(),
+            license_key = ${key}, license_updates_until = ${payload.updatesUntil}
+        WHERE order_id = ${orderId}
+      `
+      if (rows[0].user_id && emailConfigured()) {
+        try {
+          const buyer = await getAccount(Number(rows[0].user_id))
+          if (buyer) {
+            const sent = await sendEmail(deskLicenseEmail({ email: buyer.email, licenseKey: key, orderId, updatesUntil: payload.updatesUntil }))
+            if (!sent.ok) console.error(`[pay/webhook] desktop licence email failed (${sent.status}) for order ${orderId}`)
+          }
+        } catch (error) {
+          console.error(`[pay/webhook] desktop licence email threw for order ${orderId}:`, error)
+        }
+      }
+      return NextResponse.json({ ok: true, activated: true, desktop: true, updatesUntil: payload.updatesUntil })
+    }
+    if (rows[0].product && rows[0].product !== 'scanner') throw new Error(`Unknown order product: ${rows[0].product}`)
 
     const plan = rows[0].plan
     const days = isPlanKey(plan) ? PLANS[plan].days : 30

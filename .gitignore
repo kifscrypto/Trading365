@@ -37,3 +37,9 @@ scripts/_*-backup-*.json
 
 # Signal audit workspace — production data exports + analysis scripts (scripts/ read .env.local)
 /analysis/
+
+# Desktop dependencies, build output, installers, and local verification artifacts
+desktop/node_modules/
+desktop/dist/
+desktop/release*/
+.superpowers/

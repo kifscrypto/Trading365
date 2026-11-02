@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="T365 local-first crypto market workstation">
+  <title>T365 Desk</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#app-view">Skip to workspace</a>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand" aria-label="Trading365 Desk">
+        <svg class="brand-mark" viewBox="0 0 36 36" aria-hidden="true">
+          <path d="M7 25 14 17l5 4 10-13M23 8h6v6M5 30h26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div><span class="brand-name">TRADING<span>365</span></span><span class="brand-product">DESK</span></div>
+      </div>
+      <nav class="primary-nav" aria-label="Workspace">
+        <p class="nav-label">Workspace</p>
+        <button class="nav-item is-active" type="button" data-view="overview" aria-current="page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z"/></svg><span>Overview</span>
+        </button>
+        <button class="nav-item" type="button" data-view="signals">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18 9 12l4 3 7-9M16 6h4v4"/></svg><span>Signals</span><span class="nav-count" id="signal-count">0</span>
+        </button>
+        <button class="nav-item" type="button" data-view="news">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg><span>News</span>
+        </button>
+        <button class="nav-item" type="button" data-view="calendar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14v14H5zM8 3v6M16 3v6M5 11h14M9 15h2"/></svg><span>Calendar</span>
+        </button>
+      </nav>
+      <div class="sidebar-bottom">
+        <section class="partner-card" id="partner-card" aria-label="Featured exchange partner">
+          <div class="partner-card-top"><span class="partner-eyebrow">Featured partner</span><div class="partner-dots" id="partner-dots" role="group" aria-label="Choose featured partner"></div></div>
+          <span class="partner-label" id="partner-label"></span>
+          <strong class="partner-name" id="partner-name"></strong>
+          <p class="partner-offer" id="partner-offer"></p>
+          <button class="partner-visit" id="partner-visit" type="button">Visit partner →</button>
+          <p class="partner-disclosure">Partner link · commission may apply</p>
+        </section>
+        <div class="concept-card"><span class="concept-eyebrow">Local-first</span><strong>Your desk. Yours to keep.</strong><span>No T365 account required</span></div>
+        <button class="nav-item" type="button" data-view="settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19 13.5v-3l-2-.7-.6-1.4.9-1.9-2.1-2.1-1.9.9-1.4-.6-.7-2h-3l-.7 2-1.4.6-1.9-.9-2.1 2.1.9 1.9-.6 1.4-2 .7v3l2 .7.6 1.4-.9 1.9 2.1 2.1 1.9-.9 1.4.6.7 2h3l.7-2 1.4-.6 1.9.9 2.1-2.1-.9-1.9.6-1.4 2-.7Z"/></svg><span>Settings</span>
+        </button>
+        <p class="version">T365 DESK · LOCAL V1</p>
+      </div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="connection-status"><span class="status-dot" id="engine-dot" aria-hidden="true"></span><strong>Local engine</strong><span class="status-separator">/</span><span id="engine-status">Reading local data…</span></div>
+        <div class="topbar-meta"><span>Public provider data</span><span class="utc-clock" id="utc-clock">UTC</span></div>
+      </header>
+      <main id="app-view" class="app-view" tabindex="-1"><div class="initial-state"><span class="status-dot" aria-hidden="true"></span><p>Loading your local workspace…</p></div></main>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+  <noscript><div class="noscript-message"><strong>JavaScript is needed for T365 Desk.</strong><p>Enable JavaScript in the local renderer and restart the app.</p></div></noscript>
+</body>
+</html>

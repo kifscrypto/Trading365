@@ -23,6 +23,7 @@ const navLinks = [
   // content that supports it — and it used to sit last, behind six content
   // pillars, so nothing in the chrome said the site runs scanners at all.
   { href: "/scanner", label: "Scanner" },
+  { href: "/desk", label: "T365 Desk" },
   { href: "/signals", label: "Verified Results" },
   // The account is the conversion path for everything above, and until now the
   // only way to find it was the pricing buttons on /scanner — nothing in the
@@ -83,7 +84,7 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-0.5 lg:flex">
+        <nav className="hidden items-center gap-0.5 2xl:flex">
           {navLinks.map((link) => (
             <Link
               key={link.href}
@@ -103,7 +104,7 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden lg:flex items-center gap-2">
+        <div className="hidden 2xl:flex items-center gap-2">
           <SiteSearch />
           {/* Language switcher */}
           <div className="relative" ref={langRef}>
@@ -190,7 +191,7 @@ export function SiteHeader() {
         </div>
 
         <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild className="lg:hidden">
+          <SheetTrigger asChild className="2xl:hidden">
             <Button variant="ghost" size="icon">
               <Menu className="h-5 w-5" />
               <span className="sr-only">Toggle menu</span>
