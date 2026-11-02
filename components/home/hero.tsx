@@ -22,7 +22,7 @@ const SECONDARY_CTA =
 export function Hero({ receipt }: { receipt: Receipt | null }) {
   return (
     <section className="relative mx-auto max-w-7xl px-4 pb-6 pt-12 lg:px-6 lg:pt-16">
-      <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+      <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-x-16 lg:gap-y-4">
         <div>
           <p className="font-mono text-[11px] tracking-[0.16em] t-green">
             // VERIFIED ALTCOIN SIGNAL ENGINE — EVERY SIGNAL PUBLIC
@@ -53,27 +53,27 @@ export function Hero({ receipt }: { receipt: Receipt | null }) {
               Members see them live.
             </Link>
           </p>
+        </div>
 
-          <div className="mt-4 flex flex-col gap-4 rounded-[10px] border border-[var(--t-green)]/30 bg-[var(--t-panel)] p-4 sm:flex-row sm:items-center sm:justify-between lg:col-span-2" aria-label="T365 Desk offer">
-            <div>
-              <p className="font-mono text-[11px] tracking-[0.14em] t-green">T365 DESK · ONE-TIME PURCHASE</p>
-              <h2 className="mt-2 text-xl font-bold tracking-tight text-[var(--t-tx)]">
-                Professional crypto tools. One payment. No subscription.
-              </h2>
-              <p className="mt-1 text-sm t-dim">Every future major version included · 365 days of support</p>
-            </div>
-            <Link
-              href="/desk"
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[var(--t-green)] px-6 py-3 text-base font-semibold text-[#04140B] transition hover:brightness-110"
-            >
-              <span className="font-normal text-[#04140B]/60 line-through">$499</span>
-              <span>${DESK_PRODUCT.amount} once →</span>
-            </Link>
+        <div className="order-2 -mt-8 flex flex-col gap-4 rounded-[10px] border border-[var(--t-green)]/30 bg-[var(--t-panel)] p-4 sm:flex-row sm:items-center sm:justify-between lg:order-3 lg:col-span-2 lg:mt-0" aria-label="T365 Desk offer">
+          <div>
+            <p className="font-mono text-[11px] tracking-[0.14em] t-green">T365 DESK · ONE-TIME PURCHASE</p>
+            <h2 className="mt-2 text-xl font-bold tracking-tight text-[var(--t-tx)]">
+              Professional crypto tools. One payment. No subscription.
+            </h2>
+            <p className="mt-1 text-sm t-dim">Every future major version included · 365 days of support</p>
           </div>
+          <Link
+            href="/desk"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[var(--t-green)] px-6 py-3 text-base font-semibold text-[#04140B] transition hover:brightness-110"
+          >
+            <span className="font-normal text-[#04140B]/60 line-through">$499</span>
+            <span>${DESK_PRODUCT.amount} once →</span>
+          </Link>
         </div>
 
         {receipt && (
-          <div className="flex justify-center lg:justify-end lg:pr-8">
+          <div className="order-3 flex justify-center lg:order-2 lg:justify-end lg:pr-8">
             <ReceiptCard r={receipt} floating />
           </div>
         )}
