@@ -361,6 +361,65 @@
     finally { activationInFlight = false; render() }
   }
 
+  async function setupPartners() {
+    const card = document.querySelector('#partner-card')
+    const partners = await window.t365.getPartners().catch(() => [])
+    if (!card || !partners.length) { card?.remove(); return }
+    const label = document.querySelector('#partner-label')
+    const name = document.querySelector('#partner-name')
+    const offer = document.querySelector('#partner-offer')
+    const visit = document.querySelector('#partner-visit')
+    const dots = document.querySelector('#partner-dots')
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    let activeIndex = 0
+    let rotationTimer
+
+    dots.innerHTML = partners.map((partner, index) => `<button class="partner-dot" type="button" data-partner-index="${index}" aria-label="Show ${escapeHtml(partner.name)} offer"></button>`).join('')
+    const dotButtons = [...dots.querySelectorAll('[data-partner-index]')]
+
+    function showPartner(index) {
+      activeIndex = (index + partners.length) % partners.length
+      const partner = partners[activeIndex]
+      label.textContent = partner.label
+      name.textContent = partner.name
+      offer.textContent = partner.offer
+      visit.textContent = `Visit ${partner.name} →`
+      visit.dataset.partner = partner.id
+      dotButtons.forEach((button, buttonIndex) => {
+        const active = buttonIndex === activeIndex
+        button.classList.toggle('is-active', active)
+        button.setAttribute('aria-pressed', String(active))
+      })
+    }
+
+    function stopRotation() {
+      clearInterval(rotationTimer)
+      rotationTimer = undefined
+    }
+
+    function startRotation() {
+      stopRotation()
+      if (!reducedMotion.matches && !document.hidden) {
+        rotationTimer = setInterval(() => showPartner(activeIndex + 1), 8000)
+      }
+    }
+
+    dotButtons.forEach(button => button.addEventListener('click', () => {
+      showPartner(Number(button.dataset.partnerIndex))
+      startRotation()
+    }))
+    card.addEventListener('mouseenter', stopRotation)
+    card.addEventListener('mouseleave', startRotation)
+    card.addEventListener('focusin', stopRotation)
+    card.addEventListener('focusout', event => {
+      if (!card.contains(event.relatedTarget)) startRotation()
+    })
+    document.addEventListener('visibilitychange', () => document.hidden ? stopRotation() : startRotation())
+    reducedMotion.addEventListener('change', startRotation)
+    showPartner(0)
+    startRotation()
+  }
+
   document.addEventListener('click', event => {
     const viewButton = event.target.closest('[data-view]')
     if (viewButton) { setView(viewButton.dataset.view); return }
@@ -380,6 +439,8 @@
       setView('news')
       return
     }
+    const partnerButton = event.target.closest('[data-partner]')
+    if (partnerButton) { void window.t365.openPartner(partnerButton.dataset.partner).catch(error => showToast(error.message)); return }
     const urlButton = event.target.closest('[data-url]')
     if (urlButton) { void window.t365.openExternal(urlButton.dataset.url).catch(error => showToast(error.message)); return }
     const watchButton = event.target.closest('[data-watch]')
@@ -413,6 +474,7 @@
     if (event.target.id === 'news-category') { ui.newsCategory = event.target.value; updateNewsResults() }
   })
 
+  void setupPartners()
   window.t365.onState(state => { appState = state; render() })
   window.t365.getState().then(state => { appState = state; render() }).catch(error => {
     appView.innerHTML = `<section class="panel empty-state"><strong>Could not read local state</strong><p>${escapeHtml(error.message)}</p></section>`

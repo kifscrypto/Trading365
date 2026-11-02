@@ -143,7 +143,16 @@ export interface AppState {
   license: LicenseState
 }
 
+export interface Partner {
+  id: string
+  name: string
+  label: string
+  offer: string
+  url: string
+}
+
 export interface T365Api {
+  getPartners(): Promise<readonly Partner[]>
   getState(): Promise<AppState>
   refresh(): Promise<AppState>
   toggleWatchlist(symbol: string): Promise<AppState>
@@ -152,6 +161,7 @@ export interface T365Api {
   activateLicense(key: string): Promise<AppState>
   exportBackup(): Promise<{ saved: boolean; path?: string }>
   openExternal(url: string): Promise<void>
+  openPartner(partnerId: string): Promise<void>
   onState(callback: (state: AppState) => void): () => void
 }
 

@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electr
 import path from 'node:path'
 import { AppService } from './service'
 import { Store } from './store'
+import { PARTNERS } from '../shared/partners'
 import type { AppState } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
@@ -21,6 +22,7 @@ function validArticleUrl(value: string): URL {
 }
 
 function registerIpc(): void {
+  ipcMain.handle('partners:get', () => PARTNERS)
   ipcMain.handle('state:get', () => store.getState())
   ipcMain.handle('state:refresh', async () => publish(await service.refreshAll()))
   ipcMain.handle('watchlist:toggle', async (_event, symbol: string) => publish(await service.toggleWatchlist(symbol)))
@@ -43,6 +45,11 @@ function registerIpc(): void {
   })
   ipcMain.handle('external:open', async (_event, value: string) => {
     await shell.openExternal(validArticleUrl(value).toString())
+  })
+  ipcMain.handle('partner:open', async (_event, partnerId: string) => {
+    const partner = PARTNERS.find(item => item.id === partnerId)
+    if (!partner) throw new Error('This featured partner is not available.')
+    await shell.openExternal(partner.url)
   })
 }
 

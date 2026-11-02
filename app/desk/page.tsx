@@ -6,10 +6,33 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DeskCheckoutButton } from '@/components/desk-checkout-button'
 import { deskEnabled, DESK_PRODUCT } from '@/lib/desk'
+import { jsonLd } from '@/lib/utils/json-ld'
+
+const BASE_URL = 'https://trading365.org'
+const DESK_URL = `${BASE_URL}/desk`
+const DESK_TITLE = 'T365 Desk — The Crypto Workstation You Buy Once'
+const DESK_DESCRIPTION = 'T365 Desk for Windows combines a crypto scanner, charts, news and alerts. Start your 7-day free trial, then pay $299 once for a perpetual licence.'
+const DESK_OG_IMAGE = `${BASE_URL}/api/og?title=${encodeURIComponent('T365 Desk — Crypto Tools You Buy Once')}&category=${encodeURIComponent('Windows Software')}`
 
 export const metadata: Metadata = {
-  title: 'T365 Desk — The Crypto Workstation You Buy Once',
-  description: 'A local-first Windows crypto scanner, market dashboard, news reader, and alert workstation. Perpetual licence · all future versions licence with 365 days of updates.',
+  title: DESK_TITLE,
+  description: DESK_DESCRIPTION,
+  alternates: { canonical: DESK_URL },
+  openGraph: {
+    type: 'website',
+    siteName: 'Trading365',
+    title: DESK_TITLE,
+    description: DESK_DESCRIPTION,
+    url: DESK_URL,
+    images: [{ url: DESK_OG_IMAGE, width: 1200, height: 630, alt: 'T365 Desk — local-first Windows crypto workstation' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    site: '@trading365x',
+    title: DESK_TITLE,
+    description: DESK_DESCRIPTION,
+    images: [DESK_OG_IMAGE],
+  },
 }
 
 const features = [
@@ -28,10 +51,56 @@ const faqs = [
   ['How do I recover my licence?', 'Sign in to your Trading365 account. Your paid T365 Desk orders include the installer, licence key, and update entitlement. A licence email is also sent when email delivery is configured.'],
 ]
 
+const deskSchema = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'SoftwareApplication',
+      '@id': `${DESK_URL}#software`,
+      name: 'T365 Desk',
+      url: DESK_URL,
+      description: DESK_DESCRIPTION,
+      applicationCategory: 'FinanceApplication',
+      operatingSystem: 'Windows x64',
+      downloadUrl: `${BASE_URL}${DESK_PRODUCT.downloadPath}`,
+      featureList: [
+        'Crypto market scanner',
+        'Market charts and context',
+        'Crypto news reader',
+        'Native alerts and watchlists',
+        'Local data and JSON backup',
+        'Offline-signed licence activation',
+      ],
+      offers: {
+        '@type': 'Offer',
+        price: String(DESK_PRODUCT.amount),
+        priceCurrency: 'USD',
+        availability: 'https://schema.org/InStock',
+        url: DESK_URL,
+      },
+      provider: {
+        '@type': 'Organization',
+        name: 'Trading365',
+        url: BASE_URL,
+      },
+    },
+    {
+      '@type': 'FAQPage',
+      '@id': `${DESK_URL}#faq`,
+      mainEntity: faqs.map(([question, answer]) => ({
+        '@type': 'Question',
+        name: question,
+        acceptedAnswer: { '@type': 'Answer', text: answer },
+      })),
+    },
+  ],
+}
+
 export default function DeskPage() {
   const enabled = deskEnabled()
   return (
     <div className="t-theme">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(deskSchema) }} />
       <section className="border-b border-border bg-zinc-950">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-14 lg:grid-cols-[.9fr_1.1fr] lg:px-6">
           <div>
@@ -46,7 +115,7 @@ export default function DeskPage() {
             {!enabled && <p className="mt-3 text-xs text-amber-400">Checkout is unavailable until payment and licence signing are configured. The trial download also requires installer hosting.</p>}
           </div>
           <div className="overflow-hidden rounded-xl border border-primary/20 bg-card shadow-2xl shadow-primary/5">
-            <Image src="/images/t365-desk-overview.png" alt="T365 Desk showing the market overview, real BTC chart, watchlist, and related news" width={1440} height={960} priority className="h-auto w-full" />
+            <Image src="/images/t365-desk-overview.png" alt="T365 Desk showing the market overview, real BTC chart, watchlist, and related news" width={1440} height={960} sizes="(min-width: 1280px) 660px, (min-width: 1024px) 55vw, 100vw" priority className="h-auto w-full" />
           </div>
         </div>
       </section>
