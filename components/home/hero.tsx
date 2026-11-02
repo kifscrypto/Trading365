@@ -37,7 +37,7 @@ export function Hero({ receipt }: { receipt: Receipt | null }) {
             archive the second it fires — the wins, the losses, and the ones still running.
           </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <Link href="/scanner" className={PRIMARY_CTA}>
               Open the live scanner →
             </Link>

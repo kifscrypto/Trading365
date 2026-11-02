@@ -1,0 +1,18 @@
+appId: org.trading365.desk
+productName: T365 Desk
+directories:
+  output: release
+files:
+  - dist/**/*
+extraResources:
+  - from: src/renderer
+    to: renderer
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: T365 Desk

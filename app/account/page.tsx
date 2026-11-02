@@ -14,6 +14,8 @@ import { PLANS, getSubscriberAccess } from '@/lib/premium'
 import { FREE_TIER_DELAY_HOURS, getOpenSignals } from '@/lib/signals/public'
 import { FREE_CHANNEL_INVITE } from '@/lib/telegram'
 import { UpgradeButtons, type PlanOption } from '@/components/upgrade-buttons'
+import { DeskPurchases } from '@/components/desk-purchases'
+import { getDeskPurchases } from '@/lib/desk'
 
 // Session-scoped content: never prerendered, never cached.
 export const dynamic = 'force-dynamic'
@@ -50,12 +52,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const referralUrl = `${siteConfig.url}/signup?ref=${account.referral_code}`
   // Telegram is an OPT-IN surface: the invite is minted at payment time, but a
   // member who ignores it keeps full site access.
-  const [access, referralStats, open] = await Promise.all([
+  const [access, referralStats, open, deskPurchases] = await Promise.all([
     getSubscriberAccess(account.id),
     getReferralStats(account.id, account.referral_code),
     // Same tiered read the dashboard uses: members see the live book, the free
     // tier sees only what has passed the delay plus a COUNT of what it is missing.
     getOpenSignals({ includeAll: isPaid }),
+    getDeskPurchases(account.id),
   ])
   const plans: PlanOption[] = Object.values(PLANS).map((p) => ({
     key: p.key, label: p.label, amount: p.amount, days: p.days,
@@ -160,6 +163,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </>
         )}
       </section>
+
+      <DeskPurchases purchases={deskPurchases} checkoutSuccess={checkout === 'desk-success'} />
 
       {/* ── Account panels — two columns on wide screens ───────────────────── */}
       <div className="mt-10 grid gap-6 lg:grid-cols-2">

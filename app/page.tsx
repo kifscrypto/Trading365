@@ -1,4 +1,4 @@
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
 
 import type { Metadata } from "next"
 import { jsonLd } from "@/lib/utils/json-ld"
@@ -28,6 +28,7 @@ import { Hero } from "@/components/home/hero"
 import { BigStats, type StatItem } from "@/components/home/stat-cards"
 import { SignalFeed } from "@/components/signal-feed"
 import { ResultMarquee } from "@/components/home/result-marquee"
+import { DESK_PRODUCT } from "@/lib/desk"
 
 const BASE_URL = 'https://trading365.org'
 
@@ -301,6 +302,25 @@ export default async function HomePage() {
           </div>
           <div className="mt-4">
             <SignalFeed rows={feedRows} />
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-4 pb-8 lg:px-6" aria-label="T365 Desk offer">
+          <div className="flex flex-col gap-5 rounded-[10px] border border-[var(--t-green)]/30 bg-[var(--t-panel)] p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-mono text-[11px] tracking-[0.14em] t-green">T365 DESK · ONE-TIME PURCHASE</p>
+              <h2 className="mt-2 text-xl font-bold tracking-tight text-[var(--t-tx)]">
+                Professional crypto tools. One payment. No subscription.
+              </h2>
+              <p className="mt-1 text-sm t-dim">Every future major version included · 365 days of support</p>
+            </div>
+            <Link
+              href="/desk"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[var(--t-green)] px-6 py-3 text-base font-semibold text-[#04140B] transition hover:brightness-110"
+            >
+              <span className="font-normal text-[#04140B]/60 line-through">$499</span>
+              <span>${DESK_PRODUCT.amount} once →</span>
+            </Link>
           </div>
         </section>
 
