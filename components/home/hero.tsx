@@ -54,7 +54,7 @@ export function Hero({ receipt }: { receipt: Receipt | null }) {
             </Link>
           </p>
 
-          <div className="mt-6 flex flex-col gap-5 rounded-[10px] border border-[var(--t-green)]/30 bg-[var(--t-panel)] p-5 sm:flex-row sm:items-center sm:justify-between" aria-label="T365 Desk offer">
+          <div className="mt-4 flex flex-col gap-4 rounded-[10px] border border-[var(--t-green)]/30 bg-[var(--t-panel)] p-4 sm:flex-row sm:items-center sm:justify-between lg:col-span-2" aria-label="T365 Desk offer">
             <div>
               <p className="font-mono text-[11px] tracking-[0.14em] t-green">T365 DESK · ONE-TIME PURCHASE</p>
               <h2 className="mt-2 text-xl font-bold tracking-tight text-[var(--t-tx)]">
