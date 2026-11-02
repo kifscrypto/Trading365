@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ReceiptCard } from './receipt-card'
 import { FREE_TIER_DELAY_HOURS, type Receipt } from '@/lib/signals/public'
+import { DESK_PRODUCT } from '@/lib/desk'
 
 const PRIMARY_CTA =
   'inline-flex items-center justify-center gap-2 rounded-[10px] bg-[var(--t-green)] px-6 py-3 text-sm font-semibold text-[#04140B] transition hover:brightness-110'
@@ -52,6 +53,23 @@ export function Hero({ receipt }: { receipt: Receipt | null }) {
               Members see them live.
             </Link>
           </p>
+
+          <div className="mt-6 flex flex-col gap-5 rounded-[10px] border border-[var(--t-green)]/30 bg-[var(--t-panel)] p-5 sm:flex-row sm:items-center sm:justify-between" aria-label="T365 Desk offer">
+            <div>
+              <p className="font-mono text-[11px] tracking-[0.14em] t-green">T365 DESK · ONE-TIME PURCHASE</p>
+              <h2 className="mt-2 text-xl font-bold tracking-tight text-[var(--t-tx)]">
+                Professional crypto tools. One payment. No subscription.
+              </h2>
+              <p className="mt-1 text-sm t-dim">Every future major version included · 365 days of support</p>
+            </div>
+            <Link
+              href="/desk"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[var(--t-green)] px-6 py-3 text-base font-semibold text-[#04140B] transition hover:brightness-110"
+            >
+              <span className="font-normal text-[#04140B]/60 line-through">$499</span>
+              <span>${DESK_PRODUCT.amount} once →</span>
+            </Link>
+          </div>
         </div>
 
         {receipt && (
