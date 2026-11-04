@@ -30,6 +30,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  serverExternalPackages: ['geoip-lite'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '89p58lkunvtbseuz.public.blob.vercel-storage.com' },

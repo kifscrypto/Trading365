@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createHash } from "node:crypto"
 import { sql } from "@/lib/db"
 import { exchangeFromUrl } from "@/lib/affiliate-domains"
+import { getClientIp, getRequestCountry } from "@/lib/analytics-request"
 
 // Records an outbound affiliate-link click. Mirrors /api/track: silent-fail so it
 // can never break the click, skips admin traffic, and reuses the same daily-hashed
@@ -35,10 +36,9 @@ export async function POST(req: NextRequest) {
     if (typeof path === "string" && path.startsWith("/admin")) return NextResponse.json({ ok: true })
 
     const ua = req.headers.get("user-agent") || ""
-    const fwd = req.headers.get("x-forwarded-for")
-    const ip = fwd ? fwd.split(",")[0].trim() : req.headers.get("x-real-ip") || null
+    const ip = getClientIp(req.headers)
     const isBot = !ua || BOT_UA.test(ua)
-    const country = req.headers.get("x-vercel-ip-country") || req.headers.get("cf-ipcountry") || null
+    const country = getRequestCountry(req.headers)
     const vid = visitorId(ip, ua)
     const sid =
       typeof session_id === "string" && /^[a-z0-9-]{1,40}$/i.test(session_id) ? session_id : null

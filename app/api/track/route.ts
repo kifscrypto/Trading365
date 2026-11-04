@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { sql } from '@/lib/db'
+import { getClientIp, getRequestCountry } from '@/lib/analytics-request'
 
 // Bot / non-human User-Agent signatures. The client-side PageTracker only fires
 // from JS-executing clients, so most server-side crawlers never reach here — what
@@ -32,19 +33,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
-    // Country from Vercel edge headers
-    const country =
-      req.headers.get('x-vercel-ip-country') ||
-      req.headers.get('cf-ipcountry') ||
-      null
-
+    const country = getRequestCountry(req.headers)
     const ua = req.headers.get('user-agent') || ''
-    // First hop of x-forwarded-for is the client IP on Vercel; used only to derive
-    // the hashed visitor id — never stored in raw form.
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      req.headers.get('x-real-ip') ||
-      null
+    const ip = getClientIp(req.headers)
 
     const device = /mobile|android|iphone|ipad/i.test(ua)
       ? 'mobile'

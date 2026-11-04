@@ -64,23 +64,25 @@ export async function GET(request: Request) {
         FROM page_views
         WHERE created_at >= NOW() - INTERVAL '30 days' AND is_bot IS NOT TRUE
       `,
-      // Per-session rollup → bounce rate, pages/session, avg session length.
-      // Bounce = a session with a single page view.
+      // Per-session rollup. Behavior metrics use only sessions with an engagement
+      // beacon: JS-rendering crawlers otherwise look human and inflate bounce rate.
       sql`
         WITH sess AS (
           SELECT session_id,
                  COUNT(*) AS hits,
-                 SUM(COALESCE(duration_ms, 0)) AS total_ms
+                 SUM(COALESCE(duration_ms, 0)) AS total_ms,
+                 MAX(duration_ms) AS measured_ms
           FROM page_views
           WHERE created_at >= NOW() - INTERVAL '30 days'
             AND is_bot IS NOT TRUE AND session_id IS NOT NULL
           GROUP BY session_id
         )
         SELECT
-          COUNT(*)                                     AS sessions,
-          COUNT(*) FILTER (WHERE hits = 1)             AS bounced,
-          ROUND(AVG(hits), 2)                          AS pages_per_session,
-          ROUND(AVG(total_ms))                         AS avg_session_ms
+          COUNT(*)                                                  AS sessions,
+          COUNT(*) FILTER (WHERE measured_ms > 0)                   AS measured_sessions,
+          COUNT(*) FILTER (WHERE measured_ms > 0 AND hits = 1)      AS bounced,
+          ROUND(AVG(hits) FILTER (WHERE measured_ms > 0), 2)        AS pages_per_session,
+          ROUND(AVG(total_ms) FILTER (WHERE measured_ms > 0))       AS avg_session_ms
         FROM sess
       `,
       // Entry pages: the first page of each session (where visitors land).
@@ -234,6 +236,21 @@ export async function GET(request: Request) {
       // affiliate_clicks table not created yet — leave empty defaults
     }
 
+    let deskDownloads = { today: 0 as number | string, week: 0 as number | string, month: 0 as number | string, total: 0 as number | string }
+    try {
+      const rows = await sql`
+        SELECT
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day')   AS today,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')  AS week,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') AS month,
+          COUNT(*) AS total
+        FROM desk_downloads WHERE is_bot IS NOT TRUE
+      `
+      deskDownloads = rows[0]
+    } catch {
+      // desk_downloads table not created yet — leave zeroed totals
+    }
+
     return NextResponse.json({
       totals: totals[0],
       visitors: visitors[0],
@@ -244,6 +261,7 @@ export async function GET(request: Request) {
       entryPages, exitPages,
       topPages, topReferrers, referringLinks, searchTerms, utmSources, countries, devices, daily,
       affiliateClicks,
+      deskDownloads,
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
