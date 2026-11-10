@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node server.mjs",
     "lint": "eslint .",
     "review": "node --env-file=.env.local scripts/kimi-review.mjs",
     "review:dry": "node scripts/kimi-review.mjs --dry-run",

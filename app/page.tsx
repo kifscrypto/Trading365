@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge"
 import { ArticleCard } from "@/components/article-card"
 import { CategoryCard } from "@/components/category-card"
 import { ComparisonSpotlight } from "@/components/comparison-spotlight"
-import { NewsletterCta } from "@/components/newsletter-cta"
 import { TrustBar } from "@/components/trust-bar"
 import { FeaturedAdvertisers } from "@/components/featured-advertisers"
 import { PromoBanner } from "@/components/promo-banner"
@@ -310,10 +309,10 @@ export default async function HomePage() {
             (.t365-legacy), so no shared component was edited and no page outside
             the homepage is affected. Every internal link they carry survives:
             the two scanners, the partner venues, the featured reviews, the
-            comparisons block, the five category hubs, Discord and the newsletter.
+            comparisons block, the five category hubs and Discord.
 
             Note which ones bring their own <section> wrapper — the comparisons
-            spotlight, the advertisers strip, the newsletter and the trust bar —
+            spotlight, the advertisers strip and the trust bar —
             and which do not. The ones that do are placed unwrapped so their
             padding is not doubled. */}
         <div className="t-theme">
@@ -436,9 +435,6 @@ export default async function HomePage() {
               .
             </p>
           </section>
-
-          {/* 6e. Email capture — brings its own section wrapper */}
-          <NewsletterCta />
 
           {/* Trust bar — brings its own section wrapper */}
           <TrustBar />

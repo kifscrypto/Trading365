@@ -4,7 +4,6 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { Breadcrumbs } from "@/components/breadcrumbs"
 import { ArticleCard } from "@/components/article-card"
-import { NewsletterCta } from "@/components/newsletter-cta"
 import { getCategoryBySlug } from "@/lib/data/categories"
 import { getArticlesByCategoryFromDB } from "@/lib/data/articles-db"
 import { generateBreadcrumbSchema, generateItemListSchema, generateFAQSchema } from "@/lib/schema"
@@ -188,7 +187,6 @@ export default async function CategoryPageContent({ category }: { category: stri
         </section>
       )}
 
-      <NewsletterCta />
     </>
   )
 }

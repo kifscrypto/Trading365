@@ -8,7 +8,7 @@ const articles = await sql`SELECT id, slug, title, category_slug, content FROM a
 // Build a set of all valid internal paths
 const validPaths = new Set([
   ...articles.map(a => `/${a.category_slug}/${a.slug}`),
-  '/bonuses', '/reviews', '/comparisons', '/no-kyc', '/compare', '/about', '/guides', '/join-our-newsletter', '/privacy', '/terms', '/disclaimer',
+  '/bonuses', '/reviews', '/comparisons', '/no-kyc', '/compare', '/about', '/guides', '/privacy', '/terms', '/disclaimer',
 ])
 
 // Extract all internal markdown links from content

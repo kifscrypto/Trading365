@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { sql } from '@/lib/db'
 import { getClientIp, getRequestCountry } from '@/lib/analytics-request'
+import { hasInjectionSignature } from '@/lib/analytics-security'
 
 // Bot / non-human User-Agent signatures. The client-side PageTracker only fires
 // from JS-executing clients, so most server-side crawlers never reach here — what
@@ -43,7 +44,14 @@ export async function POST(req: NextRequest) {
       ? 'tablet'
       : 'desktop'
 
-    const isBot = !ua || BOT_UA.test(ua)
+    const isBot = !ua || BOT_UA.test(ua) || hasInjectionSignature([
+      path,
+      referrer,
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      ua,
+    ])
     const vid = visitorId(ip, ua)
 
     // Session id is minted client-side (30-min inactivity window) and grouped here.

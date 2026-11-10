@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingDown } from "lucide-react"
 import { PLANS, planMonths, planPerMonth, planSavingsPct, premiumEnabled } from "@/lib/premium"
-import { ScannerNewsletter } from "@/components/scanner-newsletter"
 import { computePnl } from "@/lib/scanner-pnl"
 import { getFiredHitRate, getScannerStats } from "@/lib/scanner-stats"
 import { ScannerPnlCard } from "@/components/scanner-pnl-card"
@@ -602,9 +601,6 @@ export default async function LongScannerPage() {
           <span className="text-sm font-semibold text-foreground whitespace-nowrap">Short Scanner →</span>
         </Link>
       </section>
-
-      {/* Newsletter capture */}
-      <ScannerNewsletter accent="emerald" utmCampaign="long-scanner" />
 
       {/* Bottom CTA */}
       <section className="border-t border-border bg-zinc-900">
