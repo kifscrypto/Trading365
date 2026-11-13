@@ -7,7 +7,10 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
-  const value = process.env.DESK_DOWNLOAD_URL?.trim() || DESK_INSTALLER_URL
+  // Deliberately NOT overridable by env: a stale DESK_DOWNLOAD_URL pinned to an
+  // old release once kept serving v1.1.2 after 1.2.0 shipped. The stable
+  // "latest release" URL is the single source of truth for the installer.
+  const value = DESK_INSTALLER_URL
   let url: URL
   try { url = new URL(value) } catch {
     return NextResponse.json({ error: 'The installer URL is not configured correctly.' }, { status: 503 })

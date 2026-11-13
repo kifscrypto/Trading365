@@ -15,7 +15,7 @@ export const DESK_PRODUCT = {
 // GitHub resolves /releases/latest/download/<asset> to the newest non-prerelease
 // release, so this stable URL never has to change between versions. Each release
 // uploads a copy of the installer under this fixed asset name (see
-// scripts/upload-desk-release.mjs). Override with DESK_DOWNLOAD_URL if hosting moves.
+// scripts/upload-desk-release.mjs). The download route ignores any env override.
 export const DESK_INSTALLER_URL =
   'https://github.com/kifscrypto/Trading365/releases/latest/download/T365-Terminal-Setup.exe'
 

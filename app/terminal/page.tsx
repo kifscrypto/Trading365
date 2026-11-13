@@ -10,8 +10,9 @@ import { getArchivePage } from '@/lib/signals/public'
 import { ReceiptCard } from '@/components/home/receipt-card'
 import { jsonLd } from '@/lib/utils/json-ld'
 
-// The proof strip reads the public archive count; refresh it every 10 minutes.
-export const revalidate = 600
+// Reads the live public archive for the proof section, so it renders per request
+// (a build-time prerender cached an empty archive).
+export const dynamic = 'force-dynamic'
 
 const BASE_URL = 'https://trading365.org'
 const TERMINAL_URL = `${BASE_URL}/terminal`

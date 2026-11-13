@@ -72,6 +72,9 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // www + /desk in one hop (otherwise www -> /desk -> /terminal is a chain).
+      { source: '/desk', has: [{ type: 'host', value: 'www.trading365.org' }], destination: 'https://trading365.org/terminal', permanent: true },
+
       // www -> non-www (must be first)
       {
         source: '/:path*',
