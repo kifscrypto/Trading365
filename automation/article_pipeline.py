@@ -1,9 +1,11 @@
 """Article pipeline — scheduled 07:00 daily.
 
-Finds the oldest due content-calendar item with status ``idea``, catches up
-missed days, runs it through the admin SEO pipeline (outline → streaming
-content → meta tags), and saves the article as an UNPUBLISHED DRAFT for manual
-review in the admin (calendar item marked ``drafted``, cross-posting skipped).
+Finds the oldest due content-calendar item with status ``idea`` that the site
+does not already cover, catches up missed days, runs it through the admin SEO
+pipeline (outline → streaming content → meta tags), and saves the article as an
+UNPUBLISHED DRAFT for manual review in the admin (calendar item marked
+``drafted``, cross-posting skipped). Already-covered items are skipped, not
+fatal — one duplicate at the head of the queue must never stall the pipeline.
 An explicit ``--date`` still selects only that exact calendar day.
 
 Drafts are the default — a human publishes from the admin after review. Pass
@@ -28,17 +30,14 @@ def _intent_for(article_type: str) -> str:
     return "commercial" if article_type in COMMERCIAL_TYPES else "informational"
 
 
-def find_due_item(items: list[dict[str, Any]], date: str | None = None) -> dict[str, Any] | None:
-    """Return an exact-date item for manual runs, otherwise the oldest due idea."""
+def due_items(items: list[dict[str, Any]], date: str | None = None) -> list[dict[str, Any]]:
+    """Every due calendar item, oldest first (or the single --date item)."""
     if date is not None:
-        return next(
-            (
-                item
-                for item in items
-                if item.get("date") == date and item.get("status") == "idea" and item.get("keyword")
-            ),
-            None,
-        )
+        return [
+            item
+            for item in items
+            if item.get("date") == date and item.get("status") == "idea" and item.get("keyword")
+        ]
     day = today_iso()
     due = [
         item
@@ -46,7 +45,13 @@ def find_due_item(items: list[dict[str, Any]], date: str | None = None) -> dict[
         if item.get("date") and item["date"] <= day
         and item.get("status") == "idea" and item.get("keyword")
     ]
-    return min(due, key=lambda item: item["date"]) if due else None
+    return sorted(due, key=lambda item: item["date"])
+
+
+def find_due_item(items: list[dict[str, Any]], date: str | None = None) -> dict[str, Any] | None:
+    """Return an exact-date item for manual runs, otherwise the oldest due idea."""
+    candidates = due_items(items, date)
+    return candidates[0] if candidates else None
 
 
 def guard(
@@ -149,8 +154,8 @@ def main() -> int:
     config.set_dry_run(args.dry_run)
 
     items = store.load("content", store.seed_content)
-    item = find_due_item(items, args.date)
-    if item is None:
+    candidates = due_items(items, args.date)
+    if not candidates:
         print(f"article pipeline: nothing scheduled for {args.date or today_iso()} — exiting")
         return 0
 
@@ -161,9 +166,21 @@ def main() -> int:
     articles = api.list_articles()
     print(f"duplicate scan: {len(articles)} live articles + {len(items)} calendar items")
 
-    refusal = guard(item, items, articles)
-    if refusal:
-        print(f"article pipeline: REFUSED — {refusal}")
+    # Walk the due queue oldest-first and take the first item that is not already
+    # covered by the site. A single duplicate at the head of the queue used to
+    # abort the whole run (exit 0), so nothing ever fired again until the calendar
+    # was edited by hand. Now a refused item is skipped, not fatal.
+    item = None
+    for candidate in candidates:
+        refusal = guard(candidate, items, articles)
+        if refusal:
+            print(f"  skip {candidate.get('date')} '{candidate.get('title')}': {refusal}")
+            continue
+        item = candidate
+        break
+
+    if item is None:
+        print("article pipeline: every due item is already covered — nothing to do")
         return 0
 
     print(f"article pipeline: '{item.get('title')}' [{item.get('articleType') or 'explainer'}]")
