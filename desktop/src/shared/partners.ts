@@ -23,4 +23,11 @@ export const PARTNERS: readonly Partner[] = [
     offer: 'Up to 30,000 USDT in rewards',
     url: 'https://partner.bybit.com/b/2705',
   },
+  {
+    id: 'gate',
+    name: 'Gate.io',
+    label: 'Best EU Exchange',
+    offer: 'Welcome rewards for new users',
+    url: 'https://www.gate.com/en-eu/share/VAMQUFFAAA',
+  },
 ]
