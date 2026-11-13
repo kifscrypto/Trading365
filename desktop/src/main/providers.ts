@@ -1,7 +1,7 @@
 import type { Candle, Exchange, MarketAsset, MarketContext, SourceHealth } from '../shared/types'
 import { calcEMA } from './indicators'
 
-const HEADERS = { 'User-Agent': 'T365-Desk/1.0', 'Accept': 'application/json' }
+const HEADERS = { 'User-Agent': 'T365-Terminal/1.0', 'Accept': 'application/json' }
 const OKX = 'https://www.okx.com'
 const HL = 'https://api.hyperliquid.xyz/info'
 const excluded = new Set(['XAUT', 'XBT', 'DOGE', 'SHIB', 'PEPE', 'FLOKI', 'BONK', 'WIF', 'MEME', 'BOME', 'NEIRO', 'POPCAT', 'TURBO', 'GOAT', 'PNUT', 'LUNC', 'DEGEN'])

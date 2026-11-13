@@ -18,7 +18,7 @@ async function refreshUpdateInfo(): Promise<void> {
   if (updateInfo && updateInfo.latestVersion !== notifiedVersion && Notification.isSupported()) {
     notifiedVersion = updateInfo.latestVersion
     new Notification({
-      title: 'T365 Desk update available',
+      title: 'T365 Terminal update available',
       body: `Version ${updateInfo.latestVersion} is ready — you are on ${updateInfo.currentVersion}.`,
     }).show()
   }
@@ -59,8 +59,8 @@ function registerIpc(): void {
   ipcMain.handle('backup:export', async () => {
     if (!mainWindow) return { saved: false }
     const result = await dialog.showSaveDialog(mainWindow, {
-      title: 'Export T365 Desk backup',
-      defaultPath: `t365-desk-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
+      title: 'Export T365 Terminal backup',
+      defaultPath: `t365-terminal-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
       filters: [{ name: 'JSON backup', extensions: ['json'] }],
     })
     if (result.canceled || !result.filePath) return { saved: false }
@@ -86,7 +86,7 @@ function createWindow(): void {
     backgroundColor: '#070a0f',
     autoHideMenuBar: true,
     show: false,
-    title: 'T365 Desk',
+    title: 'T365 Terminal',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -121,7 +121,7 @@ app.whenReady().then(async () => {
   })
 }).catch(error => {
   console.error(error)
-  dialog.showErrorBox('T365 Desk could not start', (error as Error).message)
+  dialog.showErrorBox('T365 Terminal could not start', (error as Error).message)
   app.quit()
 })
 

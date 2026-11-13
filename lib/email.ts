@@ -384,14 +384,14 @@ export function accessGrantedEmail(opts: {
 export function deskLicenseEmail(opts: { email: string; licenseKey: string; orderId: string; updatesUntil: string }): EmailMessage {
   return {
     to: opts.email,
-    subject: 'Your T365 Desk licence and download',
+    subject: 'Your T365 Terminal licence and download',
     html: renderEmail({
-      heading: 'Your T365 Desk licence is ready',
+      heading: 'Your T365 Terminal licence is ready',
       paragraphs: [
-        'Thank you for buying T365 Desk. Your perpetual licence, including all future major versions, is ready to activate offline.',
+        'Thank you for buying T365 Terminal. Your perpetual licence, including all future major versions, is ready to activate offline.',
         `Order <strong>${esc(opts.orderId)}</strong> includes support until <strong>${esc(opts.updatesUntil)}</strong>. All future major versions are included, and your installed app remains yours after that date.`,
         `Your licence key: <code style="display:block;word-break:break-all;padding:12px;background:#f4f4f5;border-radius:6px;">${esc(opts.licenseKey)}</code>`,
-        'Download the installer from your account, open T365 Desk, go to Settings, and paste this key into Offline licence key.',
+        'Download the installer from your account, open T365 Terminal, go to Settings, and paste this key into Offline licence key.',
       ],
       cta: { text: 'Download and activate', url: `${SITE_URL}/account` },
       footnote: 'Keep this email so you can recover your licence. Activation does not contact our server.',

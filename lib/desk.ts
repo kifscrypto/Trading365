@@ -4,11 +4,11 @@ import { setupSubscribersTable, sql } from './premium'
 export const DESK_PRODUCT = {
   key: 'desktop-v1',
   product: 't365-desk',
-  label: 'T365 Desk',
+  label: 'T365 Terminal',
   amount: 299,
   majorVersion: 1,
   updateDays: 365,
-  version: '1.1.2',
+  version: '1.2.0',
   downloadPath: '/api/desk/download',
 } as const
 
@@ -17,7 +17,7 @@ export const DESK_PRODUCT = {
 // uploads a copy of the installer under this fixed asset name (see
 // scripts/upload-desk-release.mjs). Override with DESK_DOWNLOAD_URL if hosting moves.
 export const DESK_INSTALLER_URL =
-  'https://github.com/kifscrypto/Trading365/releases/latest/download/T365-Desk-Setup.exe'
+  'https://github.com/kifscrypto/Trading365/releases/latest/download/T365-Terminal-Setup.exe'
 
 export function deskEnabled(): boolean {
   return !!process.env.NOWPAYMENTS_API_KEY && !!process.env.DESKTOP_LICENSE_PRIVATE_KEY
@@ -35,7 +35,7 @@ export async function createDeskInvoice(orderId: string, site: string): Promise<
       price_amount: DESK_PRODUCT.amount,
       price_currency: 'usd',
       order_id: orderId,
-      order_description: 'T365 Desk — perpetual licence with all future versions and 365 days of support',
+      order_description: 'T365 Terminal — perpetual licence with all future versions and 365 days of support',
       ipn_callback_url: `${site}/api/pay/webhook`,
       success_url: `${site}/account?checkout=desk-success`,
       cancel_url: `${site}/account?checkout=cancelled`,

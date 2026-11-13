@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   if (!deskEnabled()) {
-    return NextResponse.json({ error: 'T365 Desk checkout is not configured yet.' }, { status: 503 })
+    return NextResponse.json({ error: 'T365 Terminal checkout is not configured yet.' }, { status: 503 })
   }
   const account = await getSessionUser(request)
   if (!account) return NextResponse.json({ error: 'Please sign in to continue.', signIn: true }, { status: 401 })
@@ -24,6 +24,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: invoiceUrl, order: orderId })
   } catch (error) {
     console.error('[desk/checkout POST]', error)
-    return NextResponse.json({ error: 'Could not start T365 Desk checkout. Try again.' }, { status: 500 })
+    return NextResponse.json({ error: 'Could not start T365 Terminal checkout. Try again.' }, { status: 500 })
   }
 }

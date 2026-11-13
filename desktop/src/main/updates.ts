@@ -1,7 +1,7 @@
 import type { UpdateInfo } from '../shared/types'
 
 const DEFAULT_FEED_URL = 'https://trading365.org/api/desk/version'
-const DEFAULT_PAGE_URL = 'https://trading365.org/desk'
+const DEFAULT_PAGE_URL = 'https://trading365.org/terminal'
 const ALLOWED_HOST = /(^|\.)trading365\.org$/i
 const TIMEOUT_MS = 8000
 

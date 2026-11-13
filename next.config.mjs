@@ -80,6 +80,10 @@ const nextConfig = {
         permanent: true,
       },
 
+      // T365 Desk was renamed T365 Terminal. /api/desk/* is deliberately NOT
+      // redirected: installed apps call /api/desk/version and /api/desk/download.
+      { source: '/desk', destination: '/terminal', permanent: true },
+
       // ============================================
       // OLD WORDPRESS ARTICLE URLS -> NEW PATHS
       // 301 permanent redirects to preserve SEO equity

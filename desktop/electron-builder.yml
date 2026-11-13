@@ -1,5 +1,5 @@
 appId: org.trading365.desk
-productName: T365 Desk
+productName: T365 Terminal
 directories:
   output: release
 files:
@@ -12,8 +12,9 @@ win:
   target:
     - nsis
 nsis:
+  artifactName: T365-Terminal-Setup-${version}.${ext}
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: T365 Desk
+  shortcutName: T365 Terminal

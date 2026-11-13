@@ -18,14 +18,14 @@ export class AppService {
   constructor(private readonly store: Store, private readonly notify: Notify = () => {}) {}
 
   private assertLive(): void {
-    if (!this.store.canUseLiveFeatures()) throw new Error('Your trial has ended. Activate T365 Desk to continue live scanning.')
+    if (!this.store.canUseLiveFeatures()) throw new Error('Your trial has ended. Activate T365 Terminal to continue live scanning.')
   }
 
   async activateLicense(key: string): Promise<AppState> {
     const record = verifyLicenseKey(key)
     return this.store.update(state => {
       state.licenseRecord = record
-      state.message = 'T365 Desk is activated. Your perpetual licence, including future major versions, is stored locally.'
+      state.message = 'T365 Terminal is activated. Your perpetual licence, including future major versions, is stored locally.'
     })
   }
 

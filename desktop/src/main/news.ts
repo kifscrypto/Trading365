@@ -61,7 +61,7 @@ export function parseRss(xml: string, source: string): NewsItem[] {
 
 export async function fetchNews(): Promise<{ items: NewsItem[]; sources: SourceHealth[] }> {
   const results = await Promise.allSettled(feeds.map(async feed => {
-    const response = await fetch(feed.url, { headers: { 'User-Agent': 'T365-Desk/1.0', 'Accept': 'application/rss+xml, application/xml, text/xml' }, signal: AbortSignal.timeout(12000) })
+    const response = await fetch(feed.url, { headers: { 'User-Agent': 'T365-Terminal/1.0', 'Accept': 'application/rss+xml, application/xml, text/xml' }, signal: AbortSignal.timeout(12000) })
     if (!response.ok) throw new Error(`${response.status} from ${feed.label}`)
     return { feed, items: parseRss(await response.text(), feed.label) }
   }))

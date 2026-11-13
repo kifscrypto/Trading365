@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 const BASE_URL = 'https://trading365.org'
 
 /**
- * Version feed consumed by the installed T365 Desk app to notify users when a
+ * Version feed consumed by the installed T365 Terminal app to notify users when a
  * newer build is published. Bump DESK_PRODUCT.version (or set
  * DESK_LATEST_VERSION) on each desktop release.
  */
@@ -18,7 +18,7 @@ export function GET() {
   return NextResponse.json({
     version,
     downloadUrl: `${BASE_URL}${DESK_PRODUCT.downloadPath}`,
-    pageUrl: `${BASE_URL}/desk`,
+    pageUrl: `${BASE_URL}/terminal`,
     notes,
     releasedAt,
   })

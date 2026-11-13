@@ -305,7 +305,7 @@ export default function AnalyticsPage() {
 
             {data.deskDownloads && (
               <div style={{ ...card, marginBottom: '1.5rem' }}>
-                <h2 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>T365 Desk Downloads</h2>
+                <h2 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>T365 Terminal Downloads</h2>
                 <p style={{ margin: '0 0 1rem', fontSize: '0.72rem', color: '#475569' }}>Installer download requests · humans only · completed downloads and installs are not measured</p>
                 <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
                   {([['Today', 'today'], ['7 days', 'week'], ['30 days', 'month'], ['All time', 'total']] as const).map(([label, key]) => (

@@ -23,7 +23,7 @@ const navLinks = [
   // content that supports it — and it used to sit last, behind six content
   // pillars, so nothing in the chrome said the site runs scanners at all.
   { href: "/scanner", label: "Scanner" },
-  { href: "/desk", label: "T365 Desk" },
+  { href: "/terminal", label: "T365 Terminal" },
   { href: "/signals", label: "Verified Results" },
   // The account is the conversion path for everything above, and until now the
   // only way to find it was the pricing buttons on /scanner — nothing in the

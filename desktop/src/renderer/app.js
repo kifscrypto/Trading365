@@ -248,7 +248,7 @@
   }
 
   function paywallPanel() {
-    return `<section class="panel paywall" aria-label="Trial ended"><div class="paywall-body"><span class="eyebrow gold">Trial ended</span><h2>Live scanning is paused</h2><p>Your 7-day trial has ended. New signals, live prices, and changes to your watchlist or alerts are paused until you activate. Everything already cached stays available offline.</p><div class="paywall-actions"><button class="button button-primary" type="button" data-action="goto-license">Activate T365 Desk →</button><span class="paywall-note">One-time payment · perpetual licence · all future versions</span></div></div></section>`
+    return `<section class="panel paywall" aria-label="Trial ended"><div class="paywall-body"><span class="eyebrow gold">Trial ended</span><h2>Live scanning is paused</h2><p>Your 7-day trial has ended. New signals, live prices, and changes to your watchlist or alerts are paused until you activate. Everything already cached stays available offline.</p><div class="paywall-actions"><button class="button button-primary" type="button" data-action="goto-license">Activate T365 Terminal →</button><span class="paywall-note">One-time payment · perpetual licence · all future versions</span></div></div></section>`
   }
 
   function emptyWorkspace(paywall = '') {
@@ -287,7 +287,7 @@
   }
 
   function renderNews() {
-    return `${viewHeader('Market news', 'Direct publisher RSS with source labels and original publication times.')}<div class="news-controls"><div class="search-field"><label for="news-search">Search news</label><input class="search-input" id="news-search" type="search" value="${escapeHtml(ui.newsQuery)}" placeholder="Try BTC, funding, or ETF" autocomplete="off"></div><div class="select-field"><label for="news-category">Topic</label><select class="select-input" id="news-category">${['all', 'markets', 'derivatives', 'projects', 'macro'].map(category => `<option value="${category}" ${ui.newsCategory === category ? 'selected' : ''}>${category === 'all' ? 'All topics' : category[0].toUpperCase() + category.slice(1)}</option>`).join('')}</select></div></div><div class="news-page-layout"><section class="panel" aria-labelledby="news-feed-title"><div class="panel-header"><h2 class="panel-title" id="news-feed-title">${icons.news}Publisher feed</h2><span class="panel-meta" id="news-count">${filteredNews().length} STORIES</span></div><div id="news-results">${newsResultsMarkup()}</div><p class="news-demo">Headlines and permitted feed summaries only. Articles open at the original publisher.</p></section><aside class="panel" aria-labelledby="news-guide-title"><div class="panel-header"><h2 class="panel-title" id="news-guide-title">Context, not noise</h2></div><div class="news-side-list"><div class="news-side-item"><strong>Source first</strong><span>Every story identifies its publisher and publication time.</span></div><div class="news-side-item"><strong>Connected to your desk</strong><span>Asset tags bring relevant coverage into the signal workspace.</span></div><div class="news-side-item"><strong>Separate from the model</strong><span>News never changes an entry score or suppresses a loss.</span></div></div></aside></div>`
+    return `${viewHeader('Market news', 'Direct publisher RSS with source labels and original publication times.')}<div class="news-controls"><div class="search-field"><label for="news-search">Search news</label><input class="search-input" id="news-search" type="search" value="${escapeHtml(ui.newsQuery)}" placeholder="Try BTC, funding, or ETF" autocomplete="off"></div><div class="select-field"><label for="news-category">Topic</label><select class="select-input" id="news-category">${['all', 'markets', 'derivatives', 'projects', 'macro'].map(category => `<option value="${category}" ${ui.newsCategory === category ? 'selected' : ''}>${category === 'all' ? 'All topics' : category[0].toUpperCase() + category.slice(1)}</option>`).join('')}</select></div></div><div class="news-page-layout"><section class="panel" aria-labelledby="news-feed-title"><div class="panel-header"><h2 class="panel-title" id="news-feed-title">${icons.news}Publisher feed</h2><span class="panel-meta" id="news-count">${filteredNews().length} STORIES</span></div><div id="news-results">${newsResultsMarkup()}</div><p class="news-demo">Headlines and permitted feed summaries only. Articles open at the original publisher.</p></section><aside class="panel" aria-labelledby="news-guide-title"><div class="panel-header"><h2 class="panel-title" id="news-guide-title">Context, not noise</h2></div><div class="news-side-list"><div class="news-side-item"><strong>Source first</strong><span>Every story identifies its publisher and publication time.</span></div><div class="news-side-item"><strong>Connected to your terminal</strong><span>Asset tags bring relevant coverage into the signal workspace.</span></div><div class="news-side-item"><strong>Separate from the model</strong><span>News never changes an entry score or suppresses a loss.</span></div></div></aside></div>`
   }
 
   function renderCalendar() {
@@ -303,7 +303,7 @@
     const trialDays = Math.max(0, Math.ceil((Date.parse(licence.trialEndsAt) - Date.now()) / 864e5))
     const statusLabel = active ? 'Perpetual licence active · all major versions' : expired ? 'Trial ended' : licence.status === 'unconfigured' ? `Trial active · ${trialDays} days left` : `Trial · ${trialDays} days left`
     return `${viewHeader('Settings & ownership', 'Local data, public sources, offline licensing, and backup controls.')}<div class="settings-grid">
-      <section class="panel settings-hero"><div><span class="eyebrow gold">Local-first application</span><h2>Your desk. Yours to keep.</h2><p>The scanner runs on this computer. Your watchlist, alert preferences, signals, licence, and imported calendars stay in the local data file below.</p></div><div class="licence-seal"><strong>${active ? 'PERPETUAL' : expired ? 'TRIAL ENDED' : 'LOCAL V1'}</strong><span>${escapeHtml(licence.status.toUpperCase())}</span></div></section>
+      <section class="panel settings-hero"><div><span class="eyebrow gold">Local-first application</span><h2>Your terminal. Yours to keep.</h2><p>The scanner runs on this computer. Your watchlist, alert preferences, signals, licence, and imported calendars stay in the local data file below.</p></div><div class="licence-seal"><strong>${active ? 'PERPETUAL' : expired ? 'TRIAL ENDED' : 'LOCAL V1'}</strong><span>${escapeHtml(licence.status.toUpperCase())}</span></div></section>
       <section class="panel"><div class="panel-header"><h2 class="panel-title">Licence & trial</h2><span class="badge ${active ? 'badge-bullish' : expired ? 'badge-short' : 'badge-gold'}">${escapeHtml(licence.status)}</span></div><div class="panel-body"><p class="settings-status">${escapeHtml(statusLabel)}</p><dl class="settings-list"><div class="setting-row"><dt>Licence ID</dt><dd>${escapeHtml(licence.licenseId ?? 'Not activated')}</dd></div><div class="setting-row"><dt>Support until</dt><dd>${licence.updatesUntil ? `${formatTime(licence.updatesUntil, true)} UTC` : 'Perpetual use after activation'}</dd></div>${!active ? `<div class="setting-row"><dt>Trial ends</dt><dd>${formatTime(licence.trialEndsAt, true)} UTC</dd></div>` : ''}</dl>${!active ? `<label class="licence-label" for="license-key">Offline licence key</label><input class="search-input licence-input" id="license-key" type="text" placeholder="Paste your T365D1 licence key" autocomplete="off" spellcheck="false"><button class="button button-primary activate-button" type="button" data-action="activate-license" ${activationInFlight ? 'disabled' : ''}>${activationInFlight ? 'Activating…' : 'Activate offline'}</button>` : ''}<p class="settings-note">Activation is verified on this computer. No activation server is contacted. Support expiry never disables the app or removes access to future major versions.</p></div></section>
       <section class="panel"><div class="panel-header"><h2 class="panel-title">Application & backup</h2></div><dl class="settings-list"><div class="setting-row"><dt>Version</dt><dd>${escapeHtml(appState.appVersion)}</dd></div><div class="setting-row"><dt>Local data file</dt><dd>${escapeHtml(appState.dataFile)}</dd></div><div class="setting-row"><dt>Last completed refresh</dt><dd>${appState.lastUpdated ? `${formatTime(appState.lastUpdated, true)} UTC` : 'Never'}</dd></div><div class="setting-row"><dt>Watchlist assets</dt><dd>${appState.watchlist.length}</dd></div><div class="setting-row"><dt>Signal alert preferences</dt><dd>${appState.alertedSignalIds.length}</dd></div></dl><div class="panel-body"><button class="button button-primary" type="button" data-action="export-backup">Export JSON backup</button><p class="settings-note">Backup export writes a copy to a location you choose. Restore is not included in v1.</p></div></section>
       <section class="panel"><div class="panel-header"><h2 class="panel-title">Source health</h2><span class="panel-meta">LIVE + CACHED</span></div>${appState.sources.length ? appState.sources.map(source => `<div class="connection-card"><span class="status-dot ${source.status !== 'ok' ? 'is-degraded' : ''}" aria-hidden="true"></span><div><strong>${escapeHtml(source.label)}</strong><span>${source.lastSuccess ? `Last success ${relativeTime(source.lastSuccess)}` : 'No successful response yet'}${source.message ? ` · ${escapeHtml(source.message)}` : ''}</span></div><span class="badge ${source.status === 'ok' ? 'badge-bullish' : 'badge-gold'}">${escapeHtml(source.status)}</span></div>`).join('') : '<div class="empty-state"><strong>No provider responses yet</strong><p>Refresh to initialize public-data sources. Failed first launches are shown here without cached-success claims.</p></div>'}</section>
@@ -312,7 +312,7 @@
 
   function updateBanner() {
     if (!updateInfo) return ''
-    return `<div class="banner banner-update"><div class="banner-text"><strong>Update available.</strong><span>T365 Desk ${escapeHtml(updateInfo.latestVersion)} is ready — you are on ${escapeHtml(updateInfo.currentVersion)}.</span></div><button class="banner-cta" type="button" data-action="open-update">Download update →</button></div>`
+    return `<div class="banner banner-update"><div class="banner-text"><strong>Update available.</strong><span>T365 Terminal ${escapeHtml(updateInfo.latestVersion)} is ready — you are on ${escapeHtml(updateInfo.currentVersion)}.</span></div><button class="banner-cta" type="button" data-action="open-update">Download update →</button></div>`
   }
 
   function licenceBanner() {
@@ -348,7 +348,7 @@
     signalCount.textContent = String(openSignals().length)
     engineStatus.textContent = appState.phase === 'refreshing' ? 'Refreshing public providers…' : `${appState.phase === 'degraded' ? 'Degraded / cached' : 'Local'} · updated ${relativeTime(appState.lastUpdated)}`
     engineDot.classList.toggle('is-degraded', appState.phase === 'degraded')
-    document.title = `${ui.view[0].toUpperCase() + ui.view.slice(1)} — T365 Desk`
+    document.title = `${ui.view[0].toUpperCase() + ui.view.slice(1)} — T365 Terminal`
   }
 
   function setView(view) {
@@ -367,7 +367,7 @@
   }
 
   async function refresh() {
-    if (!canUseLiveFeatures()) { showToast('Your trial has ended. Activate T365 Desk in Settings to resume live scanning.'); return }
+    if (!canUseLiveFeatures()) { showToast('Your trial has ended. Activate T365 Terminal in Settings to resume live scanning.'); return }
     if (refreshInFlight) return
     refreshInFlight = true
     render()
@@ -387,7 +387,7 @@
     render()
     try {
       appState = await window.t365.activateLicense(key)
-      showToast('T365 Desk is activated. Your perpetual licence is stored locally.')
+      showToast('T365 Terminal is activated. Your perpetual licence is stored locally.')
     } catch (error) { showToast(`Activation failed: ${error.message}`) }
     finally { activationInFlight = false; render() }
   }

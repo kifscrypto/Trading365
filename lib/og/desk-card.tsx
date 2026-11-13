@@ -1,5 +1,5 @@
 /**
- * Social card for /desk — 1200×630, rendered by Satori through next/og.
+ * Social card for /terminal — 1200×630, rendered by Satori through next/og.
  *
  * WHY A PURPOSE-BUILT CARD
  * The generic /api/og card only had a title on black, which made the product
@@ -58,7 +58,7 @@ function Lockup({ logo }: { logo?: string }) {
           <span style={{ fontSize: 32, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>TRADING</span>
           <span style={{ fontSize: 32, fontWeight: 700, color: GOLD_LIGHT, letterSpacing: '-0.01em' }}>365</span>
         </div>
-        <span style={{ fontSize: 14, color: ZINC_500, letterSpacing: '0.24em' }}>T365 DESK · WINDOWS</span>
+        <span style={{ fontSize: 14, color: ZINC_500, letterSpacing: '0.24em' }}>T365 TERMINAL · WINDOWS</span>
       </div>
     </div>
   )
@@ -123,12 +123,12 @@ function Workstation({ bars }: { bars: number[] }) {
 
 export function DeskCard({
   logo,
-  headline = 'Every tool. One desk. Yours forever.',
-  subhead = 'Scanner, charts, news, alerts and market context — all in one local app you own outright.',
-  chips = ['SCANNER', 'CHARTS', 'NEWS', 'ALERTS', 'CALENDAR', 'WATCHLIST'],
+  headline = 'Every tool. One terminal. Yours.',
+  subhead = 'Scanner, charts, news and alerts in one Windows app. Pay once. Nothing to renew.',
+  chips = ['SCANNER', 'CHARTS', 'NEWS', 'ALERTS'],
   price = '$299 once',
-  priceNote = 'Own it forever · every future version · 7-day free trial',
-  url = 'trading365.org/desk',
+  priceNote = 'Own it · every future version · 7-day free trial',
+  url = 'trading365.org/terminal',
   bars = DEFAULT_BARS,
 }: DeskCardProps) {
   return (
@@ -145,7 +145,7 @@ export function DeskCard({
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 24 }}>
           <Lockup logo={logo} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <span style={{ fontSize: 58, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.03em', lineHeight: 1.04 }}>{headline}</span>
+            <span style={{ fontSize: 64, fontWeight: 700, color: '#ffffff', letterSpacing: '-0.03em', lineHeight: 1.04 }}>{headline}</span>
             <span style={{ fontSize: 23, color: ZINC_400, lineHeight: 1.4 }}>{subhead}</span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>

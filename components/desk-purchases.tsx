@@ -18,21 +18,21 @@ export function DeskPurchases({ purchases, checkoutSuccess }: { purchases: DeskP
     <section className="mt-8 rounded-xl border border-primary/25 bg-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold"><MonitorDown className="h-5 w-5 text-primary" />T365 Desk</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold"><MonitorDown className="h-5 w-5 text-primary" />T365 Terminal</h2>
           <p className="mt-1 text-sm text-muted-foreground">Your desktop installers, offline licences, and update entitlements.</p>
         </div>
         <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">Perpetual licence</Badge>
       </div>
       {checkoutSuccess && (
         <p className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] p-3 text-sm text-emerald-300" role="status">
-          Your T365 Desk purchase is confirmed. Download the installer and activate it with the licence below.
+          Your T365 Terminal purchase is confirmed. Download the installer and activate it with the licence below.
         </p>
       )}
       {purchases.map(purchase => (
         <div key={purchase.order_id} className="mt-5 rounded-lg border border-border bg-background/40 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold">T365 Desk · version 1</p>
+              <p className="text-sm font-semibold">T365 Terminal · version 1</p>
               <p className="mt-1 text-xs text-muted-foreground">Order {purchase.order_id} · updates until {formatDate(purchase.license_updates_until)}</p>
             </div>
             <Button asChild size="sm" variant="outline">
@@ -62,7 +62,7 @@ export function DeskPurchases({ purchases, checkoutSuccess }: { purchases: DeskP
               {copied === purchase.order_id ? 'Copied' : 'Copy key'}
             </Button>
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">Open T365 Desk, go to Settings, and paste this key into Offline licence key. Activation works without our server.</p>
+          <p className="mt-3 text-xs text-muted-foreground">Open T365 Terminal, go to Settings, and paste this key into Offline licence key. Activation works without our server.</p>
         </div>
       ))}
     </section>
