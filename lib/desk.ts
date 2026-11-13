@@ -12,6 +12,13 @@ export const DESK_PRODUCT = {
   downloadPath: '/api/desk/download',
 } as const
 
+// GitHub resolves /releases/latest/download/<asset> to the newest non-prerelease
+// release, so this stable URL never has to change between versions. Each release
+// uploads a copy of the installer under this fixed asset name (see
+// scripts/upload-desk-release.mjs). Override with DESK_DOWNLOAD_URL if hosting moves.
+export const DESK_INSTALLER_URL =
+  'https://github.com/kifscrypto/Trading365/releases/latest/download/T365-Desk-Setup.exe'
+
 export function deskEnabled(): boolean {
   return !!process.env.NOWPAYMENTS_API_KEY && !!process.env.DESKTOP_LICENSE_PRIVATE_KEY
 }
