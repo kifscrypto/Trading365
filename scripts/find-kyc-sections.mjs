@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs'
 
-const content = readFileSync('/vercel/share/v0-project/lib/data/articles.ts', 'utf-8')
+const content = readFileSync('lib/data/articles.ts', 'utf-8')
 
 // Extract WEEX review content
 const weexMatch = content.match(/slug: "weex-review"[\s\S]*?content: `([\s\S]*?)`,\n    category/)

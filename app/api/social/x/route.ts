@@ -10,7 +10,7 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
-// X posting cron. Vercel hits this with ?cron=true (and CRON_SECRET as a bearer
+// X posting cron. The cron runner hits this with ?cron=true (and CRON_SECRET as a bearer
 // header when configured); an admin session also works for manual runs.
 //
 //   /api/social/x?cron=true              → drain receipts, digest when due

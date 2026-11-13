@@ -83,7 +83,7 @@ export async function POST(request: Request) {
   return run(request)
 }
 
-// Vercel crons call GET.
+// Cron jobs call GET.
 export async function GET(request: Request) {
   return run(request)
 }

@@ -6,7 +6,7 @@ import path from 'node:path'
  *
  * WHY FONTS ARE SHIPPED AT ALL
  * Satori (behind next/og) takes font BYTES. When none are registered it falls
- * back to the single regular face bundled with @vercel/og, and every
+ * back to the single regular face bundled with the OG renderer, and every
  * `fontWeight: 700` on a card is then silently ignored — which is what made the
  * old cards look flat. Two faces fix it: regular for labels, bold for anything
  * that has to shout.

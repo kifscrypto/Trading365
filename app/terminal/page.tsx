@@ -5,6 +5,7 @@ import { ArrowRight, Bell, ChartCandlestick, Check, Download, HardDrive, Newspap
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DeskCheckoutButton } from '@/components/desk-checkout-button'
+import { ShareButton } from '@/components/share-button'
 import { deskEnabled, DESK_PRODUCT } from '@/lib/desk'
 import { getArchivePage } from '@/lib/signals/public'
 import { ReceiptCard } from '@/components/home/receipt-card'
@@ -131,6 +132,7 @@ export default async function TerminalPage() {
             <div className="mt-7 flex flex-wrap items-center gap-3">
               {enabled ? <DeskCheckoutButton /> : <Button size="lg" disabled>Checkout opens soon</Button>}
               <Button size="lg" variant="outline" asChild><a href={DESK_PRODUCT.downloadPath}><Download className="mr-2 h-4 w-4" />Download free trial</a></Button>
+              <ShareButton title={TERMINAL_TITLE} text={TERMINAL_DESCRIPTION} url={TERMINAL_URL} />
             </div>
             <p className="mt-4 text-sm text-muted-foreground"><strong className="text-foreground">${DESK_PRODUCT.amount} once</strong> · every future major version · {DESK_PRODUCT.updateDays} days of support · 7-day full-feature trial</p>
           </div>

@@ -1,5 +1,5 @@
-filepath = '/vercel/share/v0-project/lib/data/articles.ts'
-outpath = '/vercel/share/v0-project/scripts/table_output.txt'
+filepath = 'lib/data/articles.ts'
+outpath = 'scripts/table_output.txt'
 
 with open(filepath, 'r') as f:
     lines = f.readlines()

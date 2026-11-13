@@ -7,7 +7,7 @@ const BASE_URL = siteConfig.url
 
 /**
  * Make a URL absolute against the site origin. If the stored path is already an
- * absolute URL (e.g. a Vercel blob URL), return it unchanged — prepending the
+ * absolute URL (e.g. a blob URL), return it unchanged — prepending the
  * origin would produce "https://trading365.orghttps://…".
  */
 function absoluteUrl(path: string): string {

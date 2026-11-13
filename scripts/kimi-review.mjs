@@ -51,7 +51,7 @@ function git(args) {
 
 // ── The rules this project has to be held to ────────────────────────────────
 const RULES = `You are reviewing a change set for Trading365 (trading365.org), a Next.js 16 App Router
-+ React 19 + Tailwind v4 + Neon Postgres site on Vercel. It is a crypto exchange-review
++ React 19 + Tailwind v4 + Neon Postgres site on Railway. It is a crypto exchange-review
 content site with two automated altcoin signal scanners (long and short).
 
 Judge the change set against these project rules, which are non-negotiable:

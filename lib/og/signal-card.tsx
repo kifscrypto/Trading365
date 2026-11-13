@@ -6,7 +6,7 @@
  * It takes a pre-built model (strings already formatted) and returns pixels. No
  * database, no date formatting, no environment. That keeps the layout testable
  * offline: scripts/og-preview.mjs compiles this one file with tsc and renders
- * every card state through the same @vercel/og build that Next uses in
+ * every card state through the same OG renderer build that Next uses in
  * production, so a design change can be inspected as a PNG before it is
  * deployed. The route stays responsible for turning a Receipt into a model.
  *

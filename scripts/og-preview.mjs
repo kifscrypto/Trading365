@@ -3,7 +3,7 @@
 // The dev server cannot run on this machine (Turbopack's cache inside a
 // OneDrive-synced folder), so OG cards were previously only ever inspected on
 // the deployed site. This renders the very same card component through the
-// very same renderer Next uses (`next/og` wraps the bundled @vercel/og) and
+// very same renderer Next uses (`next/og` wraps the bundled OG renderer) and
 // writes PNGs to .og-preview/, so the design can be checked at pixel level
 // before a deploy.
 //
@@ -153,7 +153,7 @@ function build() {
 }
 
 // Real font faces, read from disk exactly like the route does. Without them
-// Satori falls back to the single regular face bundled with @vercel/og, every
+// Satori falls back to the single regular face bundled with the OG renderer, every
 // `fontWeight: 700` is silently ignored, and the card reads as flat.
 function loadFonts() {
   const dir = path.join(root, 'assets', 'fonts')

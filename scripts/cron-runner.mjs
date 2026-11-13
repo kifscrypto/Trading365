@@ -2,7 +2,7 @@
  * Cron runner for the Railway worker service.
  *
  * WHY THIS EXISTS
- * On Vercel the 13 entries in vercel.json's `crons` array were fired by the
+ * The 13 entries in the old ``crons`` array were fired by the
  * platform as HTTP calls into the app's own /api/* routes, each carrying
  * ?cron=true — which is what makes those endpoints accept the call without auth.
  * Railway has no HTTP crons, so the same 13 schedules are registered here and
@@ -10,7 +10,7 @@
  * (query string included) and expression unchanged, so nothing about the
  * endpoints or their auth contract had to move.
  *
- * Every expression is evaluated in UTC, matching Vercel's cron behaviour, and
+ * Every expression is evaluated in UTC, matching standard cron behaviour, and
  * you should run the service with TZ=UTC as well so the log timestamps line up
  * with the schedules.
  *
@@ -29,7 +29,7 @@ import fs from 'node:fs'
 const BASE_URL = (process.env.CRON_BASE_URL ?? 'http://localhost:3000').replace(/\/+$/, '')
 const REQUEST_TIMEOUT_MS = 90_000
 
-// Ported 1:1 from vercel.json "crons" — path and schedule unchanged.
+// Ported 1:1 from the old config "crons" — path and schedule unchanged.
 const SCHEDULES = [
   { path: '/api/scanner/watchlist?cron=true', schedule: '*/30 * * * *' },
   { path: '/api/scanner/long-watchlist?cron=true', schedule: '*/30 * * * *' },
@@ -108,7 +108,7 @@ async function runPath(path) {
 function arm() {
   const invalid = SCHEDULES.filter((job) => !cron.validate(job.schedule))
   if (invalid.length > 0) {
-    // A typo ported over from vercel.json would otherwise arm a job that never
+    // A typo ported over from the old config would otherwise arm a job that never
     // fires, which looks exactly like a working deploy in the logs.
     for (const job of invalid) {
       console.error(`invalid cron expression for ${job.path}: "${job.schedule}"`)

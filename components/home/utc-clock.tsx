@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react'
  * appears on mount.
  *
  * NEXT SCAN is the real schedule, not decoration. /api/scanner/entries and
- * /api/scanner/long-entries both run every 15 minutes (see vercel.json), so the
+ * /api/scanner/long-entries both run every 15 minutes (see scripts/cron-runner.mjs), so the
  * next quarter-hour boundary is always an actual scan slot.
  */
 function nextScanSlot(d: Date): string {

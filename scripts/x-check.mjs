@@ -54,7 +54,7 @@ let failed = false
 
 if (!xConfigured()) {
   for (const [k, v] of Object.entries(creds)) console.log(`  ${k.padEnd(14)} ${v ? 'set' : 'MISSING'}`)
-  console.error('\nSet all four in .env.local (locally) and in the Vercel project (production).')
+  console.error('\nSet all four in .env.local (locally) and in the Railway project (production).')
   process.exitCode = 1
 } else {
   for (const [k, v] of Object.entries(creds)) {

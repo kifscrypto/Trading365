@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 
-const content = readFileSync('/vercel/share/v0-project/lib/data/articles.ts', 'utf8');
+const content = readFileSync('lib/data/articles.ts', 'utf8');
 
 // Find the what-is-kyc-crypto article's content string and look for the comparison table
 const kycGuideStart = content.indexOf('slug: "what-is-kyc-crypto"');

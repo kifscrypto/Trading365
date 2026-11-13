@@ -580,7 +580,7 @@ export async function isRateLimited(email: string, ipHash: string | null): Promi
   }
 }
 
-/** Client IP from the proxy headers Vercel sets. */
+/** Client IP from the proxy headers the host sets. */
 export function clientIp(request: Request): string | null {
   const fwd = request.headers.get('x-forwarded-for')
   if (fwd) return fwd.split(',')[0].trim()

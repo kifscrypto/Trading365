@@ -7,11 +7,7 @@ __v0_jsx-dev-runtime.ts
 node_modules
 .next/
 .env*.local
-.env.vercel
 .DS_Store
-.vercel
-
-.vercel
 
 # Scratch / one-off recovery scripts (root only — codebase uses _config.ts/_core.ts legitimately)
 /_*.mjs

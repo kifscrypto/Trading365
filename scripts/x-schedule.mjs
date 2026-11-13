@@ -17,7 +17,7 @@ import {
   dayResetHourUtc, firstPostDelayMinutes, maxPostsPerDay, minGapMinutes, postingDayStart,
 } from '../lib/x.ts'
 
-const TICK_MIN = 30 // the Vercel cron is */30 * * * *
+const TICK_MIN = 30 // the cron is */30 * * * *
 const cap = maxPostsPerDay()
 const gap = minGapMinutes()
 const hold = firstPostDelayMinutes()

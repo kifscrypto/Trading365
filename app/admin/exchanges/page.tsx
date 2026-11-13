@@ -38,7 +38,7 @@ function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-// Logo preview + upload (reuses /api/admin/upload-image → Vercel Blob URL) + paste-URL fallback.
+// Logo preview + upload (reuses /api/admin/upload-image → blob storage URL) + paste-URL fallback.
 function LogoInput({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')

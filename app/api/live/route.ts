@@ -315,7 +315,7 @@ async function getRecord(sql: SqlClient, book: Book): Promise<LiveRecord> {
 }
 
 // ── Public market data via OKX SWAP tickers (the source the scanner's own crons
-//    use successfully from Vercel — Binance 403/451s cloud IPs). Cached ~12s so
+//    use successfully from cloud hosts — Binance 403/451s cloud IPs). Cached ~12s so
 //    the source is hit once per interval regardless of client poll rate. ──────
 type Ticker = { instId: string; last: string; open24h: string; high24h: string; low24h: string }
 const inst = (s: string) => `${s}-USDT-SWAP`

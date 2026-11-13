@@ -7,7 +7,7 @@ export function getClientIp(headers: Headers): string | null {
 }
 
 export function getRequestCountry(headers: Headers): string | null {
-  const edgeCountry = headers.get('x-vercel-ip-country') || headers.get('cf-ipcountry')
+  const edgeCountry = headers.get('cf-ipcountry')
   if (edgeCountry && /^[a-z]{2}$/i.test(edgeCountry) && edgeCountry.toUpperCase() !== 'XX') {
     return edgeCountry.toUpperCase()
   }

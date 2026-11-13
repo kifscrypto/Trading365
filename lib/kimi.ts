@@ -54,7 +54,7 @@ function getModel(): string {
 
 async function postChat(body: Record<string, unknown>): Promise<Response> {
   // kimi-k2.x enables thinking mode by default; the hidden reasoning tokens
-  // burn most of the invocation budget and trip Vercel function timeouts.
+  // burn most of the invocation budget and trip serverless function timeouts.
   // Content generation doesn't need reasoning (and our stream parser only
   // reads delta.content anyway), so disable it. The `thinking` param is k2.x
   // only — kimi-k3 rejects it (it uses top-level reasoning_effort instead).

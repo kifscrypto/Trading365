@@ -2,7 +2,7 @@
 
 Paste a YouTube/TikTok/etc. link, get an MP4 (or MP3) in
 ``automation/data/downloads/`` (gitignored). Runs locally only — YouTube blocks
-datacenter IPs, so this can never live on the Vercel site.
+datacenter IPs, so this can never live on a cloud host.
 
 Usage:
   python video_dl.py "https://youtube.com/watch?v=..."   # one-off CLI download
