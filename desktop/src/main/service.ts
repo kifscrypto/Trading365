@@ -94,8 +94,8 @@ export class AppService {
         state.phase = sources.some(source => source.status === 'error' || source.status === 'stale') ? 'degraded' : 'ready'
         state.message = assets.length ? `${assets.length} assets scanned locally. Some sources may be cached.` : 'No market data is available yet. Check your connection and refresh.'
       })
-      await this.runEntries()
-      await this.monitorSignals()
+      await this.runEntriesWork()
+      await this.monitorSignalsWork()
       return this.store.getState()
     }, () => this.store.getState())
     } catch (error) {
@@ -109,55 +109,67 @@ export class AppService {
 
   async runEntries(): Promise<AppState> {
     this.assertLive()
-      return this.exclusive(async () => {
-      const state = this.store.getState()
-      const candidates = state.assets.filter(asset => {
-        const long = asset.longScore && !asset.longScore.skip && asset.longScore.adjustedScore >= 8 && state.market.regime === 'uptrend'
-        const short = asset.shortScore && !asset.shortScore.skip && asset.shortScore.adjustedScore >= 7 && state.market.regime === 'downtrend'
-        return long || short
-      })
-      for (const asset of candidates) {
-        const [dailyResult, hourlyResult] = await Promise.allSettled([
-          getCandles(asset.exchange, asset.symbol, '1d'), getCandles(asset.exchange, asset.symbol, '1h'),
-        ])
-        if (dailyResult.status !== 'fulfilled' || hourlyResult.status !== 'fulfilled') continue
-        const directions = asset.exchange === 'okx' && ['BTC', 'ETH'].includes(asset.symbol) ? [] : ['long', 'short'] as const
-        for (const side of directions) {
-          const fired = evaluateEntry(asset, dailyResult.value, hourlyResult.value, side, state.market.regime, this.store.getState().signals)
-          if (!fired) continue
-          await this.store.update(current => { current.signals.unshift(fired) })
-          if (state.watchlist.includes(asset.symbol)) this.notify(`T365 ${side.toUpperCase()} · ${asset.symbol}`, `Entry ${fired.entry}, stop ${fired.stop}, score ${fired.score}/15`)
-        }
+    return this.exclusive(() => this.runEntriesWork(), () => this.store.getState())
+  }
+
+  private async runEntriesWork(): Promise<AppState> {
+    const state = this.store.getState()
+    const candidates = state.assets.filter(asset => {
+      const long = asset.longScore && !asset.longScore.skip && asset.longScore.adjustedScore >= 8 && state.market.regime === 'uptrend'
+      const short = asset.shortScore && !asset.shortScore.skip && asset.shortScore.adjustedScore >= 7 && state.market.regime === 'downtrend'
+      return long || short
+    })
+    for (const asset of candidates) {
+      const [dailyResult, hourlyResult] = await Promise.allSettled([
+        getCandles(asset.exchange, asset.symbol, '1d'), getCandles(asset.exchange, asset.symbol, '1h'),
+      ])
+      if (dailyResult.status !== 'fulfilled' || hourlyResult.status !== 'fulfilled') continue
+      const directions = asset.exchange === 'okx' && ['BTC', 'ETH'].includes(asset.symbol) ? [] : ['long', 'short'] as const
+      for (const side of directions) {
+        const fired = evaluateEntry(asset, dailyResult.value, hourlyResult.value, side, state.market.regime, this.store.getState().signals)
+        if (!fired) continue
+        await this.store.update(current => { current.signals.unshift(fired) })
+        if (state.watchlist.includes(asset.symbol)) this.notify(`T365 ${side.toUpperCase()} · ${asset.symbol}`, `Entry ${fired.entry}, stop ${fired.stop}, score ${fired.score}/15`)
       }
-      return this.store.getState()
-    }, () => this.store.getState())
+    }
+    return this.store.getState()
   }
 
   async monitorSignals(): Promise<AppState> {
     this.assertLive()
-      return this.exclusive(async () => {
-      const open = this.store.getState().signals.filter(signal => signal.status === 'open')
-      for (const signal of open) {
-        try {
-          const price = await monitorPrice(signal.exchange, signal.symbol)
-          let status = outcomeAtPrice(signal, price)
-          if (Date.now() - Date.parse(signal.firedAt) >= 48 * 36e5 && status === 'open') status = 'expired'
-          if (status === 'open') {
-            await this.store.update(state => {
-              const current = state.signals.find(item => item.id === signal.id)
-              if (current) current.currentPrice = price
-            })
-            continue
-          }
+    return this.exclusive(() => this.monitorSignalsWork(), () => this.store.getState())
+  }
+
+  private async monitorSignalsWork(): Promise<AppState> {
+    const open = this.store.getState().signals.filter(signal => signal.status === 'open')
+    for (const signal of open) {
+      // Expire first. A signal past its 48h window must not stay "open" just
+      // because the price lookup failed or the app was idle/trial-locked.
+      if (Date.now() - Date.parse(signal.firedAt) >= 48 * 36e5) {
+        await this.store.update(state => {
+          const current = state.signals.find(item => item.id === signal.id)
+          if (current && current.status === 'open') { current.status = 'expired'; current.closedAt = new Date().toISOString() }
+        })
+        continue
+      }
+      try {
+        const price = await monitorPrice(signal.exchange, signal.symbol)
+        const status = outcomeAtPrice(signal, price)
+        if (status === 'open') {
           await this.store.update(state => {
             const current = state.signals.find(item => item.id === signal.id)
-            if (current) { current.status = status; current.currentPrice = price; current.closedAt = new Date().toISOString() }
+            if (current) current.currentPrice = price
           })
-          if (this.store.getState().alertedSignalIds.includes(signal.id)) this.notify(`${signal.symbol} · ${status.toUpperCase()}`, `Signal resolved at ${price}`)
-        } catch { /* A later monitor retries without changing the open record. */ }
-      }
-      return this.store.getState()
-    }, () => this.store.getState())
+          continue
+        }
+        await this.store.update(state => {
+          const current = state.signals.find(item => item.id === signal.id)
+          if (current) { current.status = status; current.currentPrice = price; current.closedAt = new Date().toISOString() }
+        })
+        if (this.store.getState().alertedSignalIds.includes(signal.id)) this.notify(`${signal.symbol} · ${status.toUpperCase()}`, `Signal resolved at ${price}`)
+      } catch { /* A later monitor retries without changing the open record. */ }
+    }
+    return this.store.getState()
   }
 
   async toggleWatchlist(symbol: string): Promise<AppState> {

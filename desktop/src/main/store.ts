@@ -52,7 +52,9 @@ export class Store {
       const parsed = JSON.parse(raw) as AppState
       if (parsed.schemaVersion !== 1) throw new Error(`Unsupported local data version: ${parsed.schemaVersion}`)
       const migrated = !parsed.trialStartedAt
-      this.state = { ...this.state, ...parsed, dataFile: this.filePath }
+      // Keep the version of the code that is actually running, not whichever
+      // version first wrote this file.
+      this.state = { ...this.state, ...parsed, appVersion: this.state.appVersion, dataFile: this.filePath }
       this.state.license = licenseState(this.state)
       if (migrated) await this.write(this.state)
     } catch (error) {
