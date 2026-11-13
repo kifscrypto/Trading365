@@ -2,12 +2,14 @@
   'use strict'
 
   const appView = document.querySelector('#app-view')
+  const appBanners = document.querySelector('#app-banners')
   const toast = document.querySelector('#toast')
   const engineStatus = document.querySelector('#engine-status')
   const engineDot = document.querySelector('#engine-dot')
   const signalCount = document.querySelector('#signal-count')
   const ui = { view: 'overview', selectedKey: '', directionFilter: 'all', newsQuery: '', newsCategory: 'all' }
   let appState = null
+  let updateInfo = null
   let toastTimer
   let refreshInFlight = false
   let activationInFlight = false
@@ -245,14 +247,19 @@
     return `<section class="regime-banner" aria-label="Current market regime"><div><div class="regime-heading"><span class="badge badge-${badge}">${escapeHtml(market.regime)}</span><h2>${market.regime === 'neutral' || market.regime === 'unknown' ? 'The scanner is standing down' : 'Market regime is driving the scanner'}</h2></div><p class="regime-copy">${copy}</p></div><div class="regime-score"><strong>${formatPercent(market.regimeDistance)}</strong><span>BTC vs 4H EMA50</span></div></section>`
   }
 
-  function emptyWorkspace() {
-    return `${viewHeader('Market overview', 'Your local engine is ready, but no market data is cached yet.')}<section class="panel empty-state"><strong>No market data available</strong><p>${escapeHtml(appState.message || 'Check your internet connection and refresh. The app will retain any data it successfully downloads for later offline use.')}</p><button class="button button-primary" type="button" data-action="refresh">Try public providers again</button></section>`
+  function paywallPanel() {
+    return `<section class="panel paywall" aria-label="Trial ended"><div class="paywall-body"><span class="eyebrow gold">Trial ended</span><h2>Live scanning is paused</h2><p>Your 7-day trial has ended. New signals, live prices, and changes to your watchlist or alerts are paused until you activate. Everything already cached stays available offline.</p><div class="paywall-actions"><button class="button button-primary" type="button" data-action="goto-license">Activate T365 Desk →</button><span class="paywall-note">One-time payment · perpetual licence · all future versions</span></div></div></section>`
+  }
+
+  function emptyWorkspace(paywall = '') {
+    return `${viewHeader('Market overview', 'Your local engine is ready, but no market data is cached yet.')}${paywall}<section class="panel empty-state"><strong>No market data available</strong><p>${escapeHtml(appState.message || 'Check your internet connection and refresh. The app will retain any data it successfully downloads for later offline use.')}</p><button class="button button-primary" type="button" data-action="refresh">Try public providers again</button></section>`
   }
 
   function renderOverview() {
-    if (!appState.assets.length) return emptyWorkspace()
+    const paywall = appState.license.status === 'expired' ? paywallPanel() : ''
+    if (!appState.assets.length) return emptyWorkspace(paywall)
     const item = selectedItem()
-    return `${viewHeader('Market overview', 'Live public data, your local scanner, and the context around it.')}${regimeBanner()}${marketStats()}<div class="overview-grid">${signalsPanel()}<div class="overview-center">${item ? chartPanel(item) : ''}</div>${item ? compactNews(item.kind === 'signal' ? item.signal.symbol : item.asset.symbol) : ''}</div>`
+    return `${viewHeader('Market overview', 'Live public data, your local scanner, and the context around it.')}${paywall}${regimeBanner()}${marketStats()}<div class="overview-grid">${signalsPanel()}<div class="overview-center">${item ? chartPanel(item) : ''}</div>${item ? compactNews(item.kind === 'signal' ? item.signal.symbol : item.asset.symbol) : ''}</div>`
   }
 
   function directionFilters() {
@@ -303,10 +310,34 @@
     </div>`
   }
 
+  function updateBanner() {
+    if (!updateInfo) return ''
+    return `<div class="banner banner-update"><div class="banner-text"><strong>Update available.</strong><span>T365 Desk ${escapeHtml(updateInfo.latestVersion)} is ready — you are on ${escapeHtml(updateInfo.currentVersion)}.</span></div><button class="banner-cta" type="button" data-action="open-update">Download update →</button></div>`
+  }
+
+  function licenceBanner() {
+    const licence = appState?.license
+    if (!licence) return ''
+    if (licence.status === 'expired') {
+      return `<div class="banner banner-licence is-expired"><div class="banner-text"><strong>Trial ended.</strong><span>Live scanning, watchlists, and alerts are paused. Your cached data stays available.</span></div><button class="banner-cta" type="button" data-action="goto-license">Activate licence →</button></div>`
+    }
+    if (licence.status === 'trial') {
+      const days = Math.max(0, Math.ceil((Date.parse(licence.trialEndsAt) - Date.now()) / 864e5))
+      if (days <= 2) return `<div class="banner banner-licence is-trial"><div class="banner-text"><strong>Trial ending.</strong><span>${days <= 0 ? 'Your trial ends today' : `${days} day${days === 1 ? '' : 's'} left`} · live scanning pauses when it ends.</span></div><button class="banner-cta" type="button" data-action="goto-license">Activate licence →</button></div>`
+    }
+    return ''
+  }
+
+  function renderBanners() {
+    if (!appBanners) return
+    appBanners.innerHTML = updateBanner() + licenceBanner()
+  }
+
   function render() {
     if (!appState) return
     const views = { overview: renderOverview, signals: renderSignals, news: renderNews, calendar: renderCalendar, settings: renderSettings }
     selectedItem()
+    renderBanners()
     appView.innerHTML = views[ui.view]()
     document.querySelectorAll('.nav-item[data-view]').forEach(button => {
       const active = button.dataset.view === ui.view
@@ -458,6 +489,16 @@
     const action = event.target.closest('[data-action]')?.dataset.action
     if (action === 'refresh') { void refresh(); return }
     if (action === 'activate-license') { void activateLicense(); return }
+    if (action === 'open-update') { void window.t365.openUpdate().catch(error => showToast(error.message)); return }
+    if (action === 'goto-license') {
+      setView('settings')
+      requestAnimationFrame(() => {
+        const input = document.querySelector('#license-key')
+        input?.scrollIntoView({ block: 'center' })
+        input?.focus({ preventScroll: true })
+      })
+      return
+    }
     if (action === 'import-calendar') {
       void window.t365.importCalendar().then(state => { appState = state; render(); showToast(state.message || 'Calendar import complete.') }).catch(error => showToast(error.message))
       return
@@ -475,6 +516,8 @@
   })
 
   void setupPartners()
+  void window.t365.getUpdate().then(info => { updateInfo = info; renderBanners() }).catch(() => {})
+  window.t365.onUpdate(info => { updateInfo = info; renderBanners() })
   window.t365.onState(state => { appState = state; render() })
   window.t365.getState().then(state => { appState = state; render() }).catch(error => {
     appView.innerHTML = `<section class="panel empty-state"><strong>Could not read local state</strong><p>${escapeHtml(error.message)}</p></section>`

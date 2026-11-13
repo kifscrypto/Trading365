@@ -3,11 +3,26 @@ import path from 'node:path'
 import { AppService } from './service'
 import { Store } from './store'
 import { PARTNERS } from '../shared/partners'
-import type { AppState } from '../shared/types'
+import { checkForUpdate } from './updates'
+import type { AppState, UpdateInfo } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let store: Store
 let service: AppService
+let updateInfo: UpdateInfo | null = null
+let notifiedVersion: string | null = null
+
+async function refreshUpdateInfo(): Promise<void> {
+  updateInfo = await checkForUpdate(app.getVersion())
+  mainWindow?.webContents.send('update', updateInfo)
+  if (updateInfo && updateInfo.latestVersion !== notifiedVersion && Notification.isSupported()) {
+    notifiedVersion = updateInfo.latestVersion
+    new Notification({
+      title: 'T365 Desk update available',
+      body: `Version ${updateInfo.latestVersion} is ready — you are on ${updateInfo.currentVersion}.`,
+    }).show()
+  }
+}
 
 function publish(state: AppState): AppState {
   mainWindow?.webContents.send('state', state)
@@ -27,7 +42,16 @@ function registerIpc(): void {
   ipcMain.handle('state:refresh', async () => publish(await service.refreshAll()))
   ipcMain.handle('watchlist:toggle', async (_event, symbol: string) => publish(await service.toggleWatchlist(symbol)))
   ipcMain.handle('alert:toggle', async (_event, signalId: string) => publish(await service.toggleAlert(signalId)))
-  ipcMain.handle('license:activate', async (_event, key: string) => publish(await service.activateLicense(key)))
+  ipcMain.handle('license:activate', async (_event, key: string) => {
+    const state = publish(await service.activateLicense(key))
+    if (state.license.status === 'active') void service.refreshAll().then(publish).catch(() => {})
+    return state
+  })
+  ipcMain.handle('update:get', () => updateInfo)
+  ipcMain.handle('update:open', async () => {
+    if (!updateInfo) throw new Error('No update is available.')
+    await shell.openExternal(updateInfo.downloadUrl)
+  })
   ipcMain.handle('calendar:import', async () => {
     if (!mainWindow) return store.getState()
     return publish(await service.importCalendar(mainWindow))
@@ -90,6 +114,8 @@ app.whenReady().then(async () => {
   registerIpc()
   createWindow()
   service.start(publish)
+  void refreshUpdateInfo()
+  setInterval(() => { void refreshUpdateInfo() }, 6 * 3600e3)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

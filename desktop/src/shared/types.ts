@@ -151,6 +151,15 @@ export interface Partner {
   url: string
 }
 
+export interface UpdateInfo {
+  currentVersion: string
+  latestVersion: string
+  downloadUrl: string
+  pageUrl: string
+  notes: string | null
+  releasedAt: string | null
+}
+
 export interface T365Api {
   getPartners(): Promise<readonly Partner[]>
   getState(): Promise<AppState>
@@ -162,6 +171,9 @@ export interface T365Api {
   exportBackup(): Promise<{ saved: boolean; path?: string }>
   openExternal(url: string): Promise<void>
   openPartner(partnerId: string): Promise<void>
+  getUpdate(): Promise<UpdateInfo | null>
+  openUpdate(): Promise<void>
+  onUpdate(callback: (info: UpdateInfo | null) => void): () => void
   onState(callback: (state: AppState) => void): () => void
 }
 
