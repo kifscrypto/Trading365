@@ -11,7 +11,6 @@
   let appState = null
   let updateInfo = null
   let partners = []
-  let signalsBannerTimer
   let toastTimer
   let refreshInFlight = false
   let activationInFlight = false
@@ -271,71 +270,19 @@
   function renderSignals() {
     const item = selectedItem()
     const main = item ? chartPanel(item, true) : '<section class="panel empty-state"><strong>No asset selected</strong><p>Refresh to load the local market universe.</p></section>'
-    return `${viewHeader('Signal workspace', 'Fired entries, candidate scores, actual candles, and model reasoning.', directionFilters())}<div class="signals-layout">${signalsPanel()}<div class="signals-main">${main}${promoBanner()}</div><div class="signals-context">${item ? scorePanel(item) + compactNews(item.kind === 'signal' ? item.signal.symbol : item.asset.symbol) : ''}</div></div>`
+    return `${viewHeader('Signal workspace', 'Fired entries, candidate scores, actual candles, and model reasoning.', directionFilters())}<div class="signals-layout">${signalsPanel()}<div class="signals-main">${main}${bannerSlot()}</div><div class="signals-context">${item ? scorePanel(item) + compactNews(item.kind === 'signal' ? item.signal.symbol : item.asset.symbol) : ''}</div></div>`
   }
 
-  function promoBanner() {
-    if (!partners.length) return ''
-    return `<section class="promo-banner" id="signals-banner" aria-label="Featured partner">
-      <div class="promo-banner-row">
-        <div class="promo-banner-copy">
-          <span class="promo-eyebrow">Featured partner</span>
-          <strong class="promo-name" id="banner-name"></strong>
-          <span class="promo-offer" id="banner-offer"></span>
-        </div>
-        <div class="promo-banner-actions">
-          <button class="button button-primary" type="button" id="banner-visit">Visit →</button>
-          <div class="promo-dots" id="banner-dots" role="group" aria-label="Choose featured partner"></div>
-        </div>
+  function bannerSlot() {
+    return `<section class="promo-banner" aria-label="Sponsored partner">
+      <button class="promo-banner-link" type="button" data-partner="bybit" aria-label="Visit Bybit">
+        <img class="promo-banner-img" src="./banners/bybit.png" alt="Bybit — Gateway to Web3" width="1922" height="600" loading="lazy" />
+      </button>
+      <div class="promo-banner-foot">
+        <span class="promo-eyebrow">Sponsored</span>
+        <span class="promo-disclosure">Partner link · commission may apply</span>
       </div>
-      <p class="promo-disclosure">Partner link · commission may apply</p>
     </section>`
-  }
-
-  function setupSignalsBanner() {
-    clearInterval(signalsBannerTimer)
-    signalsBannerTimer = undefined
-    const banner = document.querySelector('#signals-banner')
-    if (!banner || !partners.length) return
-    const name = banner.querySelector('#banner-name')
-    const offer = banner.querySelector('#banner-offer')
-    const visit = banner.querySelector('#banner-visit')
-    const dots = banner.querySelector('#banner-dots')
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
-    let activeIndex = 0
-
-    dots.innerHTML = partners.map((partner, index) => `<button class="promo-dot" type="button" data-banner-index="${index}" aria-label="Show ${escapeHtml(partner.name)} offer"></button>`).join('')
-    const dotButtons = [...dots.querySelectorAll('[data-banner-index]')]
-
-    function showPartner(index) {
-      activeIndex = (index + partners.length) % partners.length
-      const partner = partners[activeIndex]
-      name.textContent = partner.name
-      offer.textContent = `${partner.label} · ${partner.offer}`
-      visit.textContent = `Visit ${partner.name} →`
-      visit.dataset.partner = partner.id
-      dotButtons.forEach((button, buttonIndex) => {
-        const active = buttonIndex === activeIndex
-        button.classList.toggle('is-active', active)
-        button.setAttribute('aria-pressed', String(active))
-      })
-    }
-
-    function stopRotation() { clearInterval(signalsBannerTimer); signalsBannerTimer = undefined }
-    function startRotation() {
-      stopRotation()
-      if (!reducedMotion.matches && !document.hidden) {
-        signalsBannerTimer = setInterval(() => { if (!document.hidden) showPartner(activeIndex + 1) }, 7000)
-      }
-    }
-
-    dotButtons.forEach(button => button.addEventListener('click', () => { showPartner(Number(button.dataset.bannerIndex)); startRotation() }))
-    banner.addEventListener('mouseenter', stopRotation)
-    banner.addEventListener('mouseleave', startRotation)
-    banner.addEventListener('focusin', stopRotation)
-    banner.addEventListener('focusout', event => { if (!banner.contains(event.relatedTarget)) startRotation() })
-    showPartner(0)
-    startRotation()
   }
 
   function filteredNews() {
@@ -416,7 +363,6 @@
     engineStatus.textContent = appState.phase === 'refreshing' ? 'Refreshing public providers…' : `${appState.phase === 'degraded' ? 'Degraded / cached' : 'Local'} · updated ${relativeTime(appState.lastUpdated)}`
     engineDot.classList.toggle('is-degraded', appState.phase === 'degraded')
     document.title = `${ui.view[0].toUpperCase() + ui.view.slice(1)} — T365 Terminal`
-    setupSignalsBanner()
   }
 
   function setView(view) {
@@ -517,7 +463,6 @@
     reducedMotion.addEventListener('change', startRotation)
     showPartner(0)
     startRotation()
-    if (ui.view === 'signals') render()
   }
 
   document.addEventListener('click', event => {
