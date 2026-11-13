@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DeskCheckoutButton } from '@/components/desk-checkout-button'
 import { deskEnabled, DESK_PRODUCT } from '@/lib/desk'
-import { getPublishedCount } from '@/lib/signals/public'
+import { getArchivePage } from '@/lib/signals/public'
+import { ReceiptCard } from '@/components/home/receipt-card'
 import { jsonLd } from '@/lib/utils/json-ld'
 
 // The proof strip reads the public archive count; refresh it every 10 minutes.
@@ -110,7 +111,11 @@ const terminalSchema = {
 
 export default async function TerminalPage() {
   const enabled = deskEnabled()
-  const published = await getPublishedCount()
+  // Same source as the homepage hero: the newest resolved receipt in the public
+  // archive, win or loss. Never illustrative.
+  const archive = await getArchivePage({ page: 1 }).catch(() => null)
+  const receipt = archive?.rows[0] ?? null
+  const published = archive?.total ?? 0
   return (
     <div className="t-theme">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(terminalSchema) }} />
@@ -136,13 +141,18 @@ export default async function TerminalPage() {
 
       {/* Proof */}
       <section className="border-b border-border bg-zinc-900/60">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between lg:px-6">
-          <p className="text-muted-foreground">
-            {published > 0
-              ? <><strong className="text-foreground">{published.toLocaleString('en-US')} signals published</strong> in our public record, wins and losses, unedited. The same scanner runs inside T365 Terminal.</>
-              : <>Built on the scanner behind our public, unedited signal record.</>}
-          </p>
-          <Link href="/signals" className="inline-flex shrink-0 items-center gap-1 font-semibold text-primary hover:underline">See every signal, wins and losses <ArrowRight className="h-4 w-4" /></Link>
+        <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-4 py-10 md:flex-row md:justify-between lg:px-6">
+          <div className="max-w-xl">
+            <p className="font-mono text-[11px] tracking-[0.16em] text-primary">// THE SAME SCANNER, PUBLIC RECORD</p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight md:text-3xl">Every signal published. Wins and losses. Nothing deleted.</h2>
+            <p className="mt-3 text-muted-foreground">
+              {published > 0
+                ? <><strong className="text-foreground">{published.toLocaleString('en-US')} signals</strong> are in our public record, unedited. The scanner behind that record runs inside T365 Terminal.</>
+                : <>The scanner behind our public, unedited record runs inside T365 Terminal.</>}
+            </p>
+            <Link href="/signals" className="mt-4 inline-flex items-center gap-1 font-semibold text-primary hover:underline">See every signal, wins and losses <ArrowRight className="h-4 w-4" /></Link>
+          </div>
+          {receipt && <div className="flex w-full justify-center md:w-auto"><ReceiptCard r={receipt} /></div>}
         </div>
       </section>
 
