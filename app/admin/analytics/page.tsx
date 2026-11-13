@@ -10,7 +10,7 @@ type AnalyticsData = {
   bots: { bots: string; humans: string; classified: string }
   sessions: { today: string; week: string; month: string }
   engagement: { avg_duration_ms: string | null; avg_scroll_pct: string | null; measured: string }
-  sessionStats: { sessions: string; bounced: string; pages_per_session: string | null; avg_session_ms: string | null }
+  sessionStats: { sessions: string; measured_sessions: string; bounced: string; pages_per_session: string | null; avg_session_ms: string | null }
   entryPages: { path: string; sessions: string }[]
   exitPages: { path: string; sessions: string }[]
   topPages: { path: string; views: string }[]
@@ -26,6 +26,7 @@ type AnalyticsData = {
     byExchange: { exchange: string; clicks: string }[]
     byArticle: { article_slug: string; locale: string | null; clicks: string }[]
   }
+  deskDownloads: { today: number | string; week: number | string; month: number | string; total: number | string }
 }
 
 function Bar({ value, max }: { value: number; max: number }) {
@@ -186,13 +187,14 @@ export default function AnalyticsPage() {
                 <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>Engagement <span style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 400 }}>· last 30 days · humans only</span></h2>
                 {(() => {
                   const sess = Number(data.sessionStats.sessions || 0)
+                  const measuredSess = Number(data.sessionStats.measured_sessions || 0)
                   const bounced = Number(data.sessionStats.bounced || 0)
-                  const bounceRate = sess > 0 ? Math.round((bounced / sess) * 100) : 0
+                  const bounceRate = measuredSess > 0 ? Math.round((bounced / measuredSess) * 100) : 0
                   const bounceColor = bounceRate >= 70 ? '#f87171' : bounceRate >= 50 ? '#fbbf24' : '#34d399'
                   const tiles: { label: string; value: string; sub?: string; color?: string }[] = [
                     { label: 'Sessions — 30d', value: sess.toLocaleString(), sub: `${Number(data.sessions?.today ?? 0).toLocaleString()} today · ${Number(data.sessions?.week ?? 0).toLocaleString()} this week` },
                     { label: 'Pages / Session', value: data.sessionStats.pages_per_session ? Number(data.sessionStats.pages_per_session).toFixed(2) : '—' },
-                    { label: 'Bounce Rate', value: `${bounceRate}%`, sub: `${bounced.toLocaleString()} single-page`, color: bounceColor },
+                    { label: 'Measured Bounce', value: `${bounceRate}%`, sub: `${bounced.toLocaleString()} single-page · ${measuredSess.toLocaleString()} sessions`, color: bounceColor },
                     { label: 'Avg Time on Page', value: fmtDuration(Number(data.engagement?.avg_duration_ms ?? 0)), sub: `${Number(data.engagement?.measured ?? 0).toLocaleString()} measured` },
                     { label: 'Avg Session', value: fmtDuration(Number(data.sessionStats.avg_session_ms ?? 0)) },
                     { label: 'Avg Scroll Depth', value: data.engagement?.avg_scroll_pct ? `${Number(data.engagement.avg_scroll_pct)}%` : '—' },
@@ -300,6 +302,21 @@ export default function AnalyticsPage() {
                   )}
               </div>
             </div>
+
+            {data.deskDownloads && (
+              <div style={{ ...card, marginBottom: '1.5rem' }}>
+                <h2 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>T365 Desk Downloads</h2>
+                <p style={{ margin: '0 0 1rem', fontSize: '0.72rem', color: '#475569' }}>Installer download requests · humans only · completed downloads and installs are not measured</p>
+                <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                  {([['Today', 'today'], ['7 days', 'week'], ['30 days', 'month'], ['All time', 'total']] as const).map(([label, key]) => (
+                    <div key={key}>
+                      <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{label}</div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#f1f5f9' }}>{Number(data.deskDownloads[key] || 0).toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Affiliate Link Clicks — outbound clicks to exchange referral links */}
             {data.affiliateClicks && (
@@ -474,6 +491,9 @@ export default function AnalyticsPage() {
                   )}
               </div>
             </div>
+            <p style={{ marginTop: '1.5rem', fontSize: '0.68rem', color: '#475569' }}>
+              Country lookup includes GeoLite2 data created by MaxMind, available from <a href="https://www.maxmind.com" target="_blank" rel="noreferrer noopener" style={{ color: '#64748b' }}>maxmind.com</a>.
+            </p>
           </>
         )}
       </div>

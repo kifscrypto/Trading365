@@ -7,7 +7,7 @@ const articles = await sql`SELECT id, slug, title, category_slug, content FROM a
 // Build slug → correct path map
 const slugToPath = new Map(articles.map(a => [a.slug, `/${a.category_slug}/${a.slug}`]))
 
-const validStaticPaths = new Set(['/bonuses', '/reviews', '/comparisons', '/no-kyc', '/compare', '/about', '/guides', '/join-our-newsletter', '/privacy', '/terms', '/disclaimer'])
+const validStaticPaths = new Set(['/bonuses', '/reviews', '/comparisons', '/no-kyc', '/compare', '/about', '/guides', '/privacy', '/terms', '/disclaimer'])
 
 let totalFixed = 0
 

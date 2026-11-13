@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyAdmin } from "@/lib/auth"
 import { SESSION_COOKIE, SIGNED_IN_COOKIE } from "@/lib/auth-cookies"
+import { isBlockedIp } from "@/lib/request-security.mjs"
 
 // Token-gate the private broadcast surface. /live-arcade requires
 // ?k=<LIVE_ACCESS_TOKEN>. Any missing/wrong token (or no token configured)
@@ -11,17 +12,10 @@ import { SESSION_COOKIE, SIGNED_IN_COOKIE } from "@/lib/auth-cookies"
 // demo people land on (it must never 404 them). It stays noindex via page
 // metadata; a paid-user gate can be reintroduced here later.
 //
-// The catch-all page pattern is here for the signed-in flag sync below — the
-// /ops and /live-arcade branches are matched by it too and keep their explicit
-// entries only as documentation. _next assets, API routes and file URLs are
-// excluded: none of them render the header the flag exists for.
+// Security guards run for pages and APIs. Only static assets and file URLs are
+// excluded; API responses bypass the page-only signed-in flag sync below.
 export const config = {
-  matcher: [
-    "/live-arcade",
-    "/ops",
-    "/ops/:path*",
-    "/((?!_next/|api/|.*\\..*).*)",
-  ],
+  matcher: ["/ops/:path*", "/((?!_next/|.*\\..*).*)"],
 }
 
 function notFound() {
@@ -32,6 +26,20 @@ function notFound() {
 }
 
 export async function middleware(req: NextRequest) {
+  if (isBlockedIp(req.headers, process.env.BLOCKED_IPS)) {
+    return new NextResponse("Forbidden", {
+      status: 403,
+      headers: {
+        "cache-control": "no-store",
+        "content-type": "text/plain; charset=utf-8",
+      },
+    })
+  }
+
+  if (req.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.next()
+  }
+
   // /ops — Operations Command Center (static dashboard baked into public/ops).
   // Gated behind the same admin session as the admin panel; unauthenticated
   // visitors are sent to the admin login. Always noindex.

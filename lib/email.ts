@@ -13,8 +13,8 @@
  * Three separate problems, one missing dependency. This is that dependency.
  *
  * WHY RAW fetch AND NOT AN SDK
- * Every other integration here talks to its provider with fetch: lib/beehiiv.ts,
- * lib/telegram.ts, lib/discord.ts, lib/x.ts. An SDK would be the first one, and
+ * Every other integration here talks to its provider with fetch: lib/telegram.ts,
+ * lib/discord.ts and lib/x.ts. An SDK would be the first one, and
  * it would be a dependency to audit for a single POST. Resend's API is one
  * endpoint with a bearer token, so this stays consistent and dependency-free.
  *
@@ -45,7 +45,7 @@
 const RESEND_ENDPOINT = 'https://api.resend.com/emails'
 export const SITE_URL = 'https://trading365.org'
 
-/** Brand gold, matching lib/beehiiv.ts so both email kinds look like one sender. */
+/** Brand gold. */
 const GOLD = '#d97706'
 const INK = '#09090b'
 const MUTED = '#71717a'
@@ -138,10 +138,7 @@ export function toText(html: string): string {
  * Shared layout: dark header, white card, gold accent, quiet footer.
  *
  * Built as a table with inline styles because email clients have no real CSS
- * support — Gmail strips <style> blocks and most clients ignore flexbox. This is
- * the same constraint lib/beehiiv.ts works under, and the two templates are
- * intentionally near-identical so a member cannot tell they came from different
- * parts of the site.
+ * support — Gmail strips <style> blocks and most clients ignore flexbox.
  *
  * `paragraphs` and `cta` are trusted HTML: every builder below escapes its own
  * interpolations with esc() before calling in. That is why this does not escape

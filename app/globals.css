@@ -295,7 +295,7 @@
 
 /* ── Relocated legacy sections ───────────────────────────────────────────────
    The sections kept from the previous homepage (exchange picks, featured
-   reviews, comparisons, categories, Discord, newsletter, trust bar) are shared
+   reviews, comparisons, categories, Discord, trust bar) are shared
    components used on other pages too, so they are NOT edited. Instead the
    semantic tokens Tailwind already inlines into their utilities are remapped
    inside this wrapper: `border-border` compiles to `var(--border)` and

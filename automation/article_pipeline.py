@@ -1,9 +1,10 @@
 """Article pipeline — scheduled 07:00 daily.
 
-Finds today's content-calendar item with status ``idea``, runs it through the
-admin SEO pipeline (outline → streaming content → meta tags), and saves the
-article as an UNPUBLISHED DRAFT for manual review in the admin (calendar item
-marked ``drafted``, cross-posting skipped).
+Finds the oldest due content-calendar item with status ``idea``, catches up
+missed days, runs it through the admin SEO pipeline (outline → streaming
+content → meta tags), and saves the article as an UNPUBLISHED DRAFT for manual
+review in the admin (calendar item marked ``drafted``, cross-posting skipped).
+An explicit ``--date`` still selects only that exact calendar day.
 
 Drafts are the default — a human publishes from the admin after review. Pass
 ``--live`` to publish immediately and cross-post (X + Quora draft).
@@ -27,12 +28,25 @@ def _intent_for(article_type: str) -> str:
     return "commercial" if article_type in COMMERCIAL_TYPES else "informational"
 
 
-def find_todays_item(items: list[dict[str, Any]], date: str | None = None) -> dict[str, Any] | None:
-    day = date or today_iso()
-    for item in items:
-        if item.get("date") == day and item.get("status") == "idea" and item.get("keyword"):
-            return item
-    return None
+def find_due_item(items: list[dict[str, Any]], date: str | None = None) -> dict[str, Any] | None:
+    """Return an exact-date item for manual runs, otherwise the oldest due idea."""
+    if date is not None:
+        return next(
+            (
+                item
+                for item in items
+                if item.get("date") == date and item.get("status") == "idea" and item.get("keyword")
+            ),
+            None,
+        )
+    day = today_iso()
+    due = [
+        item
+        for item in items
+        if item.get("date") and item["date"] <= day
+        and item.get("status") == "idea" and item.get("keyword")
+    ]
+    return min(due, key=lambda item: item["date"]) if due else None
 
 
 def guard(
@@ -114,7 +128,7 @@ def run_pipeline(item: dict[str, Any], review: bool) -> dict[str, Any]:
     article = api.publish_article(payload)
 
     if review:
-        # Draft only: "drafted" keeps the item out of find_todays_item ("idea")
+        # Draft only: "drafted" keeps the item out of find_due_item ("idea")
         # and out of crosspost's published-but-unposted sweep ("published").
         item["status"] = "drafted"
     else:
@@ -135,7 +149,7 @@ def main() -> int:
     config.set_dry_run(args.dry_run)
 
     items = store.load("content", store.seed_content)
-    item = find_todays_item(items, args.date)
+    item = find_due_item(items, args.date)
     if item is None:
         print(f"article pipeline: nothing scheduled for {args.date or today_iso()} — exiting")
         return 0

@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Radar, ShieldCheck, Bell, ArrowRight, Zap, Check, TrendingUp } from "lucide-react"
 import { PLANS, planMonths, planPerMonth, planSavingsPct, premiumEnabled } from "@/lib/premium"
-import { ScannerNewsletter } from "@/components/scanner-newsletter"
 import { computePnl } from "@/lib/scanner-pnl"
 import { getScannerStats } from "@/lib/scanner-stats"
 import { ScannerPnlCard } from "@/components/scanner-pnl-card"
@@ -339,7 +338,7 @@ export default async function ScannerPage() {
 
       {/* Pricing — directly after the proof (stats + P&L), not buried at the
           bottom: a visitor who has just seen the record should be able to act
-          on it without scrolling past features, newsletter and the outro. */}
+          on it without scrolling past features and the outro. */}
       <section id="pricing" className="border-t border-border bg-zinc-950">
         <div className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
           <div className="text-center mb-10">
@@ -531,9 +530,6 @@ export default async function ScannerPage() {
           ))}
         </div>
       </section>
-
-      {/* Newsletter capture */}
-      <ScannerNewsletter accent="red" utmCampaign="short-scanner" />
 
     </div>
   )

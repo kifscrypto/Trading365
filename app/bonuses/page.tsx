@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumbs } from "@/components/breadcrumbs"
-import { NewsletterCta } from "@/components/newsletter-cta"
 import { ArticleCard } from "@/components/article-card"
 import { ExchangeLogo } from "@/components/exchange-logo"
 import { getFeaturedSlot } from "@/lib/data/featured"
@@ -477,7 +476,6 @@ export default async function BonusesPage() {
         </div>
       </section>
 
-      <NewsletterCta />
     </>
   )
 }

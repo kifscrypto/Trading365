@@ -31,20 +31,20 @@ export default function PrivacyPage() {
       <h1 className="mt-6 text-3xl font-bold tracking-tight text-foreground text-balance">
         Privacy Policy
       </h1>
-      <p className="mt-2 text-sm text-muted-foreground">Last updated: March 2026</p>
+      <p className="mt-2 text-sm text-muted-foreground">Last updated: November 2026</p>
 
       <div className="mt-8 flex flex-col gap-6 text-sm leading-relaxed text-muted-foreground">
         <section>
           <h2 className="mb-2 text-base font-semibold text-foreground">1. Information We Collect</h2>
           <p>
-            When you visit Trading365, we may automatically collect certain technical information, including your IP address, browser type, operating system, referring URLs, and pages viewed. If you subscribe to our newsletter, we collect your email address.
+            When you visit Trading365, we may automatically collect certain technical information, including your IP address, browser type, operating system, referring URLs, and pages viewed. If you create an account, we collect your email address.
           </p>
         </section>
 
         <section>
           <h2 className="mb-2 text-base font-semibold text-foreground">2. How We Use Your Information</h2>
           <p>
-            We use the information we collect to operate and improve the website, send newsletter communications (if you have opted in), analyse site traffic and usage patterns, and comply with legal obligations.
+            We use the information we collect to operate and improve the website, provide account services, analyse site traffic and usage patterns, and comply with legal obligations.
           </p>
         </section>
 
@@ -74,7 +74,7 @@ export default function PrivacyPage() {
         <section>
           <h2 className="mb-2 text-base font-semibold text-foreground">5. Data Retention</h2>
           <p>
-            We retain newsletter subscriber data until you unsubscribe. Analytics data is retained in accordance with our analytics provider's standard retention periods.
+            We retain account data while your account is active. Analytics data is retained in accordance with our analytics retention policy.
           </p>
         </section>
 
