@@ -236,6 +236,20 @@ svg { display: block; }
 
 .signals-layout { display: grid; grid-template-columns: minmax(225px, .7fr) minmax(390px, 1.45fr) minmax(235px, .72fr); gap: 14px; align-items: start; }
 .signals-context { display: grid; gap: 14px; }
+.signals-main { display: grid; gap: 14px; align-content: start; }
+.promo-banner { display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(245, 192, 78, .32); border-radius: var(--radius); background: linear-gradient(135deg, rgba(245, 192, 78, .1), rgba(61, 240, 138, .04) 65%), var(--panel); padding: 14px 16px; }
+.promo-banner-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.promo-banner-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.promo-eyebrow { color: var(--gold); font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.promo-name { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.promo-offer { color: var(--muted); font-size: 12px; }
+.promo-banner-actions { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+.promo-dots { display: flex; gap: 2px; }
+.promo-dot { position: relative; width: 16px; height: 16px; border: 0; background: transparent; padding: 0; }
+.promo-dot::after { position: absolute; inset: 5px; border-radius: 50%; background: var(--dim); content: ""; transition: background-color 140ms ease, transform 140ms ease; }
+.promo-dot:hover::after { background: var(--text); }
+.promo-dot.is-active::after { background: var(--gold); transform: scale(1.35); }
+.promo-disclosure { margin: 0; color: var(--dim); font-size: 8px; }
 .filter-group { display: inline-flex; gap: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); padding: 3px; }
 .filter-button { min-width: 48px; border: 0; border-radius: 4px; background: transparent; padding: 5px 9px; color: var(--dim); font-size: 10px; }
 .filter-button:hover { color: var(--text); }
@@ -342,6 +356,7 @@ svg { display: block; }
   .sidebar-bottom { margin: 5px 0 0; }
   .topbar { padding: 0 14px; }
   .banner { flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 14px; }
+  .promo-banner-row { flex-direction: column; align-items: flex-start; gap: 10px; }
   .connection-status .status-separator, .connection-status > span:last-child, .topbar-meta > span:first-child { display: none; }
   .app-view { padding: 15px 12px 25px; }
   .view-header, .regime-banner { grid-template-columns: 1fr; flex-direction: column; }
