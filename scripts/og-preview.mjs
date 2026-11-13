@@ -139,6 +139,7 @@ function build() {
     [
       path.join(root, 'node_modules', 'typescript', 'bin', 'tsc'),
       path.join('lib', 'og', 'signal-card.tsx'),
+      path.join('lib', 'og', 'desk-card.tsx'),
       '--jsx', 'react-jsx',
       '--module', 'commonjs',
       '--moduleResolution', 'node',
@@ -170,6 +171,7 @@ async function main() {
   const { ImageResponse } = require(path.join(root, 'node_modules/next/dist/compiled/@vercel/og/index.node.js'))
   const React = require(path.join(root, 'node_modules/react'))
   const { SignalCard, FallbackCard, cardFilename } = require(path.join(buildDir, 'signal-card.js'))
+  const { DeskCard } = require(path.join(buildDir, 'desk-card.js'))
   const fonts = loadFonts()
   if (!fonts.length) console.warn('! no fonts in assets/fonts — bold will be faked by size alone\n')
 
@@ -181,21 +183,29 @@ async function main() {
   if (!logo) console.warn('! assets/og/logo-mark.png missing — rendering without the mark\n')
 
   const wanted = process.argv.slice(2)
-  const names = wanted.length ? wanted : Object.keys(FIXTURES)
+  const names = wanted.length ? wanted : ['desk', ...Object.keys(FIXTURES)]
 
   for (const name of names) {
-    const model = FIXTURES[name]
-    if (!model) {
-      console.error(`! unknown fixture "${name}" (have: ${Object.keys(FIXTURES).join(', ')})`)
-      process.exitCode = 1
-      continue
+    let el
+    let base
+    if (name === 'desk') {
+      el = React.createElement(DeskCard, { logo })
+      base = 'desk'
+    } else {
+      const model = FIXTURES[name]
+      if (!model) {
+        console.error(`! unknown fixture "${name}" (have: desk, ${Object.keys(FIXTURES).join(', ')})`)
+        process.exitCode = 1
+        continue
+      }
+      el = model.tone === 'flat' && !model.symbol
+        ? React.createElement(FallbackCard, { url: model.url, logo })
+        : React.createElement(SignalCard, { model, logo })
+      base = `${name}-${cardFilename(model)}`
     }
-    const el = model.tone === 'flat' && !model.symbol
-      ? React.createElement(FallbackCard, { url: model.url, logo })
-      : React.createElement(SignalCard, { model, logo })
     const res = new ImageResponse(el, { width: 1200, height: 630, fonts })
     const buf = Buffer.from(await res.arrayBuffer())
-    const file = path.join(outDir, `${String(name).padStart(2, '0')}-${cardFilename(model)}.png`)
+    const file = path.join(outDir, `${base}.png`)
     fs.writeFileSync(file, buf)
     console.log(`${name.padEnd(10)} ${(buf.length / 1024).toFixed(1).padStart(7)} kB  ${path.relative(root, file)}`)
   }

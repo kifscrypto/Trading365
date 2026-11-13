@@ -10,9 +10,8 @@ import { jsonLd } from '@/lib/utils/json-ld'
 
 const BASE_URL = 'https://trading365.org'
 const DESK_URL = `${BASE_URL}/desk`
-const DESK_TITLE = 'T365 Desk — The Crypto Workstation You Buy Once'
-const DESK_DESCRIPTION = 'T365 Desk for Windows combines a crypto scanner, charts, news and alerts. Start your 7-day free trial, then pay $299 once for a perpetual licence.'
-const DESK_OG_IMAGE = `${BASE_URL}/api/og?title=${encodeURIComponent('T365 Desk — Crypto Tools You Buy Once')}&category=${encodeURIComponent('Windows Software')}`
+const DESK_TITLE = 'T365 Desk — Every Crypto Tool In One Place, Owned Forever'
+const DESK_DESCRIPTION = 'Scanner, charts, news, alerts and market context in one local Windows app you own outright. No subscription or account. Try 7 days free, then $299 once.'
 
 export const metadata: Metadata = {
   title: DESK_TITLE,
@@ -24,14 +23,12 @@ export const metadata: Metadata = {
     title: DESK_TITLE,
     description: DESK_DESCRIPTION,
     url: DESK_URL,
-    images: [{ url: DESK_OG_IMAGE, width: 1200, height: 630, alt: 'T365 Desk — local-first Windows crypto workstation' }],
   },
   twitter: {
     card: 'summary_large_image',
     site: '@trading365x',
     title: DESK_TITLE,
     description: DESK_DESCRIPTION,
-    images: [DESK_OG_IMAGE],
   },
 }
 
@@ -105,8 +102,8 @@ export default function DeskPage() {
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-14 lg:grid-cols-[.9fr_1.1fr] lg:px-6">
           <div>
             <Badge variant="outline" className="mb-5 border-primary/40 text-primary">Local-first Windows software</Badge>
-            <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">Professional crypto tools. <span className="text-primary">One payment. No subscription.</span></h1>
-            <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">T365 Desk combines our scanner, real market charts, relevant news, and native alerts in one local app. No subscription. No activation server. Your desk, on your computer.</p>
+            <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">Every tool. One desk. <span className="text-primary">Yours forever.</span></h1>
+            <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">T365 Desk brings the scanner, real charts, breaking news, native alerts and market context into one app on your PC. Buy it once and it&apos;s yours for good — no subscription, no account, nothing rented.</p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               {enabled ? <DeskCheckoutButton /> : <Button size="lg" disabled>Checkout being configured</Button>}
               <Button size="lg" variant="outline" asChild><a href={DESK_PRODUCT.downloadPath}><Download className="mr-2 h-4 w-4" />Download trial</a></Button>
@@ -122,7 +119,7 @@ export default function DeskPage() {
 
       <section className="border-b border-border bg-zinc-900/50">
         <div className="mx-auto max-w-7xl px-4 py-12 lg:px-6">
-          <div className="max-w-2xl"><h2 className="text-2xl font-bold">Everything supports the setup in front of you</h2><p className="mt-2 text-muted-foreground">Not a collection of disconnected widgets. Select an asset and see its chart, model reasoning, market context, and related news together.</p></div>
+          <div className="max-w-2xl"><h2 className="text-2xl font-bold">All your tools, in one place</h2><p className="mt-2 text-muted-foreground">Scanner, charts, news and market context aren&apos;t separate apps you juggle. They live together, so every decision is made with the full picture in front of you.</p></div>
           <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {features.map(feature => <article key={feature.title} className="rounded-xl border border-border bg-card p-5"><feature.icon className="h-5 w-5 text-primary" /><h3 className="mt-4 font-semibold">{feature.title}</h3><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{feature.text}</p></article>)}
           </div>

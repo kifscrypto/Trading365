@@ -59,7 +59,7 @@ export function Hero({ receipt }: { receipt: Receipt | null }) {
           <div>
             <p className="font-mono text-[11px] tracking-[0.14em] t-green">T365 DESK · ONE-TIME PURCHASE</p>
             <h2 className="mt-2 text-xl font-bold tracking-tight text-[var(--t-tx)]">
-              Professional crypto tools. One payment. No subscription.
+              Every tool. One desk. Yours forever.
             </h2>
             <p className="mt-1 text-sm t-dim">Every future major version included · 365 days of support</p>
           </div>
