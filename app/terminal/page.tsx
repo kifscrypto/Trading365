@@ -14,7 +14,7 @@ export const revalidate = 600
 
 const BASE_URL = 'https://trading365.org'
 const TERMINAL_URL = `${BASE_URL}/terminal`
-const TERMINAL_TITLE = 'T365 Terminal — The Crypto Terminal You Own | Trading365'
+const TERMINAL_TITLE = 'T365 Terminal — The Crypto Terminal You Own'
 const TERMINAL_DESCRIPTION = 'Scanner, charts, news, alerts and market context in one Windows app. Pay $299 once. No subscription, no account. Try it free for 7 days.'
 
 export const metadata: Metadata = {
