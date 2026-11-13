@@ -8,6 +8,7 @@ extraResources:
   - from: src/renderer
     to: renderer
 win:
+  icon: build/icon.png
   target:
     - nsis
 nsis:
