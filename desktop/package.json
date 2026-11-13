@@ -1,6 +1,6 @@
 {
   "name": "t365-desk",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "T365 Terminal - the local-first crypto terminal you own",
   "main": "dist/main/main.js",
