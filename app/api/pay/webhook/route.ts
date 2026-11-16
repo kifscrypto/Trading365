@@ -6,6 +6,8 @@ import {
 import { grantEntitlement, grantReferralReward, getAccount } from '@/lib/users'
 import { accessGrantedEmail, deskLicenseEmail, emailConfigured, sendEmail } from '@/lib/email'
 import { signDesktopLicense } from '@/lib/desktop-license'
+import { notifyDeskSale } from '@/lib/desk-sale-alert'
+import { DESK_PRODUCT } from '@/lib/desk'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,10 +46,12 @@ export async function POST(request: Request) {
             license_key = ${key}, license_updates_until = ${payload.updatesUntil}
         WHERE order_id = ${orderId}
       `
-      if (rows[0].user_id && emailConfigured()) {
+      let buyerEmail: string | null = null
+      if (rows[0].user_id) {
         try {
           const buyer = await getAccount(Number(rows[0].user_id))
-          if (buyer) {
+          buyerEmail = buyer?.email ?? null
+          if (buyer && emailConfigured()) {
             const sent = await sendEmail(deskLicenseEmail({ email: buyer.email, licenseKey: key, orderId, updatesUntil: payload.updatesUntil }))
             if (!sent.ok) console.error(`[pay/webhook] desktop licence email failed (${sent.status}) for order ${orderId}`)
           }
@@ -55,6 +59,9 @@ export async function POST(request: Request) {
           console.error(`[pay/webhook] desktop licence email threw for order ${orderId}:`, error)
         }
       }
+      // Owner alert (Discord + email). Fire-and-forget: a failed alert must never
+      // make NOWPayments retry a purchase that already completed.
+      void notifyDeskSale({ orderId, email: buyerEmail, amountUsd: DESK_PRODUCT.amount, updatesUntil: payload.updatesUntil })
       return NextResponse.json({ ok: true, activated: true, desktop: true, updatesUntil: payload.updatesUntil })
     }
     if (rows[0].product && rows[0].product !== 'scanner') throw new Error(`Unknown order product: ${rows[0].product}`)

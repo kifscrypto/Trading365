@@ -251,7 +251,43 @@ export async function GET(request: Request) {
       // desk_downloads table not created yet — leave zeroed totals
     }
 
+    // Desk sales: a completed purchase is a subscribers row with product
+    // 't365-desk' and status paid/active. Checkout creates the row as 'pending',
+    // so pending = checkouts started but not paid.
+    let deskSales = {
+      checkouts: 0,
+      pending: 0,
+      paid: 0,
+      revenue: 0,
+      recent: [] as Array<{ order_id: string; email: string | null; amount_usd: number | string; paid_at: string | null }>,
+    }
+    try {
+      const [counts, recent] = await Promise.all([
+        sql`
+          SELECT
+            COUNT(*)::int AS checkouts,
+            (COUNT(*) FILTER (WHERE status = 'pending'))::int AS pending,
+            (COUNT(*) FILTER (WHERE status IN ('paid','active')))::int AS paid,
+            COALESCE(SUM(amount_usd) FILTER (WHERE status IN ('paid','active')), 0)::int AS revenue
+          FROM subscribers
+          WHERE product = 't365-desk'
+        `,
+        sql`
+          SELECT s.order_id, s.amount_usd, s.paid_at, u.email
+          FROM subscribers s
+          LEFT JOIN users u ON u.id = s.user_id
+          WHERE s.product = 't365-desk' AND s.status IN ('paid','active')
+          ORDER BY s.paid_at DESC NULLS LAST
+          LIMIT 10
+        `,
+      ])
+      deskSales = { ...(counts[0] as typeof deskSales), recent: recent as typeof deskSales.recent }
+    } catch {
+      // subscribers table not created yet — leave zeroed totals
+    }
+
     return NextResponse.json({
+      deskSales,
       totals: totals[0],
       visitors: visitors[0],
       bots: bots[0],

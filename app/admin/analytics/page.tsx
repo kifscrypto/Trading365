@@ -27,6 +27,13 @@ type AnalyticsData = {
     byArticle: { article_slug: string; locale: string | null; clicks: string }[]
   }
   deskDownloads: { today: number | string; week: number | string; month: number | string; total: number | string }
+  deskSales: {
+    checkouts: number
+    pending: number
+    paid: number
+    revenue: number
+    recent: { order_id: string; email: string | null; amount_usd: number | string; paid_at: string | null }[]
+  }
 }
 
 function Bar({ value, max }: { value: number; max: number }) {
@@ -302,6 +309,56 @@ export default function AnalyticsPage() {
                   )}
               </div>
             </div>
+
+            {data.deskSales && (
+              <div style={{ ...card, marginBottom: '1.5rem' }}>
+                <h2 style={{ margin: '0 0 0.25rem', fontSize: '1rem', fontWeight: 600, color: '#f1f5f9' }}>T365 Terminal Sales</h2>
+                <p style={{ margin: '0 0 1rem', fontSize: '0.72rem', color: '#475569' }}>Completed purchases · checkouts started vs paid · revenue in USD</p>
+                <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                  {([
+                    ['Checkouts', data.deskSales.checkouts.toLocaleString()],
+                    ['Pending', data.deskSales.pending.toLocaleString()],
+                    ['Paid', data.deskSales.paid.toLocaleString()],
+                    ['Revenue', `$${Number(data.deskSales.revenue).toLocaleString()}`],
+                  ] as const).map(([label, value]) => (
+                    <div key={label}>
+                      <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{label}</div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#f1f5f9' }}>{value}</div>
+                    </div>
+                  ))}
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>Checkout → paid</div>
+                    <div style={{ fontSize: '1.4rem', fontWeight: 700, color: data.deskSales.paid > 0 ? '#4ade80' : '#94a3b8' }}>
+                      {data.deskSales.checkouts > 0 ? Math.round((data.deskSales.paid / data.deskSales.checkouts) * 100) : 0}%
+                    </div>
+                  </div>
+                </div>
+                {data.deskSales.recent.length > 0 ? (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                    <thead>
+                      <tr style={{ color: '#64748b', textAlign: 'left' }}>
+                        <th style={{ padding: '0.3rem 0.5rem 0.3rem 0', fontWeight: 500 }}>Paid</th>
+                        <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Buyer</th>
+                        <th style={{ padding: '0.3rem 0.5rem', fontWeight: 500 }}>Order</th>
+                        <th style={{ padding: '0.3rem 0 0.3rem 0.5rem', fontWeight: 500, textAlign: 'right' }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.deskSales.recent.map(s => (
+                        <tr key={s.order_id} style={{ borderTop: '1px solid #1e293b' }}>
+                          <td style={{ padding: '0.35rem 0.5rem 0.35rem 0', color: '#cbd5e1' }}>{s.paid_at ? new Date(s.paid_at).toLocaleDateString() : '—'}</td>
+                          <td style={{ padding: '0.35rem 0.5rem', color: '#cbd5e1' }}>{s.email ?? '—'}</td>
+                          <td style={{ padding: '0.35rem 0.5rem', color: '#64748b', fontFamily: 'monospace' }}>{s.order_id}</td>
+                          <td style={{ padding: '0.35rem 0 0.35rem 0.5rem', color: '#4ade80', textAlign: 'right' }}>${Number(s.amount_usd).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>No paid T365 Terminal orders yet. Checkouts started but not completed show as &ldquo;Pending&rdquo;.</p>
+                )}
+              </div>
+            )}
 
             {data.deskDownloads && (
               <div style={{ ...card, marginBottom: '1.5rem' }}>
