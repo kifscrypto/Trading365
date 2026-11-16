@@ -244,6 +244,12 @@ svg { display: block; }
 .promo-banner-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px 1px; }
 .promo-eyebrow { color: var(--gold); font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .promo-disclosure { margin: 0; color: var(--dim); font-size: 8px; }
+.perf-summary { margin-bottom: 14px; overflow: hidden; }
+.perf-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+.perf-item { display: flex; flex-direction: column; gap: 4px; background: var(--panel); padding: 12px 14px; }
+.perf-item > span { color: var(--dim); font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.perf-item strong { font-size: 15px; font-weight: 700; }
+.perf-sym { color: var(--muted); font-size: 10px; font-weight: 600; }
 .filter-group { display: inline-flex; gap: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); padding: 3px; }
 .filter-button { min-width: 48px; border: 0; border-radius: 4px; background: transparent; padding: 5px 9px; color: var(--dim); font-size: 10px; }
 .filter-button:hover { color: var(--text); }
@@ -334,6 +340,7 @@ svg { display: block; }
   .nav-item { justify-content: center; padding: 9px; }
   .nav-item svg { width: 19px; height: 19px; }
   .market-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .perf-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .overview-grid, .signals-layout, .news-page-layout { grid-template-columns: 1fr; }
   .overview-grid > .news-panel, .signals-context { grid-column: auto; }
   .signals-context { grid-template-columns: 1fr; }
@@ -355,6 +362,7 @@ svg { display: block; }
   .view-header, .regime-banner { grid-template-columns: 1fr; flex-direction: column; }
   .regime-score { text-align: left; }
   .market-stats { grid-template-columns: 1fr 1fr; }
+  .perf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .overview-grid > .news-panel .news-list { display: flex; }
   .overview-grid > .news-panel .news-item { border-right: 0; border-bottom: 1px solid var(--line); }
   .news-controls { align-items: flex-end; flex-direction: column; }

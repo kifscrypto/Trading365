@@ -260,17 +260,58 @@
     const paywall = appState.license.status === 'expired' ? paywallPanel() : ''
     if (!appState.assets.length) return emptyWorkspace(paywall)
     const item = selectedItem()
-    return `${viewHeader('Market overview', 'Live public data, your local scanner, and the context around it.')}${paywall}${regimeBanner()}${marketStats()}<div class="overview-grid">${signalsPanel()}<div class="overview-center">${item ? chartPanel(item) : ''}</div>${item ? compactNews(item.kind === 'signal' ? item.signal.symbol : item.asset.symbol) : ''}</div>`
+    return `${viewHeader('Market overview', 'Live public data, your local scanner, and the context around it.')}${paywall}${regimeBanner()}${marketStats()}${performanceSummary()}<div class="overview-grid">${signalsPanel()}<div class="overview-center">${item ? chartPanel(item) : ''}</div>${item ? compactNews(item.kind === 'signal' ? item.signal.symbol : item.asset.symbol) : ''}</div>`
   }
 
   function directionFilters() {
     return `<div class="filter-group" aria-label="Filter signals by direction">${['all', 'long', 'short'].map(filter => `<button class="filter-button ${ui.directionFilter === filter ? 'is-active' : ''}" type="button" data-filter="${filter}" aria-pressed="${ui.directionFilter === filter}">${filter[0].toUpperCase() + filter.slice(1)}</button>`).join('')}</div>`
   }
 
+  function signalMovePercent(signal) {
+    const entry = signal.entry
+    if (!entry) return null
+    let exit = null
+    if (signal.status && signal.status.startsWith('tp')) exit = signal.targets?.[Number(signal.status.slice(2)) - 1]
+    else if (signal.status === 'sl') exit = signal.stop
+    else exit = signal.currentPrice
+    if (typeof exit !== 'number' || !Number.isFinite(exit)) return null
+    const move = signal.side === 'long' ? (exit - entry) / entry : (entry - exit) / entry
+    return move * 100
+  }
+
+  function performanceSummary() {
+    const dayAgo = Date.now() - 24 * 3600e3
+    const signals = appState.signals
+    const fired24h = signals.filter(signal => Date.parse(signal.firedAt) >= dayAgo)
+    const resolved24h = signals.filter(signal => signal.closedAt && Date.parse(signal.closedAt) >= dayAgo)
+    const wins = resolved24h.filter(signal => signal.status && signal.status.startsWith('tp'))
+    const losses = resolved24h.filter(signal => signal.status === 'sl')
+    const expired = resolved24h.filter(signal => signal.status === 'expired')
+    const openNow = signals.filter(signal => signal.status === 'open')
+    const decided = wins.length + losses.length
+    const hitRate = decided > 0 ? Math.round((wins.length / decided) * 100) : null
+    const moves = [...wins, ...losses].map(signal => ({ signal, move: signalMovePercent(signal) })).filter(entry => entry.move !== null)
+    const best = moves.reduce((a, b) => (a === null || b.move > a.move ? b : a), null)
+    const worst = moves.reduce((a, b) => (a === null || b.move < a.move ? b : a), null)
+    const label = (entry) => entry === null ? '—' : `${entry.move >= 0 ? '+' : ''}${entry.move.toFixed(1)}% <span class="perf-sym">${escapeHtml(entry.signal.symbol)}</span>`
+    return `<section class="panel perf-summary" aria-label="24-hour summary">
+      <div class="panel-header"><h2 class="panel-title">24-hour summary</h2><span class="panel-meta">${resolved24h.length} RESOLVED · ${openNow.length} OPEN</span></div>
+      <div class="perf-grid">
+        <div class="perf-item"><span>Fired</span><strong>${fired24h.length}</strong></div>
+        <div class="perf-item"><span>Wins</span><strong class="positive">${wins.length}</strong></div>
+        <div class="perf-item"><span>Losses</span><strong class="negative">${losses.length}</strong></div>
+        <div class="perf-item"><span>Expired</span><strong>${expired.length}</strong></div>
+        <div class="perf-item"><span>Hit rate</span><strong>${hitRate === null ? '—' : `${hitRate}%`}</strong></div>
+        <div class="perf-item"><span>Largest win</span><strong class="positive">${label(best)}</strong></div>
+        <div class="perf-item"><span>Largest loss</span><strong class="negative">${label(worst)}</strong></div>
+      </div>
+    </section>`
+  }
+
   function renderSignals() {
     const item = selectedItem()
     const main = item ? chartPanel(item, true) : '<section class="panel empty-state"><strong>No asset selected</strong><p>Refresh to load the local market universe.</p></section>'
-    return `${viewHeader('Signal workspace', 'Fired entries, candidate scores, actual candles, and model reasoning.', directionFilters())}<div class="signals-layout">${signalsPanel()}<div class="signals-main">${main}${bannerSlot()}</div><div class="signals-context">${item ? scorePanel(item) + compactNews(item.kind === 'signal' ? item.signal.symbol : item.asset.symbol) : ''}</div></div>`
+    return `${viewHeader('Signal workspace', 'Fired entries, candidate scores, actual candles, and model reasoning.', directionFilters())}${performanceSummary()}<div class="signals-layout">${signalsPanel()}<div class="signals-main">${main}${bannerSlot()}</div><div class="signals-context">${item ? scorePanel(item) + compactNews(item.kind === 'signal' ? item.signal.symbol : item.asset.symbol) : ''}</div></div>`
   }
 
   function bannerSlot() {
