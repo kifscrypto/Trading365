@@ -309,8 +309,8 @@
         <div class="perf-item"><span>Expired</span><strong>${expired.length}</strong></div>
         <div class="perf-item"><span>Open</span><strong>${open.length}</strong></div>
         <div class="perf-item"><span>Hit rate</span><strong>${hitRate === null ? '—' : `${hitRate}%`}</strong></div>
-        <div class="perf-item"><span>Largest win</span><strong class="positive">${label(best)}</strong></div>
-        <div class="perf-item"><span>Largest loss</span><strong class="negative">${label(worst)}</strong></div>
+        <div class="perf-item is-win"><span>Largest win</span><strong class="positive">${label(best)}</strong></div>
+        <div class="perf-item is-loss"><span>Largest loss</span><strong class="negative">${label(worst)}</strong></div>
       </div>
     </section>`
   }
