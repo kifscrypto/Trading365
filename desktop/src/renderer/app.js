@@ -7,10 +7,11 @@
   const engineStatus = document.querySelector('#engine-status')
   const engineDot = document.querySelector('#engine-dot')
   const signalCount = document.querySelector('#signal-count')
-  const ui = { view: 'overview', selectedKey: '', directionFilter: 'all', newsQuery: '', newsCategory: 'all' }
+  const ui = { view: 'overview', selectedKey: '', directionFilter: 'all', newsQuery: '', newsCategory: 'all', summaryRange: '24h' }
   let appState = null
   let updateInfo = null
   let partners = []
+  let bannerTimer
   let toastTimer
   let refreshInFlight = false
   let activationInFlight = false
@@ -280,27 +281,33 @@
   }
 
   function performanceSummary() {
-    const dayAgo = Date.now() - 24 * 3600e3
+    const range = ui.summaryRange || '24h'
+    const rangeMs = range === '24h' ? 24 * 3600e3 : range === '7d' ? 7 * 24 * 3600e3 : null
+    const now = Date.now()
+    const withinRange = (iso) => rangeMs === null ? Boolean(iso) : Boolean(iso) && Date.parse(iso) >= now - rangeMs
     const signals = appState.signals
-    const fired24h = signals.filter(signal => Date.parse(signal.firedAt) >= dayAgo)
-    const resolved24h = signals.filter(signal => signal.closedAt && Date.parse(signal.closedAt) >= dayAgo)
-    const wins = resolved24h.filter(signal => signal.status && signal.status.startsWith('tp'))
-    const losses = resolved24h.filter(signal => signal.status === 'sl')
-    const expired = resolved24h.filter(signal => signal.status === 'expired')
-    const openNow = signals.filter(signal => signal.status === 'open')
+    const fired = signals.filter(signal => withinRange(signal.firedAt))
+    const resolved = signals.filter(signal => signal.closedAt && withinRange(signal.closedAt))
+    const wins = resolved.filter(signal => signal.status && signal.status.startsWith('tp'))
+    const losses = resolved.filter(signal => signal.status === 'sl')
+    const expired = resolved.filter(signal => signal.status === 'expired')
+    const open = signals.filter(signal => signal.status === 'open' && withinRange(signal.firedAt))
     const decided = wins.length + losses.length
     const hitRate = decided > 0 ? Math.round((wins.length / decided) * 100) : null
     const moves = [...wins, ...losses].map(signal => ({ signal, move: signalMovePercent(signal) })).filter(entry => entry.move !== null)
     const best = moves.reduce((a, b) => (a === null || b.move > a.move ? b : a), null)
     const worst = moves.reduce((a, b) => (a === null || b.move < a.move ? b : a), null)
     const label = (entry) => entry === null ? '—' : `${entry.move >= 0 ? '+' : ''}${entry.move.toFixed(1)}% <span class="perf-sym">${escapeHtml(entry.signal.symbol)}</span>`
-    return `<section class="panel perf-summary" aria-label="24-hour summary">
-      <div class="panel-header"><h2 class="panel-title">24-hour summary</h2><span class="panel-meta">${resolved24h.length} RESOLVED · ${openNow.length} OPEN</span></div>
+    const title = range === '24h' ? '24-hour summary' : range === '7d' ? '7-day summary' : 'All-time summary'
+    const rangeButton = (value, text) => `<button class="perf-range-btn ${range === value ? 'is-active' : ''}" type="button" data-summary-range="${value}" aria-pressed="${range === value}">${text}</button>`
+    return `<section class="panel perf-summary" aria-label="${title}">
+      <div class="panel-header"><h2 class="panel-title">${title}</h2><div class="perf-range" role="group" aria-label="Summary period">${rangeButton('24h', '24h')}${rangeButton('7d', '7d')}${rangeButton('all', 'All')}</div></div>
       <div class="perf-grid">
-        <div class="perf-item"><span>Fired</span><strong>${fired24h.length}</strong></div>
+        <div class="perf-item"><span>Fired</span><strong>${fired.length}</strong></div>
         <div class="perf-item"><span>Wins</span><strong class="positive">${wins.length}</strong></div>
         <div class="perf-item"><span>Losses</span><strong class="negative">${losses.length}</strong></div>
         <div class="perf-item"><span>Expired</span><strong>${expired.length}</strong></div>
+        <div class="perf-item"><span>Open</span><strong>${open.length}</strong></div>
         <div class="perf-item"><span>Hit rate</span><strong>${hitRate === null ? '—' : `${hitRate}%`}</strong></div>
         <div class="perf-item"><span>Largest win</span><strong class="positive">${label(best)}</strong></div>
         <div class="perf-item"><span>Largest loss</span><strong class="negative">${label(worst)}</strong></div>
@@ -314,16 +321,69 @@
     return `${viewHeader('Signal workspace', 'Fired entries, candidate scores, actual candles, and model reasoning.', directionFilters())}${performanceSummary()}<div class="signals-layout">${signalsPanel()}<div class="signals-main">${main}${bannerSlot()}</div><div class="signals-context">${item ? scorePanel(item) + compactNews(item.kind === 'signal' ? item.signal.symbol : item.asset.symbol) : ''}</div></div>`
   }
 
+  const BANNERS = [
+    { partner: 'bybit', name: 'Bybit', src: './banners/bybit.png', alt: 'Bybit — Gateway to Web3', width: 1922, height: 600 },
+    { partner: 'gate', name: 'Gate', src: './banners/gate.jpg', alt: 'Gate Technology x Trading 365 — New User Campaign: up to 45 USDC in rewards', width: 600, height: 180 },
+  ]
+
   function bannerSlot() {
-    return `<section class="promo-banner" aria-label="Sponsored partner">
-      <button class="promo-banner-link" type="button" data-partner="bybit" aria-label="Visit Bybit">
-        <img class="promo-banner-img" src="./banners/bybit.png" alt="Bybit — Gateway to Web3" width="1922" height="600" loading="lazy" />
+    if (!BANNERS.length) return ''
+    const first = BANNERS[0]
+    return `<section class="promo-banner" id="signals-banner" aria-label="Sponsored partner">
+      <button class="promo-banner-link" type="button" data-partner="${escapeHtml(first.partner)}" aria-label="Visit ${escapeHtml(first.name)}">
+        <img class="promo-banner-img" id="banner-img" src="${first.src}" alt="${escapeHtml(first.alt)}" width="${first.width}" height="${first.height}" loading="lazy" />
       </button>
       <div class="promo-banner-foot">
-        <span class="promo-eyebrow">Sponsored</span>
-        <span class="promo-disclosure">Partner link · commission may apply</span>
+        <div class="promo-banner-foot-left"><span class="promo-eyebrow">Sponsored</span><span class="promo-disclosure">Partner link · commission may apply</span></div>
+        <div class="promo-dots" id="banner-dots" role="group" aria-label="Choose partner"></div>
       </div>
     </section>`
+  }
+
+  function setupBanner() {
+    clearInterval(bannerTimer)
+    bannerTimer = undefined
+    const banner = document.querySelector('#signals-banner')
+    if (!banner || BANNERS.length < 2) return
+    const img = banner.querySelector('#banner-img')
+    const link = banner.querySelector('.promo-banner-link')
+    const dots = banner.querySelector('#banner-dots')
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    let index = 0
+    dots.innerHTML = BANNERS.map((bannerItem, bannerIndex) => `<button class="promo-dot" type="button" data-banner-index="${bannerIndex}" aria-label="Show ${escapeHtml(bannerItem.name)}"></button>`).join('')
+    const dotButtons = [...dots.querySelectorAll('[data-banner-index]')]
+
+    function show(nextIndex) {
+      index = (nextIndex + BANNERS.length) % BANNERS.length
+      const bannerItem = BANNERS[index]
+      img.src = bannerItem.src
+      img.alt = bannerItem.alt
+      img.width = bannerItem.width
+      img.height = bannerItem.height
+      link.dataset.partner = bannerItem.partner
+      link.setAttribute('aria-label', `Visit ${bannerItem.name}`)
+      dotButtons.forEach((button, buttonIndex) => {
+        const active = buttonIndex === index
+        button.classList.toggle('is-active', active)
+        button.setAttribute('aria-pressed', String(active))
+      })
+    }
+
+    function stop() { clearInterval(bannerTimer); bannerTimer = undefined }
+    function start() {
+      stop()
+      if (!reducedMotion.matches && !document.hidden) {
+        bannerTimer = setInterval(() => { if (!document.hidden) show(index + 1) }, 7000)
+      }
+    }
+
+    dotButtons.forEach(button => button.addEventListener('click', () => { show(Number(button.dataset.bannerIndex)); start() }))
+    banner.addEventListener('mouseenter', stop)
+    banner.addEventListener('mouseleave', start)
+    banner.addEventListener('focusin', stop)
+    banner.addEventListener('focusout', event => { if (!banner.contains(event.relatedTarget)) start() })
+    show(0)
+    start()
   }
 
   function filteredNews() {
@@ -404,6 +464,7 @@
     engineStatus.textContent = appState.phase === 'refreshing' ? 'Refreshing public providers…' : `${appState.phase === 'degraded' ? 'Degraded / cached' : 'Local'} · updated ${relativeTime(appState.lastUpdated)}`
     engineDot.classList.toggle('is-degraded', appState.phase === 'degraded')
     document.title = `${ui.view[0].toUpperCase() + ui.view.slice(1)} — T365 Terminal`
+    setupBanner()
   }
 
   function setView(view) {
@@ -513,6 +574,8 @@
     if (keyButton) { ui.selectedKey = keyButton.dataset.key; render(); return }
     const filterButton = event.target.closest('[data-filter]')
     if (filterButton) { ui.directionFilter = filterButton.dataset.filter; render(); return }
+    const summaryRangeButton = event.target.closest('[data-summary-range]')
+    if (summaryRangeButton) { ui.summaryRange = summaryRangeButton.dataset.summaryRange; render(); return }
     const newsTag = event.target.closest('[data-news-tag]')
     if (newsTag) {
       if (newsTag.dataset.newsKind === 'topic') {

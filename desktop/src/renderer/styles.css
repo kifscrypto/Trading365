@@ -242,14 +242,24 @@ svg { display: block; }
 .promo-banner-link:hover { filter: brightness(1.08); }
 .promo-banner-img { display: block; width: 100%; height: auto; }
 .promo-banner-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px 1px; }
+.promo-banner-foot-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.promo-dots { display: flex; gap: 2px; }
+.promo-dot { position: relative; width: 16px; height: 16px; border: 0; background: transparent; padding: 0; }
+.promo-dot::after { position: absolute; inset: 5px; border-radius: 50%; background: var(--dim); content: ""; transition: background-color 140ms ease, transform 140ms ease; }
+.promo-dot:hover::after { background: var(--text); }
+.promo-dot.is-active::after { background: var(--gold); transform: scale(1.35); }
 .promo-eyebrow { color: var(--gold); font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .promo-disclosure { margin: 0; color: var(--dim); font-size: 8px; }
 .perf-summary { margin-bottom: 14px; overflow: hidden; }
-.perf-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+.perf-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
 .perf-item { display: flex; flex-direction: column; gap: 4px; background: var(--panel); padding: 12px 14px; }
 .perf-item > span { color: var(--dim); font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
 .perf-item strong { font-size: 15px; font-weight: 700; }
 .perf-sym { color: var(--muted); font-size: 10px; font-weight: 600; }
+.perf-range { display: inline-flex; gap: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); padding: 2px; }
+.perf-range-btn { border: 0; border-radius: 4px; background: transparent; padding: 4px 9px; color: var(--dim); font-size: 10px; font-weight: 600; }
+.perf-range-btn:hover { color: var(--text); }
+.perf-range-btn.is-active { background: var(--panel-hover); color: var(--text); }
 .filter-group { display: inline-flex; gap: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); padding: 3px; }
 .filter-button { min-width: 48px; border: 0; border-radius: 4px; background: transparent; padding: 5px 9px; color: var(--dim); font-size: 10px; }
 .filter-button:hover { color: var(--text); }
