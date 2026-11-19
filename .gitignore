@@ -39,3 +39,6 @@ desktop/node_modules/
 desktop/dist/
 desktop/release*/
 .superpowers/
+
+# Local T365 installer artifacts
+/T365-*-Setup-*.exe
