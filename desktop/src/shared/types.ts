@@ -160,6 +160,14 @@ export interface UpdateInfo {
   releasedAt: string | null
 }
 
+export type UpdateState = 'idle' | 'available' | 'downloading' | 'downloaded' | 'error'
+
+export interface UpdateStatus {
+  state: UpdateState
+  percent: number | null
+  version: string | null
+}
+
 export interface T365Api {
   getPartners(): Promise<readonly Partner[]>
   getState(): Promise<AppState>
@@ -174,6 +182,9 @@ export interface T365Api {
   getUpdate(): Promise<UpdateInfo | null>
   openUpdate(): Promise<void>
   onUpdate(callback: (info: UpdateInfo | null) => void): () => void
+  installUpdate(): Promise<void>
+  getUpdateStatus(): Promise<UpdateStatus>
+  onUpdateStatus(callback: (status: UpdateStatus) => void): () => void
   onState(callback: (state: AppState) => void): () => void
 }
 

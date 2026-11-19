@@ -7,6 +7,10 @@ files:
 extraResources:
   - from: src/renderer
     to: renderer
+publish:
+  provider: github
+  owner: kifscrypto
+  repo: Trading365
 win:
   icon: build/icon.png
   target:

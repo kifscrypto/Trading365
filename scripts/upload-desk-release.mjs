@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { copyFileSync, mkdtempSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -25,7 +25,15 @@ const legacyPath = path.join(staging, LEGACY_ASSET)
 copyFileSync(file, stablePath)
 copyFileSync(file, legacyPath)
 
-for (const asset of [file, stablePath, legacyPath]) {
+// electron-updater reads latest.yml (and the blockmap for differential
+// downloads) from the newest release, so upload those alongside the installer.
+const assets = [file, stablePath, legacyPath]
+const latestYml = path.join(path.dirname(file), 'latest.yml')
+const blockmap = `${file}.blockmap`
+if (existsSync(latestYml)) assets.push(latestYml)
+if (existsSync(blockmap)) assets.push(blockmap)
+
+for (const asset of assets) {
   execFileSync('gh', ['release', 'upload', tag, asset, '--clobber'], { stdio: 'inherit' })
 }
 execFileSync('gh', ['release', 'edit', tag, '--latest'], { stdio: 'inherit' })

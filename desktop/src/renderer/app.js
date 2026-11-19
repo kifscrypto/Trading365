@@ -10,6 +10,7 @@
   const ui = { view: 'overview', selectedKey: '', directionFilter: 'all', newsQuery: '', newsCategory: 'all', summaryRange: '24h' }
   let appState = null
   let updateInfo = null
+  let updateStatus = null
   let partners = []
   let bannerTimer
   let toastTimer
@@ -426,8 +427,22 @@
   }
 
   function updateBanner() {
-    if (!updateInfo) return ''
-    return `<div class="banner banner-update"><div class="banner-text"><strong>Update available.</strong><span>T365 Terminal ${escapeHtml(updateInfo.latestVersion)} is ready — you are on ${escapeHtml(updateInfo.currentVersion)}.</span></div><button class="banner-cta" type="button" data-action="open-update">Download update →</button></div>`
+    const version = updateInfo?.latestVersion || updateStatus?.version
+    if (!version) return ''
+    const downloaded = updateStatus?.state === 'downloaded'
+    const downloading = updateStatus?.state === 'downloading'
+    const current = updateInfo?.currentVersion || appState?.appVersion || ''
+    const detail = downloaded
+      ? `T365 Terminal ${escapeHtml(version)} is installed and ready — restart to finish.`
+      : downloading
+        ? `Downloading T365 Terminal ${escapeHtml(version)}… ${updateStatus.percent ?? 0}%`
+        : `T365 Terminal ${escapeHtml(version)} is available${current ? ` — you are on ${escapeHtml(current)}` : ''}.`
+    const button = downloaded
+      ? `<button class="banner-cta" type="button" data-action="install-update">Restart to update →</button>`
+      : downloading
+        ? `<button class="banner-cta" type="button" disabled>Downloading…</button>`
+        : `<button class="banner-cta" type="button" data-action="open-update">Download update →</button>`
+    return `<div class="banner banner-update"><div class="banner-text"><strong>Update available.</strong><span>${detail}</span></div>${button}</div>`
   }
 
   function licenceBanner() {
@@ -608,6 +623,7 @@
     if (action === 'refresh') { void refresh(); return }
     if (action === 'activate-license') { void activateLicense(); return }
     if (action === 'open-update') { void window.t365.openUpdate().catch(error => showToast(error.message)); return }
+    if (action === 'install-update') { void window.t365.installUpdate().catch(error => showToast(error.message)); return }
     if (action === 'goto-license') {
       setView('settings')
       requestAnimationFrame(() => {
@@ -636,6 +652,8 @@
   void setupPartners()
   void window.t365.getUpdate().then(info => { updateInfo = info; renderBanners() }).catch(() => {})
   window.t365.onUpdate(info => { updateInfo = info; renderBanners() })
+  void window.t365.getUpdateStatus().then(status => { updateStatus = status; renderBanners() }).catch(() => {})
+  window.t365.onUpdateStatus(status => { updateStatus = status; renderBanners() })
   window.t365.onState(state => { appState = state; render() })
   window.t365.getState().then(state => { appState = state; render() }).catch(error => {
     appView.innerHTML = `<section class="panel empty-state"><strong>Could not read local state</strong><p>${escapeHtml(error.message)}</p></section>`

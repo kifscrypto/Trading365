@@ -8,7 +8,7 @@ export const DESK_PRODUCT = {
   amount: 299,
   majorVersion: 1,
   updateDays: 365,
-  version: '1.2.5',
+  version: '1.3.0',
   downloadPath: '/api/desk/download',
 } as const
 

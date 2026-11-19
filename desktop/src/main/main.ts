@@ -4,13 +4,20 @@ import { AppService } from './service'
 import { Store } from './store'
 import { PARTNERS } from '../shared/partners'
 import { checkForUpdate } from './updates'
-import type { AppState, UpdateInfo } from '../shared/types'
+import { autoUpdater } from 'electron-updater'
+import type { AppState, UpdateInfo, UpdateStatus } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let store: Store
 let service: AppService
 let updateInfo: UpdateInfo | null = null
 let notifiedVersion: string | null = null
+let updateStatus: UpdateStatus = { state: 'idle', percent: null, version: null }
+
+function sendUpdateStatus(status: UpdateStatus): void {
+  updateStatus = status
+  mainWindow?.webContents.send('update:status', status)
+}
 
 async function refreshUpdateInfo(): Promise<void> {
   updateInfo = await checkForUpdate(app.getVersion())
@@ -22,6 +29,21 @@ async function refreshUpdateInfo(): Promise<void> {
       body: `Version ${updateInfo.latestVersion} is ready — you are on ${updateInfo.currentVersion}.`,
     }).show()
   }
+}
+
+// Auto-update: electron-updater downloads the new release in the background and
+// installs it silently on quit / when the user clicks "Restart to update".
+function setupAutoUpdater(): void {
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.on('update-available', info => sendUpdateStatus({ state: 'available', percent: null, version: info.version }))
+  autoUpdater.on('download-progress', progress => sendUpdateStatus({ state: 'downloading', percent: Math.round(progress.percent), version: updateStatus.version }))
+  autoUpdater.on('update-downloaded', info => sendUpdateStatus({ state: 'downloaded', percent: 100, version: info.version }))
+  autoUpdater.on('error', error => {
+    console.error('[auto-update]', error)
+    sendUpdateStatus({ state: 'error', percent: null, version: null })
+  })
+  void autoUpdater.checkForUpdates().catch(error => console.error('[auto-update] check failed:', error))
 }
 
 function publish(state: AppState): AppState {
@@ -52,6 +74,8 @@ function registerIpc(): void {
     if (!updateInfo) throw new Error('No update is available.')
     await shell.openExternal(updateInfo.downloadUrl)
   })
+  ipcMain.handle('update:status:get', () => updateStatus)
+  ipcMain.handle('update:install', () => { autoUpdater.quitAndInstall(true, true) })
   ipcMain.handle('calendar:import', async () => {
     if (!mainWindow) return store.getState()
     return publish(await service.importCalendar(mainWindow))
@@ -115,6 +139,7 @@ app.whenReady().then(async () => {
   createWindow()
   service.start(publish)
   void refreshUpdateInfo()
+  if (app.isPackaged) setupAutoUpdater()
   setInterval(() => { void refreshUpdateInfo() }, 6 * 3600e3)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

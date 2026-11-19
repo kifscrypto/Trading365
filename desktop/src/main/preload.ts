@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppState, T365Api, UpdateInfo } from '../shared/types'
+import type { AppState, T365Api, UpdateInfo, UpdateStatus } from '../shared/types'
 
 const api: T365Api = {
   getPartners: () => ipcRenderer.invoke('partners:get'),
@@ -18,6 +18,13 @@ const api: T365Api = {
     const listener = (_event: Electron.IpcRendererEvent, info: UpdateInfo | null) => callback(info)
     ipcRenderer.on('update', listener)
     return () => { ipcRenderer.removeListener('update', listener) }
+  },
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  getUpdateStatus: () => ipcRenderer.invoke('update:status:get'),
+  onUpdateStatus: callback => {
+    const listener = (_event: Electron.IpcRendererEvent, status: UpdateStatus) => callback(status)
+    ipcRenderer.on('update:status', listener)
+    return () => { ipcRenderer.removeListener('update:status', listener) }
   },
   onState: callback => {
     const listener = (_event: Electron.IpcRendererEvent, state: AppState) => callback(state)
